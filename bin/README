@@ -68,3 +68,8 @@ local-job-start -- Launch a new job on the local machine.
 local-job-status -- Get the status of a job running on the local machine, given
                     the path to its directory.
 
+== Petacat Commands ==
+
+petacat-apply-c2 -- Use an previously trained SVM model to classify an image.
+petacat-learn-c2 -- Given a set of training images, compute the C2 activity from
+                    an HMAX-like model and train an SVM classifier.

@@ -1,0 +1,85 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Given (binary class) labelled training images, imprint prototypes from
+# positive examples only. Transform all training examples using prototypes, and
+# learn SVM model.
+#
+
+set -e
+
+if [[ "$#" != 5 ]]; then
+  echo "usage: $0 NUM-PROTOTYPES OPTIONS-FILE POS-IMAGE-DIR NEG-IMAGE-DIR XFORM-DIR" \
+    1>&2
+  exit -1
+fi
+
+NUM_PROTOS=$1
+OPTIONS_FILE=$2
+POS=$3
+NEG=$4
+RESULTS=$5
+
+# Setup results directory
+function Setup {
+  echo "Setting up xform directory: $RESULTS"
+  mkdir -p $RESULTS
+  # Options file may be plain text, so we convert it here
+  python -c "from glimpse import core, util; util.Store(core.LoadOptions('$OPTIONS_FILE'))" \
+    > $RESULTS/options
+  mkdir -p $RESULTS/features/{pos,neg}
+  for F in $POS/*; do echo $(basename $F); done > $RESULTS/pos-files
+  ( cd $RESULTS/features/pos; xargs mkdir < ../../pos-files )
+  for F in $NEG/*; do echo $(basename $F); done > $RESULTS/neg-files
+  ( cd $RESULTS/features/neg; xargs mkdir < ../../neg-files )
+  echo "Imprinting S2 prototypes"
+  imprint-random-prototypes -P $NUM_PROTOS -o "$RESULTS/options" -r "$RESULTS/s2.protos" "$POS"
+}
+
+# Compute C2 activity
+function ComputeC2Activity {
+  echo "Computing C2 activity for training images"
+  export TRANSFORM_ARGS="-o $RESULTS/options -l it -s feature-vector -p $RESULTS/s2.protos"
+  transform-dir -q $POS $RESULTS/features/pos < $RESULTS/pos-files
+  transform-dir -q $NEG $RESULTS/features/neg < $RESULTS/neg-files
+  for F in pos neg; do
+    while read G; do
+      echo $RESULTS/features/$F/$G/feature-vector
+    done < $RESULTS/$F-files \
+      | xargs np-concat > $RESULTS/$F-features.dat
+  done
+}
+
+function TrainSvm {
+  echo "Training linear SVM model"
+  np-to-svm $RESULTS/pos-features.dat $RESULTS/neg-features.dat \
+    > $RESULTS/train.svm
+  svm-scale -s $RESULTS/svm.scale-params $RESULTS/train.svm \
+    > $RESULTS/scaled-train.svm
+  svm-train -s 0 -t 0 $RESULTS/scaled-train.svm $RESULTS/svm.model \
+    > $RESULTS/svm.log
+}
+
+function TestSvm {
+  echo "Testing SVM on positive training images"
+  for IMAGE in $POS/*; do
+    # Apply SVM using entire image as input.
+    petacat-apply-c2 $RESULTS $IMAGE 0 0 0 0
+  done
+  echo "Testing SVM on negative training images"
+  for IMAGE in $NEG/*; do
+    # Apply SVM using entire image as input.
+    petacat-apply-c2 $RESULTS $IMAGE 0 0 0 0
+  done
+}
+
+Setup
+ComputeC2Activity
+TrainSvm
+TestSvm
