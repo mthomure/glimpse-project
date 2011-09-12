@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage terms.
+
+#
+# Repeatedly split corpus into various train/test segments, and apply SVM.
+#
+
+BIN_DIR=$(dirname $0)
+: ${REPS:=10}
+: ${SPLITS:=10}
+#~ SVMOPTS=
+
+#set -x
+
+while getopts "br:s:t:uv" F; do
+  case $F in
+    "b" )
+      SVMOPTS+=" -$F"
+      ;;
+    "o" )
+      SVMOPTS+=" -$F"
+      ;;
+    "r" )
+      REPS=$OPTARG
+      ;;
+    "s" )
+      SPLITS=$OPTARG
+      ;;
+    "t")
+      SVMOPTS+=" -$F $OPTARG"
+      ;;
+    "u" )
+      SVMOPTS+=" -$F"
+      ;;
+    "v" )
+      VERBOSE=1
+      ;;
+  esac
+done
+
+# Strip off optional arguments
+shift $((OPTIND-1))
+
+if [[ "$#" < 3 ]]; then
+  echo "usage: $0 [options] POS NEG RESULT-DIR"
+  echo "options:"
+  echo "  -r NUM  Perform NUM repetitions (default is 10)"
+  echo "  -s NUM  Use NUM splits per repetition (default is 10)"
+  echo "Perform SPLITS-by-REPS way cross-validation of SVM accuracy (REPS and SPLITS defaults to 10). Also accepts options used by bin/svm."
+  exit -1
+fi
+
+POS=$1
+NEG=$2
+RESULT_DIR=$3
+shift 3
+
+shopt -s extglob
+mkdir -p $RESULT_DIR 2>/dev/null
+
+for ((R=0; $R < $REPS; R+=1)); do
+  if [[ "$VERBOSE" == 1 ]]; then
+    echo -n "Repeat $R:"
+  fi
+  RDIR=$RESULT_DIR/repeat$R
+  mkdir -p $RDIR/{pos,neg,splits}
+  # Shuffle and split data
+  $BIN_DIR/np-split -i $POS -n $SPLITS -s $RDIR/pos || exit -1
+  $BIN_DIR/np-split -i $NEG -n $SPLITS -s $RDIR/neg || exit -1
+  for ((S=0; $S < $SPLITS; S+=1)); do
+    if [[ "$VERBOSE" == 1 ]]; then
+      echo -n " *"
+    fi
+    SDIR=$RDIR/splits/$S
+    mkdir -p $SDIR/svm-out
+    # Create training and testing sets
+    for F in pos neg; do
+      cp $RDIR/$F/$S $SDIR/train-$F
+      $BIN_DIR/np-concat $RDIR/$F/!($S) > $SDIR/test-$F || exit -1
+    done
+    # Run SVM on generated data
+    $BIN_DIR/svm $SVMOPTS $SDIR/{train,test}-{pos,neg} $SDIR/svm-out $SVM_TYPE > $SDIR/accuracy.csv || exit -1
+  done
+  if [[ "$VERBOSE" == 1 ]]; then
+    echo
+  fi
+done
+
+cat $RESULT_DIR/repeat*/splits/*/accuracy.csv \
+| tee $RESULT_DIR/accuracy.csv \
+| $BIN_DIR/codex -i c -o c -c 'o.mean(0).reshape(1,-1)'

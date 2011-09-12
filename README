@@ -1,0 +1,40 @@
+
+============== DEPENDENCIES ===================
+
+Assumes the following software is already installed.
+
+python 2.x (only tested on 2.6)
+pil -- for image I/O in Python
+  libjpeg -- to enable I/O of JPEG formatted images in PIL
+numpy -- efficient array access in Python
+bash -- for experiment control scripts (many commands can still be run without
+        this)
+LIBSVM -- for building and applying SVM classification models (image
+          transformations can still be applied without this)
+
+Additionally, the following software is very useful.
+
+IPython -- feature-rich interactive Python environment (great for investigating
+           experimental results)
+SVM-light -- alternative SVM package
+
+Finally, the following software is useful for those working on Glimpse development.
+
+cython -- this project is used to glue together the C++ and Python code
+google-perftools -- for profiling Python extensions written in C/C++
+  yep -- thin Python convenience layer around google-perftools
+
+=============== INSTALL =======================
+
+This project currently expects to be used in-place (i.e., not installed to the
+system-wide python library). Thus, the install procedure is simply the
+following.
+
+  python setup.py build
+  cd glimpse/core/
+  ln -s ../../build/lib.*/glimpse/core/c_src.so
+
+If you plan to run experiments using a support vector machine (SVM) as the
+classifier, you must have either LIBSVM for SVM-light installed (i.e., on your
+path).
+

@@ -1,0 +1,24 @@
+#!/usr/bin/python
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Write a pickled numpy array as a set of instances in LIBSVM format.
+#
+
+from glimpse.util import Load
+from glimpse.util.svm import ActivityToSvm
+import sys
+
+def main():
+  if len(sys.argv) < 3:
+    sys.exit("usage: %s POS.dat NEG.dat > OUT.svm" % sys.argv[0])
+  pos, neg = map(Load, sys.argv[1:3])
+  ActivityToSvm(pos, neg, sys.stdout)
+
+main()
+

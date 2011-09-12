@@ -1,0 +1,64 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Imprints some number of prototypes for an experiment, based on an existing
+# corpus split.
+# Reads: training set from RESULT_DIR/splits
+# Writes: prototypes to RESULT_DIR/s2.protos
+#
+
+set -e
+
+#~ IMPRINT_ARGS=
+#~ NUM_PROTOTYPES=
+#~ RESULT_DIR=
+: ${NUM_PROCS:=4}
+
+if [[ "$#" -lt 3 ]]; then
+  echo "usage: $0 NUM_PROTOS CORPUS-DIR RESULT-DIR" 1>&2
+  exit -1
+fi
+
+D=$(dirname $0)
+NUM_PROTOTYPES=$1
+CORPUS_DIR=$2
+RESULT_DIR=$3
+
+if [[ ! -d "$RESULT_DIR/splits" ]]; then
+  echo "Missing split information" 1>&2
+  exit -1
+fi
+TRAIN_FILES=$(cat $RESULT_DIR/splits/train-*.files)
+
+# Compute the number of prototypes to imprint from each image. If this is
+# uniform, split imprint job to multiple processes. Otherwise, use single
+# process.
+NUM_IMAGES=$(echo $TRAIN_FILES | wc -w)
+PROTOS_PER_IMG=$(echo "scale=0; $NUM_PROTOTYPES / $NUM_IMAGES" | bc)
+BCFUNCS=$(cat <<EOF
+  scale=10
+  define int(x) { auto savescale; savescale = scale; scale = 0; result = x/1; scale = savescale; return result }
+  define ceil(x) { if (x>0) { if (x-int(x)>0) return int(x)+1 else return int(x) } else return -floor(-x) }
+EOF
+)
+PROTOS_PER_IMG_CEIL=$(echo -e "$BCFUNCS \n ceil($NUM_PROTOTYPES / $NUM_IMAGES)" | bc)
+
+PROTOTYPE_FILE=$RESULT_DIR/s2.protos
+if [[ "$PROTOS_PER_IMG" == "$PROTOS_PER_IMG_CEIL" ]]; then
+  # Imprint prototypes from training set
+  (for F in $TRAIN_FILES; do
+    echo $CORPUS_DIR/$F
+  done \
+  | $D/multi-launch -n $NUM_PROCS $D/imprint-random-prototypes -s -p $PROTOS_PER_IMG $IMPRINT_ARGS \
+  | $D/np-concat -s > $PROTOTYPE_FILE)
+else
+  echo "NOTE: Using single-process imprinting -- modify number of prototypes or training files to use multiple processes."
+  FILES=$(for F in $TRAIN_FILES; do echo $CORPUS_DIR/$F; done)
+  $D/imprint-random-prototypes -P $NUM_PROTOTYPES $IMPRINT_ARGS $FILES > $PROTOTYPE_FILE
+fi

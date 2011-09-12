@@ -1,0 +1,98 @@
+#!/usr/bin/python
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+from glimpse.core.misc import MakeRandomKernels
+from glimpse.util.random import HistogramSampler
+from glimpse import util
+import math
+import numpy
+import sys
+
+ALG_SHUFFLE = "s"
+ALG_HISTOGRAM = "h"
+ALG_NORMAL = "n"
+
+ALL_ALGORITHMS = (ALG_SHUFFLE, ALG_HISTOGRAM, ALG_NORMAL)
+
+def main():
+  opts, args = util.GetOptions("a:b:f:k:m:n:s:")
+  ifname = None
+  algorithm = None
+  nbins = 100
+  normal_mean = 0
+  normal_std = 1
+  nkernels = 100
+  kshape = None
+  for opt,arg in opts:
+    if opt == '-a':
+      if alg not in ALL_ALGORITHMS:
+        raise util.UsageException("Bad algorithm: %s" % arg)
+      algorithm = arg
+    elif opt == '-b':
+      nbins = int(arg)
+    elif opt == '-f':
+      ifname = arg
+    elif opt == '-k':
+      kshape = map(int, arg.split(","))
+    elif opt == '-m':
+      normal_mean = float(arg)
+    elif opt == '-n':
+      nkernels = int(arg)
+    elif opt == '-s':
+      normal_std = float(arg)
+  if algorithm == None:
+    raise util.UsageException("Missing algorithm")
+  if (algorithm == ALG_SHUFFLE or algorithm == ALG_HISTOGRAM) and ifname == None:
+    raise util.UsageException("File of input kernels required")
+  idata = util.Load(ifname)
+  if algorithm == ALG_SHUFFLE:
+    if nkernels <= len(idata):
+      raise util.UsageException("Asked for %d shuffled kernels, but only %d available" % (nkerels, len(idata)))
+    indices = numpy.arange(len(idata))
+    numpy.random.shuffle(indices)
+    indices = indices[:nkernels]
+    odata = idata[indices]
+    for x in odata:
+      numpy.random.shuffle(x)
+  elif algorithm == ALG_HISTOGRAM:
+    sampler = HistogramSampler(idata, nbins)
+    kshape = numpy.array(idata.shape[1:])
+    nelements = nkernels * kshape.prod()
+    oshape = [nkernels] + list(kshape)
+    odata = sampler.Sample(nelements).reshape(oshape).astype(numpy.float32)
+    for x in odata:
+      x /= math.sqrt(numpy.dot(x.flat, x.flat))
+  else:
+    if kshape == None:
+      raise util.UsageException("Missing kernel shape for algorithm %s" %
+          algorithm)
+    odata = MakeRandomKernels(nkernels, kshape, mean = normal_mean,
+        std = normal_std)
+  util.Store(odata, sys.stdout)
+
+if __name__ == '__main__':
+  try:
+    main()
+  except util.UsageException, e:
+    if e.msg:
+      print >>sys.stderr, e.msg
+    util.Usage(
+      "[options] > RANDOM.kernels\n"
+      "options:\n"
+      "  -a ALG  Generate kernels using algorithm ALG\n"
+      "            (s)huffle input kernels\n"
+      "            sample from point-wise (h)istogram of input kernels\n"
+      "            sample from fixed (n)ormal distribution\n"
+      "  -b NUM  Set number of bins for histogram of input data (default is 100).\n"
+      "  -f FILE Read input kernels from FILE\n"
+      "  -m MEAN Set the mean of the normal distribution\n"
+      "  -n NUM  Set number of kernels to generate (default is 100). If ALG\n"
+      "          is 's', then NUM can not be more than the number of input kernels.\n"
+      "  -s STD  Set the standard deviation of the normal distribution"
+    )
+

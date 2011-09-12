@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Launch a new job on the local host. Note that the executed CMDs are relative to the job directory.
+#
+
+if [[ "$#" -lt 2 ]]; then
+  echo "usage: $0 JOB-DIR CMD ..." 1>&2
+  exit -1
+fi
+
+if [[ ! -d $1 ]]; then
+  echo "JOB-DIR ($1) must exist" 1>&2
+  exit -1
+fi
+
+cd $1
+JOB_DIR=$PWD
+
+# Create the ".done" file when the process completes.
+trap "{ touch '$JOB_DIR/.done'; }" EXIT
+shift
+
+# Log the ID of this process. Use "$$" instead of "$BASHPID", since the later does not work reliably on Mac OS X (at least on the older version of bash that runs there by default).
+echo $$ > $JOB_DIR/.pid
+
+if [[ -d /proc ]]; then
+  # Get current script's PGID
+  echo $(ps -p $BASHPID h -o pgid) > $JOB_DIR/.pgid
+fi
+
+SYSTEM=$(python -c 'import platform; print platform.system().lower()')
+if [[ "$SYSTEM" == "darwin" ]]; then
+  # This is a hack to work around the lack of a decent "time" utility on MacOS.
+  # 1. start a new nice'd instance of bash
+  # 2. start a subshell, whose stderr output is written to .time
+  # 3. time the commands, with command's stdout/stderr captured per "$@"
+  # Note that this has the drawback that all stderr output is sent to ".time"!
+  echo \(time "$@"\) 2\>$JOB_DIR/.time | nice bash
+else
+  # The following command works better for Linux.
+  nice /usr/bin/time -o $JOB_DIR/.time "$@"
+fi

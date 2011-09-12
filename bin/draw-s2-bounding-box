@@ -1,0 +1,34 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Draws bounding box around C1 patch corresponding to given S2 prototype
+# location.
+#
+
+if [[ "$#" -lt 4 ]]; then
+  echo "usage:" $(basename $0) "IMAGE SCALE S2_Y S2_X [options]" 1>&2
+  echo "where [options] are passed to draw-bounding-box.py" 1>&2
+  echo "To write image to disk, e.g., use command:" 1>&2
+  echo $(basename $0) "IMAGE SCALE S2_Y S2_X -s OUTPUT.png" 1>&2
+  echo "Note! This script assumes S2 prototypes have a width of 7 units." 1>&2
+  exit -1
+fi
+
+D=$(dirname $0)
+IMG=$1
+SCALE=$2
+Y=$3
+X=$4
+
+Y0=$((2*$Y-3))
+X0=$((2*$X-3))
+
+shift 4
+$D/draw-bounding-box -i "$@" -l c1 $IMG $SCALE $Y0 $X0 $(($Y0+7)) $(($X0+7))
+

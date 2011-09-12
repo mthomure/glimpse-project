@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+set -e
+
+# Determine the number of concurrent in-flight threads handled by this system.
+if [[ "${OSTYPE:0:5}" == "linux" ]]; then
+  N=$(grep processor /proc/cpuinfo | wc -l)
+elif [[ "${OSTYPE:0:6}" == "darwin" ]]; then
+  N=$(sysctl hw.ncpu | cut -d' ' -f 2)
+else
+  echo "Error detecting number of cores" 1>&2
+  exit -1
+fi
+
+echo $N

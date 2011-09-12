@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Get the status of a job, given a path to its local directory.
+#
+
+if [[ "$#" != 1 ]]; then
+  echo "usage: $0 JOB-DIR"
+  exit -1
+fi
+
+D=$1
+
+echo -n "$D "
+
+# States strings used below are parsed by job-manager.py
+if [[ -s "$D/err" ]]; then
+  echo "error"
+elif [ -f "$D/.done" ]; then
+  echo "done"
+elif [ -f "$D/log" ]; then
+  echo "busy"
+else
+  echo "unknown"
+fi
+

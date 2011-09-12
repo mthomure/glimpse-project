@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+#
+# Create training and testing splits for an experiment.
+# Reads: image names from CORPUS_DIR
+# Writes: training and test info to RESULT_DIR/splits
+#
+
+set -e
+
+if [[ "$#" -lt 2 ]]; then
+  echo "usage: $0 CORPUS-DIR RESULT-DIR" 1>&2
+  exit -1
+fi
+
+D=$(dirname $0)
+CORPUS_DIR=$1
+RESULT_DIR=$2
+
+if [[ ! -d "$CORPUS_DIR" ]]; then
+  echo "CORPUS_DIR ($CORPUS_DIR) not found" 1>&2
+  exit -1
+fi
+
+CLS_LIST=$(for F in $CORPUS_DIR/*; do echo $(basename $F); done)
+mkdir $RESULT_DIR/splits
+for CLS in $CLS_LIST; do
+  for F in $CORPUS_DIR/$CLS/*; do
+    echo $CLS/$(basename $F)
+  done \
+  | $D/np-split -sn 2 -l train-$CLS.files,test-$CLS.files -I c -O c $RESULT_DIR/splits
+done
+
