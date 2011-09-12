@@ -1,1 +1,4 @@
 *.pyc
+build
+glimpse/core/c_src.cpp
+glimpse/core/c_src.so
