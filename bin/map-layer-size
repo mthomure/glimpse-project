@@ -1,0 +1,42 @@
+#!/usr/bin/python
+
+# Compute the image size required to support a model layer (e.g., C2) with at 
+# least the given spatial extent (e.g., 3x3 units).
+
+import sys
+from glimpse import core, util
+
+def main():
+  opts, args = util.GetOptions("f:o:t:")
+  options = core.MakeDefaultOptions()
+  from_layer = None
+  to_layer = 'image'
+  output_start_coord = True
+  for opt,arg in opts:
+    if opt == '-f':
+      from_layer = arg
+    elif opt == '-o':
+      options = core.LoadOptions(arg)
+    elif opt == '-t':
+      to_layer = arg
+  if len(args) < 2:
+    raise util.UsageException("Missing spatial extent of model layer")
+  height, width = map(int, args[0:2])
+  if from_layer == None:
+    raise util.UsageException("Missing layer for input coordinates")
+  lsm = core.LayerSizeMapper(options)
+  mapper = lsm.GetMappingFunction(from_layer, to_layer)
+  oh, ow = mapper(height, width)
+  print oh, ow
+
+try:
+  main()
+except util.UsageException, e:
+  if e.msg:
+    print >>sys.stderr, e.msg
+  util.Usage("[options] HEIGHT WIDTH\n"
+      "  -f LAYR  Layer for input coordinates\n"
+      "  -h       Print this help and exit\n"
+      "  -o PATH  Path to options file\n"
+      "  -t LAYR  Layer for output coordinates"
+  )

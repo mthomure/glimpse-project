@@ -1,0 +1,52 @@
+#!/usr/bin/python
+
+# Extract bounding box information from the PASCAL VOC challenge set.
+# Each output line gives a bounding box for a single object. Note that
+# there may be multiple output lines for the same image file.
+# Format of output line is
+#   FILE-NAME TRUNCATED? OCCLUDED? DIFFICULT? BBOX
+# where BBOX has the form
+#   XMIN YMIN XMAX YMAX
+
+from xml.dom import minidom
+import sys
+
+def GetChild(parent, child_name):
+  """Get the first child node with the given tag name."""
+  for c in parent.childNodes:
+    if c.nodeType == c.ELEMENT_NODE and c.nodeName == child_name:
+      return c
+  raise ValueError("No child node named: %s" % child_name)
+
+def GetChildValue(parent, child_name):
+  return GetChild(parent, child_name).firstChild.nodeValue
+
+def GetAnnotations(fh):
+  d = minidom.parse(fh)
+  obj_list = d.getElementsByTagName("object")
+  for o in obj_list:
+    rec = dict((k, GetChildValue(o, k)) for k in ('name', 'truncated', 'occluded', 'difficult'))
+    box = GetChild(o, 'bndbox')
+    rec['bndbox'] = [ int(GetChildValue(box, k)) for k in ('xmin', 'ymin', 'xmax', 'ymax') ]
+    yield rec
+  raise StopIteration
+
+def main():
+  if len(sys.argv) < 3:
+    sys.exit("usage: %s OBJECT-NAME FILE ..." % sys.argv[0])
+  name = sys.argv[1]
+  fnames = sys.argv[2:]
+  # Make name of "-N" match all except "N"
+  if name.startswith("-"):
+    name = name[1:]
+    f = lambda x: x['name'] != name
+  else:
+    f = lambda x: x['name'] == name
+  for fname in fnames:
+    fh = open(fname)
+    for r in filter(f, GetAnnotations(fh)):
+      print fname, r['truncated'], r['occluded'], r['difficult'], " ".join(map(str, r['bndbox']))
+    fh.close()
+
+if __name__ == '__main__':
+  main()

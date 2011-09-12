@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Stop (not pause) a job running on a remote compute node.
+
+set -e
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: $0 JOB-ID [KILL-ARGS]" 1>&2
+  exit -1
+fi
+
+(echo "cd ../.."
+ echo "local-job-kill $@"
+) | $(dirname $0)/remote-job-cmd $1
+

@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Get the status of a job on a remote compute node.
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: $0 JOB-ID ..." 1>&2
+  exit -1
+fi
+
+for F in $@; do
+  (echo "cd ../.."
+   echo "local-job-status $F"
+  ) | $(dirname $0)/remote-job-cmd $F
+done

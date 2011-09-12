@@ -73,3 +73,29 @@ local-job-status -- Get the status of a job running on the local machine, given
 petacat-apply-c2 -- Use an previously trained SVM model to classify an image.
 petacat-learn-c2 -- Given a set of training images, compute the C2 activity from
                     an HMAX-like model and train an SVM classifier.
+
+== Lateral Kernels ==
+apply-odd-kernels -- Apply a set of ODD kernels to the S1 activity of an image.
+learn-odd-kernels -- Construct per-class co-occurrence matrices from training
+                     images.
+show-odd-kernels -- Compute ODD kernel for per-class co-occurrence matrices,
+                    and plot all orientation fields.
+
+== Job Control Scripts ==
+remote-job-manager -- Manages M jobs on N compute nodes, for M > N.
+remote-job-manager-results -- Collect the results from a set of remote jobs.
+remote-job-cmd -- Run a command in the remote job directory.
+remote-job-is-paused -- Determine if a remote job is currently paused.
+remote-job-kill -- Stop (not pause) a job running on a remote compute node.
+remote-job-pause -- Pause a job running on a remote compute node.
+remote-job-start -- Launch a new job on a remote compute node.
+remote-job-status -- Get the status of a job on a remote compute node.
+remote-job-unpause -- Resume a paused job on a remote compute node.
+
+== Other ==
+
+map-region -- Convert a range expressed in one layer's coordinates into the
+              equivalent range in a lower-layer's coordinates.
+map-layer-size -- Compute the image size required to support a model layer
+                  (e.g., C2) with at least the given spatial extent (e.g., 3x3
+                  units).

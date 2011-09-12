@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Extract bounding boxes from a set of images from the VOC dataset, where bounding box
+# geometry has been extracted by voc-get-annotations.
+
+if [[ "$#" < 1 ]]; then
+  echo "usage: $0 CORPUS-DIR" 1>&2
+  exit -1
+fi
+
+D=$1
+
+function GetCrops {
+  T=$1
+  C=0
+  while read F T1 T2 T3 X1 Y1 X2 Y2; do
+    C=$(($C+1))
+    W=$(($X2 - $X1))
+    H=$(($Y2 - $Y1))
+    echo $D/all-images/${F%.xml}.jpg -crop ${W}x${H}+${X1}+${Y1} $D/crops/$T/$C-${F%.xml}.jpg
+  done < $D/annotations/$T \
+   | xargs -P 4 -L 1 convert
+}
+
+for T in target distractor; do
+  echo "Making crops for '$T'"
+  GetCrops $T
+done

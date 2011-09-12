@@ -1,0 +1,54 @@
+#!/bin/bash
+
+function min { if [[ "$1" -lt "$2" ]]; then echo $1; else echo $2; fi; }
+function max { if [[ "$1" -gt "$2" ]]; then echo $1; else echo $2; fi; }
+
+function GetCropSizes {
+  CLASS=$1
+  find crops/$CLASS -name *.jpg \
+    | xargs -L 1 identify \
+    | cut -d' ' -f 1,3 \
+    | awk '{split($2, a, "x"); print $1, a[1], a[2], a[1] * a[2]}' \
+    | while read -a F; do
+        echo -n ${F[*]} ""
+        echo $(min ${F[*]:1:2})
+      done \
+    | sort -rnk 5 \
+    > crops-$CLASS
+}
+
+function GetCropsForLayer {
+  LAYER=$1
+  MIN_CROP_SIZE=$(max $(map-layer-size -f $LAYER -t image 1 1))
+  MIN_CROP_SIZE=$(($MIN_CROP_SIZE + 10))
+
+  echo "GetCropsForLayer(${LAYER})"
+  echo "  MIN_CROP_SIZE: ${MIN_CROP_SIZE}"
+
+  # Find the set of crops that are large enough for the given Glimpse layer
+  for C in target distractor; do
+    awk "{ if (\$5 > ${MIN_CROP_SIZE}) { print \$1 } }" crops-$C > ${LAYER}-crops-$C
+  done
+
+  # Get random subset of crops, using same number of crops for each class
+  NUM_IMAGES=$(min $(for C in target distractor; do wc -l ${LAYER}-crops-$C | cut -d' ' -f 1; done))
+
+  echo "  NUM_IMAGES: ${NUM_IMAGES}"
+
+  for C in target distractor; do
+    mkdir -p ${LAYER}-crops/$C
+    shuf ${LAYER}-crops-$C \
+      | head -n ${NUM_IMAGES} \
+      | xargs cp -t ${LAYER}-crops/$C
+  done
+}
+
+for C in target distractor; do
+  echo "Getting sizes for '$C'"
+  GetCropSizes $C
+done
+
+for L in c1 c2; do
+  echo "Getting crops for layer '$L'"
+  GetCropsForLayer $L
+done

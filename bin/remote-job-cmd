@@ -1,0 +1,40 @@
+#!/bin/bash
+
+# Run a command in the remote job directory (i.e., on a remote compute node).
+
+set -e
+
+BASE=research/results
+
+D=$(dirname $0)
+while getopts "i" F; do
+  case $F in
+    "i" )
+      INTERACTIVE=1
+      ;;
+  esac
+done
+
+# Strip off optional arguments
+shift $((OPTIND-1))
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: $0 [options] JOB-ID < CMDS" 1>&2
+  echo "options:" 1>&2
+  echo "  -i  Start interactive shell instead of reading batch commands " 1>&2
+  echo "      from stdin" 1>&2
+  exit -1
+fi
+
+JOB=$1
+shift
+HOST=$(dirname $JOB)
+
+if [[ "$INTERACTIVE" == 1 ]]; then
+  ssh -t -t $HOST "cd $BASE/$JOB; bash"
+else
+  (echo "set -e"
+   echo "cd $BASE/$JOB"
+   cat
+  ) | ssh -q $HOST
+fi

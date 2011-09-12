@@ -5,10 +5,11 @@
 # Please see the file COPYING in this distribution for usage terms.
 
 #
-# Functions for dealing with images.
+# Functions for dealing with images, and image processing
 #
 
-import numpy
+import numpy as np
+from scipy import fftpack
 import sys
 
 def ImageToArray(img, array = None, transpose = True):
@@ -66,3 +67,39 @@ def ShowImageOnLinux(img, fname = None):
   img.save(path)
   RunCommand("eog -n %s" % path, False, False)
 
+def PowerSpectrum2d(image):
+  return numpy.abs(fftpack.fftshift(fftpack.fft2(image))) ** 2
+
+def PowerSpectrum(image):
+  """Get the 1-D power spectrum (squared-amplitude at each frequency) for a
+  given input image.
+  """
+  # from: http://www.astrobetter.com/fourier-transforms-of-images-in-python/
+  f2d = PowerSpectrum2d(image)
+  # Get sorted radii.
+  x, y = numpy.indices(f2d.shape)
+  center_x = (x.max() - x.min()) / 2.0
+  center_y = (y.max() - y.min()) / 2.0
+  r = numpy.hypot(x - center_x, y - center_y)
+  ind = numpy.argsort(r.flat)
+  r_sorted = r.flat[ind]
+  # Bin the radii based on integer values. First, find the location (offset) for
+  # the edge of each bin.
+  r_int = r_sorted.astype(int)
+  delta_r = r_int[1:] - r_int[:-1]
+  r_ind = numpy.where(delta_r)[0]
+  # Compute the number of elements in each bin.
+  size_per_bin = r_ind[1:] - r_ind[:-1]
+  # Finally, compute the average value for each bin.
+  f_sorted = f2d.flat[ind]
+  f_cumsum = numpy.cumsum(f_sorted, dtype = float)  # total cumulative sum
+  sum_per_bin = f_cumsum[r_ind[1:]] - f_cumsum[r_ind[:-1]]  # cum. sum per bin
+  # Use a circular window
+  size = min(f2d.shape)
+  sum_per_bin = sum_per_bin[: size / 2]
+  size_per_bin = size_per_bin[: size / 2]
+  # Compute the frequency (in cycles per pixel) corresponding to each bin.
+  freq = numpy.arange(0, size / 2).astype(float) / size
+  # Compute the average power for each bin.
+  #~ avg_per_bin = sum_per_bin / size_per_bin
+  return numpy.array([freq, sum_per_bin, size_per_bin])

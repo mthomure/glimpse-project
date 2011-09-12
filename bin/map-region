@@ -1,0 +1,54 @@
+#!/usr/bin/python
+
+# Convert a range expressed in one layer's coordinates into 
+# the equivalent range in a lower-layer's coordinates.
+
+import sys
+from glimpse import core, util
+
+def main():
+  opts, args = util.GetOptions("f:o:r:t:")
+  options = core.MakeDefaultOptions()
+  from_layer = None
+  range_ = None
+  to_layer = 'image'
+  output_start_coord = True
+  for opt,arg in opts:
+    if opt == '-f':
+      from_layer = arg
+    elif opt == '-o':
+      options = core.LoadOptions(arg)
+    elif opt == '-r':
+      xs = map(int, arg.split(","))
+      if len(xs) == 1:
+        range_ = slice(0, xs[0])
+        output_start_coord = False
+      else:
+        range_ = slice(xs[0], xs[1])
+    elif opt == '-t':
+      to_layer = arg
+  if from_layer == None:
+    raise util.UsageException("Missing layer for input coordinates")
+  if range_ == None:
+    raise util.UsageException("Missing coordinate range")
+  rm = core.RegionMapper(options)
+  mapper = rm.GetMappingFunction(from_layer, to_layer)
+  output = mapper(range_)
+  if output_start_coord:
+    print output.start, output.stop
+  else:
+    print output.stop
+
+try:
+  main()
+except util.UsageException, e:
+  if e.msg:
+    print >>sys.stderr, e.msg
+  util.Usage("[options]\n"
+      "  -f LAYR  Layer for input coordinates\n"
+      "  -h       Print this help and exit\n"
+      "  -o PATH  Path to options file\n"
+      """  -r RANG  Coordinate range. Format is "min,max" or "max" -- for the 
+                latter, the "min" coordinate is assumed to be zero)\n"""
+      "  -t LAYR  Layer for output coordinates"
+  )

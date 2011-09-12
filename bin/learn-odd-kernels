@@ -1,0 +1,75 @@
+#!/usr/bin/python
+
+# Construct per-class co-occurrence matrices from a set of training images.
+
+from glimpse import core, util
+import odd
+import sys
+
+import numpy
+numpy.seterr(all = 'raise')
+
+def main():
+  opts, args = util.GetOptions("f:k:m:o:s:S:t:w:")
+  kwidth = 11
+  means = None
+  ofname = sys.stdout
+  options = core.MakeDefaultOptions()
+  s1_kernels = None
+  stds = None
+  step = 25
+#  tau = 0.03
+  tau = None
+#  use_max = False
+  for opt,arg in opts:
+    if opt == '-f':
+      ofname = arg
+    elif opt == '-m':
+#      use_max = True
+      means = util.Load(arg)
+    elif opt == '-o':
+      options = core.LoadOptions(arg)
+    elif opt == '-s':
+      step = int(arg)
+    elif opt == '-S':
+      stds = util.Load(arg)
+    elif opt == '-t':
+      tau = float(arg)
+    elif opt == '-w':
+      kwidth = int(arg)
+      assert kwidth % 2 == 1, "Kernel width must be odd"
+  if len(args) < 1:
+    raise util.UsageException()
+  if means == None:
+    raise util.UsageException("Must specify means")
+
+#  if tau == None:
+#    tau = 0.03
+#  c1_arrays = map(util.Load, args)
+#  weights = odd.learn_weights(kwidth, c1_arrays, step = step, tau = tau, use_max = use_max)
+
+  if tau == None:
+    s1_arrays = [ util.Load(a).max(1) for a in args ]
+    weights = odd.LearnCov(kwidth, s1_arrays, means, step = step)
+  else:
+    s1_arrays = [ util.Load(a).max(1) for a in args ]
+    weights = odd.LearnThresholdedCov(kwidth, s1_arrays, means, step = step, 
+        tau = tau)
+
+  util.Store(weights, ofname)
+
+try:
+  main()
+except util.UsageException, e:
+  if e.msg:
+    print >>sys.stderr, e.msg
+  util.Usage("[options] ACTIVITY [...]\n" + \
+      "  -f PATH  Save weight matrix to file (default: stdout)\n"
+      "  -m FILE  Read per-orientation means from file\n"
+      "  -o PATH  Path to options file\n"
+      "  -s STEP  Sub-sample activity array\n"
+      "  -S FILE  Read per-orientation standard deviations from file\n"
+      "  -t TAU   Threshold for determining 'on' units\n"
+      "  -w SIZE  Kernel width for weight matrix"
+  )
+

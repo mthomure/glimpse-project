@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Quick and dirty script to collect the results from a set of remote jobs.
+
+if [[ "$#" -lt 1 ]]; then
+  echo "usage: $0 JOB-MANAGER.log" 1>&2
+  exit -1
+fi
+
+F=$(mktemp)
+trap "{ rm $F; }" EXIT
+awk '/DONE/ {print $4}' $1 > $F
+awk '/DONE/ {print $2}' $1 \
+  | ssh linuxlab 'cd research/results; xargs exp-get-results' \
+  | paste $F - \
+  | cut -f 2,1,3-
+

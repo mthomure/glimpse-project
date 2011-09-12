@@ -1,0 +1,58 @@
+#!/usr/bin/python
+
+# Given lateral co-occurrence matrices for two classes, compute the ODD kernel
+# and plot the resulting orientation fields.
+
+from glimpse import core
+from glimpse import util
+import sys
+
+def main():
+  opts, args = util.GetOptions("d:ln:o:p:w:")
+  colorbar = False
+  names = ("PosClass", "NegClass")
+  odir = None
+  options = None
+  pad = 0
+  width = 4
+  for opt,arg in opts:
+    if opt == '-d':
+      odir = arg
+    elif opt == '-l':
+      colorbar = True
+    elif opt == '-n':
+      names = arg.split(",")[:2]
+      assert len(names) == 2, "Require name for both postive and negative class"
+    elif opt == '-o':
+      options = core.LoadOptions(arg)
+    elif opt == '-p':
+      pad = int(arg)
+    elif opt == '-w':
+      width = int(arg)
+  if len(args) != 2:
+    raise util.UsageException()
+  weights = map(util.Load, args[:2])
+  util.InitPlot(odir != None)
+  if options == None:
+    core.MakeDefaultOptions()
+  import odd  # Wait to import 'odd' module, since it initializes plotting
+  odd.DrawOddKernels(weights[0], names[0], weights[1], names[1], options, pad, 
+      width, odir = odir, colorbar = colorbar)
+  if odir == None:
+    raw_input()
+
+if __name__ == '__main__':
+  try:
+    main()
+  except util.UsageException as e:
+    if e.msg:
+      print >>sys.stderr, e.msg
+    util.Usage("[options] POS-WEIGHTS NEG-WEIGHTS\n"
+      "  -d DIR  Save plots as image files in given directory\n"
+      "  -l      Show a legend for the colormap next to the plots\n"
+      "  -n STR  Comma-seperated list of class names\n"
+      "  -o FILE Load glimpse transform options from file\n"
+      "  -p INT  Padding between fields\n"
+      "  -w INT  Width of edge in each field"
+    )
+

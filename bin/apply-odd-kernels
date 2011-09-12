@@ -1,0 +1,71 @@
+#!/usr/bin/python
+
+# Apply a set of ODD kernels to the S1 activity of a given image.
+# OUTPUT: number of active edges at each iteration
+
+from glimpse import core, util
+#from glimpse.util import plot
+#from matplotlib import pyplot
+import odd
+import sys
+
+def main():
+  opts, args = util.GetOptions("a:i:I:o:s:t:")
+  ifname = None
+  iterations = 3
+  options = core.MakeDefaultOptions()
+  tau = 0.05
+  s1_activity = None
+  scale = 0.1
+  for opt,arg in opts:
+    if opt == '-a':
+      s1_activity = util.Load(arg)
+    elif opt == '-i':
+      ifname = arg
+    elif opt == '-I':
+      iterations = int(arg)
+    elif opt == '-o':
+      options = core.LoadOptions(arg)
+    elif opt == '-s':
+      scale = float(arg)
+    elif opt == '-t':
+      tau = float(arg)
+  if len(args) < 1:
+    raise util.UsageException()
+  weights = util.Load(args[0])
+  s1k = core.MakeS1Kernels(options)
+  if s1_activity == None:
+    if ifname == None:
+      raise util.UsageException("Must specifiy either activity or image file")
+    # Transform image through S1
+    image, retina = core.BuildRetinaFromFile(ifname, options)
+    s1_activity = core.BuildS1FromRetina(retina, s1k, options)
+  results = odd.ApplyOddKernels(weights, s1_activity.max(1), options, scale = scale,
+      iterations = iterations)
+  print " ".join(str((r > tau).sum()) for r in results)
+
+  return
+
+  figures = range(1, len(results) + 1)
+  titles = ["Initial Activity"] + ["Iteration %d" % x for x in 
+      range(1, len(results))]
+  for r, f, t in zip(results, figures, titles):
+    pyplot.figure(f)
+    plot.Show3DArray(r, normalize = False, colorbar = True)
+    pyplot.suptitle(t)
+  raw_input()
+
+try:
+  main()
+except util.UsageException, e:
+  if e.msg:
+    print >>sys.stderr, e.msg
+  util.Usage("[options] WEIGHTS\n"
+      "  -a FILE  Read activity maps from disk\n"
+      "  -i FILE  Read image from disk, and use S1 layer for activity maps\n"
+      "  -I NUM   Number of iterations for kernel application\n"
+      "  -o PATH  Path to options file\n"
+      "  -s NUM   Scale parameter, controling impact of lateral kernel\n"
+      "  -t NUM   Threshold for unit to be 'on'"
+  )
+
