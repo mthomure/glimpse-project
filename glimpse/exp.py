@@ -1,5 +1,6 @@
-import image
 from glimpse import core, util
+from glimpse.util import image
+from glimpse.core import c_src, misc
 import numpy as np
 import math
 
@@ -140,3 +141,46 @@ def MakeSinusiod2d(kwidth = 11, freq = 0.25, theta = 0, phi = 0):
   Y, X = mgrid[0:kwidth, 0:kwidth] #-w:w+1, -w:w+1]
   Xp = X * cos(theta) + Y * sin(theta)
   return sin(2 * pi * Xp / lambda_ + phi)  # sine wave
+
+
+def MakeMultiscaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
+    shift_orientations, **args):
+  from math import pi
+  if shift_orientations:
+    offset = 0.5
+  else:
+    offset = 0
+  fscale = np.arange(num_scales) / float(num_scales)
+  scales = (kwidth / 4.0) * (0.5 + 1.5 * fscale)
+  lambdas = 2 * scales
+  thetas = pi / num_orientations * (np.arange(num_orientations) + offset)
+  phis = 2 * pi * np.arange(num_phases) / num_phases
+  ks = np.array([[[
+          misc.MakeGaborKernel(kwidth, theta, phi = phi, sigma = sigma,
+              lambda_ = lambda_, **args)
+        for phi in phis ]
+      for theta in thetas ]
+    for sigma, lambda_ in zip(scales, lambdas) ], c_src.activation_dtype)
+  return ks
+
+# gaussian scale is:
+#   sigmas = 11/32 * arange(4, 14, 3) => [ 44/32, 77/32, 110/32, 143/32 ] = [ 1.4, 2.4, 3.4, 4.5 ]
+# sinusoidal wavelength is:
+#   lambdas = sigmas * 2
+#   lambdas = 11/16 * arange(4, 14, 3) => [ 2.8, 4.8, 6.9, 8.9 ]
+# parameterized response frequencies:
+#   fs = 1/lambdas = [ 0.36, 0.21, 0.15, 0.11 ]
+# equivalent down-sampling rates are:
+#   fs / fs[0] = [ 1.0, 0.57142857, 0.4, 0.30769231 ]
+
+# measured response frequencies (via power spectrum):
+#   f_0 = [ 0.357 / 0.162, 0.357 / 0.170 ]
+#   f_1 = [ 0.197 / 0.145, 0.209 / 0.180 ]
+#   f_2 = [ 0.135 / 0.121, 0.154 / 0.135 ]
+#   f_3 = [ 0.117 / 0.109, 0.117 / 0.111 ]
+
+# measured wavelength(via power spectrum):
+#   lambda_0 = [ 2.798 / 0.162, 2.798 / 0.170 ]
+#   lambda_1 = [ 4.785 / 0.180, 5.069 / 0.145 ]
+#   lambda_2 = [ 6.481 / 0.135, 7.420 / 0.121 ]
+#   lambda_3 = [ 8.533 / 0.109, 8.533 / 0.111 ]

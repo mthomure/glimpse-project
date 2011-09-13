@@ -8,6 +8,7 @@
 # Functions for dealing with images, and image processing
 #
 
+import numpy
 import numpy as np
 from scipy import fftpack
 import sys
