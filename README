@@ -10,6 +10,14 @@ only common, freely-available components. A prototype of GLIMPSE has been used
 to encode an HMAX-like model, achieving results comparable with those found in
 the literature.
 
+The GLIMPSE library began as a port of the Petascale Artificial Neural Network
+project [1], and owes a great deal to that work. Additionally, we acknowledge
+NSF Grant 1018967 (PIs: Melanie Mitchell and Garrett Kenyon) for support.
+
+﻿[1] S. Brumby, G. Kenyon, W. Landecker, C. Rasmussen, S. Swaminarayan, and
+    L. Bettencourt, "Large-Scale Functional Models of Visual Cortex for Remote
+    Sensing," in Applied Imagery Pattern Recognition 2009 (AIPR ’09), 2009.
+
 ============== DEPENDENCIES ===================
 
 Assumes the following software is already installed.
