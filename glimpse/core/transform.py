@@ -297,8 +297,6 @@ ALL_OPTIONS = [
 
   ('s1_beta', "Beta parameter of RBF for S1 cells"),
   ('s1_bias', "Term added to the norm of the input vector"),
-  ('s1_fscale', """Fractional scale of the Gabor relative to the kernel width,
-                in the range (0, 1]"""),
   ('s1_kwidth', "Spatial width of input neighborhood for S1 units"),
   ('s1_num_orientations', "Number of different S1 Gabor orientations"),
   ('s1_num_phases', """Number of different phases for S1 Gabors. Using two
@@ -337,7 +335,6 @@ def MakeDefaultOptions(**options):
 
     s1_bias = 1.0,
     s1_beta = 1.0,
-    s1_fscale = 0.25,
     s1_kwidth = 11,
     s1_num_orientations = 8,
     s1_num_phases = 2,

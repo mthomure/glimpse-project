@@ -88,6 +88,7 @@ def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
         detects black edge on white background)
   lambda_ - wavelength of sine function (2/5 * kwidth is good choice, so that
             the kernel can fit 2 1/2 wavelengths total)
+  scale_norm - if true, then rescale kernel vector to have unit norm
   """
   from numpy import sin, cos, exp, mgrid
   from math import pi
@@ -119,6 +120,7 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
                black background, and vice versa)
   shift_orientations - whether to rotate Gabor through a small angle (a value of
                        True helps compensate for aliasing)
+  scale_norm - if true, then rescale kernel vector to have unit norm
   RETURNS: 4-D array of kernel values
   """
   from math import pi

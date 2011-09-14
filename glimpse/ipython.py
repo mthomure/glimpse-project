@@ -34,14 +34,15 @@ if WITH_PLOT:
     if hasattr(x, 'show'):
       x.show()
     elif isinstance(x, np.ndarray):
+      from matplotlib import pyplot
+      pyplot.clf()
       if len(x.shape) == 1:
-        from matplotlib import pyplot
-        pyplot.clf()
         pyplot.plot(x, **args)
       elif len(x.shape) == 2:
         gplot.Show3DArray(x, **args)
       else:
         gplot.Show3DArray(x, **args)
+      pyplot.draw()
     elif isinstance(x, list) or isinstance(x, tuple):
       if isinstance(x[0], np.ndarray):
         gplot.Show2DArrayList(x, **args)
