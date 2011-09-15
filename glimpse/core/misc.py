@@ -134,6 +134,48 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
       for theta in thetas ], c_src.activation_dtype)
   return ks
 
+def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
+    shift_orientations, **args):
+  from math import pi
+  if shift_orientations:
+    offset = 0.5
+  else:
+    offset = 0
+  fscale = np.arange(num_scales) / float(num_scales)
+  scales = (kwidth / 4.0) * (0.5 + 1.5 * fscale)
+  lambdas = 2 * scales
+  thetas = pi / num_orientations * (np.arange(num_orientations) + offset)
+  phis = 2 * pi * np.arange(num_phases) / num_phases
+  ks = np.array([[[
+          MakeGaborKernel(kwidth, theta, phi = phi, sigma = sigma,
+              lambda_ = lambda_, **args)
+        for phi in phis ]
+      for theta in thetas ]
+    for sigma, lambda_ in zip(scales, lambdas) ], c_src.activation_dtype)
+  return ks
+
+# gaussian scale is:
+#   sigmas = 11/32 * arange(4, 14, 3) => [ 44/32, 77/32, 110/32, 143/32 ] = [ 1.4, 2.4, 3.4, 4.5 ]
+# sinusoidal wavelength is:
+#   lambdas = sigmas * 2
+#   lambdas = 11/16 * arange(4, 14, 3) => [ 2.8, 4.8, 6.9, 8.9 ]
+# parameterized response frequencies:
+#   fs = 1/lambdas = [ 0.36, 0.21, 0.15, 0.11 ]
+# equivalent down-sampling rates are:
+#   fs / fs[0] = [ 1.0, 0.57142857, 0.4, 0.30769231 ]
+
+# measured response frequencies (via power spectrum):
+#   f_0 = [ 0.357 / 0.162, 0.357 / 0.170 ]
+#   f_1 = [ 0.197 / 0.145, 0.209 / 0.180 ]
+#   f_2 = [ 0.135 / 0.121, 0.154 / 0.135 ]
+#   f_3 = [ 0.117 / 0.109, 0.117 / 0.111 ]
+
+# measured wavelength(via power spectrum):
+#   lambda_0 = [ 2.798 / 0.162, 2.798 / 0.170 ]
+#   lambda_1 = [ 4.785 / 0.180, 5.069 / 0.145 ]
+#   lambda_2 = [ 6.481 / 0.135, 7.420 / 0.121 ]
+#   lambda_3 = [ 8.533 / 0.109, 8.533 / 0.111 ]
+
 def DrawGaborAsLine(orient, num_orientations = 8, kwidth = 11,
     shift_orientations = False, line_width = 1):
   """Draw the line corresponding to a given Gabor. The generated line is phase
@@ -192,7 +234,7 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
   return s2_kernels
 
 def ImageToInputArray(img):
-  """Load image into memory in the format required by BuildRetinaFromImage().
+  """Load image into memory in the format required by BuildRetinalLayer().
   img - PIL Image object containing pixel data
   RETURNS: 2-D array of image data in the range [0, 1]
   """
@@ -205,7 +247,7 @@ def ImageToInputArray(img):
   array /= 255
   return array
 
-def BuildRetinaFromImage(img, kwidth = 15, kheight = None, bias = 1.0):
+def BuildRetinalLayer(img, kwidth = 15, kheight = None, bias = 1.0):
   """Enhance local image contrast by transforming each pixel into (local)
   standard-Normal random variables.
   img - 2-D (contiguous) array of pixel data in the range [0, 1]. See
