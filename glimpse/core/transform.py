@@ -402,7 +402,7 @@ def BuildRetinaFromImage(img, options):
   """img -- (array) pixel data in the range [0, 1]
   RETURNS (array) retinal data in the range [-1, 1]"""
   if _GetOpt(options, 'retina_enabled'):
-    return misc.BuildRetinaFromImage(img, **_MapOpts(options,
+    return misc.BuildRetinalLayer(img, **_MapOpts(options,
         kwidth = 'retina_kwidth', bias = 'retina_bias'))
   # print >>sys.stderr, "WARN: retinal layer disabled"
   return img * 2 - 1
