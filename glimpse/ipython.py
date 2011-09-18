@@ -10,8 +10,16 @@ import os
 load = util.Load
 store = util.Store
 
-def stats(x):
-  return dict((k, getattr(x, k)()) for k in ('min', 'max', 'mean', 'std'))
+class stats(object):
+  def __init__(self, x):
+    self.min = x.min()
+    self.max = x.max()
+    self.mean = x.mean()
+    self.std = x.std()
+  def __str__(self):
+    return "min = %s, max = %s, mean = %s, std = %s" % (self.min, self.max, self.mean, self.std)
+  def __repr__(self):
+    return str(self)
 
 def array3D(x):
   """Reshape array to have three dimensions, collapsing remaining dimensions."""
@@ -35,7 +43,6 @@ if WITH_PLOT:
       x.show()
     elif isinstance(x, np.ndarray):
       from matplotlib import pyplot
-      pyplot.clf()
       if len(x.shape) == 1:
         pyplot.plot(x, **args)
       elif len(x.shape) == 2:
