@@ -39,6 +39,7 @@ def PoolC1(s1):
   s1 = s1.max(1)
   c1, coords = misc.BuildComplexLayer(s1, kwidth = C1_KWIDTH,
       kheight = C1_KWIDTH, scaling = 2)
+  misc.Whiten(c1)
   return c1
 
 def PoolC2(s2):
@@ -88,14 +89,17 @@ def ImprintPrototypes(img_fname, num_prototypes):
 
 if __name__ == "__main__":
   import sys
-  if len(sys.argv) < 4:
-    sys.exit("usage: OP IMAGE PROTOS [OPTIONS] > IT-ACTIVITY\n"
+  if len(sys.argv) < 3:
+    sys.exit("usage: %s OP IMAGE [OPTIONS]\n" % sys.argv[0] + \
         "where OP is one of IMPRINT or TRANSFORM")
-  op, img_fname, protos_fname = sys.argv[1:4]
+  op, img_fname = sys.argv[1:3]
   if op.upper() == "TRANSFORM":
+    if len(sys.argv) < 4:
+      sys.exit("usage: %s TRANSFORM IMAGE PROTOS > IT-ACTIVITY" % sys.argv[0])
+    protos_fname = sys.argv[3]
     util.Store(Build(img_fname, protos_fname), sys.stdout)
   else:
-    if len(sys.argv) < 5:
-      sys.exit("IMPRINT requires number of prototypes as an extra option")
-    num_prototypes = int(sys.argv[4])
+    if len(sys.argv) < 4:
+      sys.exit("usage: %s IMPRINT NUM_PROTOS > PROTOS" % sys.argv[0])
+    num_prototypes = int(sys.argv[3])
     util.Store(ImprintPrototypes(img_fname, num_prototypes), sys.stdout)
