@@ -41,7 +41,7 @@ def NextSubplot(figure = None):
   _sp_j += 1
   return figure.gca()
 
-def Show2DArray(fg, bg = None, mapper = None, annotation = None, title = None,
+def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
     axes = None, show = True, colorbar = False, **fg_args):
   """Show a 2-D array using matplotlib.
   fg -- foreground array to display, shown with a spectral colormap
@@ -91,6 +91,8 @@ def Show2DArray(fg, bg = None, mapper = None, annotation = None, title = None,
   if show:
     axes.figure.show()
 
+Show2DArray = Show2dArray
+
 def ShowListWithCallback(xs, cb, cols = None, figure = None, nsubplots = None,
     colorbar = False):
   """Show each slice of a 3-D array using a callback function.
@@ -124,9 +126,9 @@ def ShowListWithCallback(xs, cb, cols = None, figure = None, nsubplots = None,
     NextSubplot(figure)
     cb(x)
 
-def Show2DArrayList(xs, annotations = None, normalize = True, colorbar = False,
+def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
     colorbars = False, cols = None, center_zero = True, axes = None,
-    figure = None, show = True, **args):
+    figure = None, show = True, titles = None, **args):
   """Display a list of 2-D arrays using matplotlib.
   annotations -- small images to show with each array visualization
   normalize -- use the same colormap range for all subplots
@@ -136,6 +138,7 @@ def Show2DArrayList(xs, annotations = None, normalize = True, colorbar = False,
   cols -- number of subplot columns to use
   center_zero -- when normalizing a range that spans zero, make sure zero is in
                  the center of the colormap range
+  titles -- title string to include above each plotted array
   """
   if 'vmin' in args and 'vmax' in args:
     vmin = args['vmin']
@@ -153,6 +156,12 @@ def Show2DArrayList(xs, annotations = None, normalize = True, colorbar = False,
     assert len(annotations) == len(xs), \
         "Got %d arrays, but %d annotations (these numbers should match)" % \
         (len(xs), len(annotations))
+  if titles == None:
+    titles = [""] * len(xs)
+  else:
+    assert len(titles) == len(xs), \
+        "Got %d arrays, but %d title strings (these numbers should match)" % \
+        (len(xs), len(titles))
 
   # Compute rows & cols
   max_plots = 64
@@ -184,8 +193,8 @@ def Show2DArrayList(xs, annotations = None, normalize = True, colorbar = False,
   )
   # Add all subplots
   for i in range(len(xs)):
-    Show2DArray(xs[i], annotation = annotations[i], axes = grid[i],
-        show = False, **args)
+    Show2dArray(xs[i], annotation = annotations[i], axes = grid[i],
+        show = False, title = titles[i], **args)
   # Add the colorbar(s)
   if colorbar:
     img = grid[0].images[-1]
@@ -201,11 +210,15 @@ def Show2DArrayList(xs, annotations = None, normalize = True, colorbar = False,
   if show:
     figure.show()
 
-def Show3DArray(xs, annotations = None, figure = None, **args):
+Show2DArrayList = Show2dArrayList
+
+def Show3dArray(xs, annotations = None, figure = None, **args):
   """Display slices of a 3-D array using matplotlib.
   annotations -- small images to show with each array visualization
   """
   xs = xs.reshape((-1,) + xs.shape[-2:])
   if annotations != None:
     annotations = annotations.reshape((-1,) + annotations.shape[-2:])
-  Show2DArrayList(xs, annotations, figure = figure, **args)
+  Show2dArrayList(xs, annotations, figure = figure, **args)
+
+Show3DArray = Show3dArray
