@@ -4,10 +4,24 @@ from glimpse.core import c_src, misc
 import numpy as np
 import math
 
-MakeMultiscaleGaborKernels = misc.MakeMultiscaleGaborKernels
-
 def To3d(array):
   return array.reshape((-1,) + array.shape[-2:])
+
+def PadArray(data, out_shape, cval):
+  """Pad the border of an array with a constant value."""
+  out_shape = np.array(out_shape)
+  in_shape = np.array(data.shape)
+  result = np.empty(out_shape)
+  result[:] = cval
+  begin = ((out_shape - in_shape) / 2.0).astype(int)
+  result[ [ slice(b, e) for b, e in zip(begin, begin + in_shape) ] ] = data
+  return result
+
+def UnpadArray(data, out_shape):
+  out_shape = np.array(out_shape)
+  in_shape = np.array(data.shape)
+  begin = ((in_shape - out_shape) / 2.0).astype(int)
+  return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]
 
 def EmbedKernel(k, embed_width):
   kh, kw = k.shape[-2:]
@@ -48,14 +62,14 @@ def FitPowerSpectrumToGaussian(freqs, power):
   std_freq = freqs[ round(mean + std) ] - mean_freq
   return mean_freq, std_freq
 
-def ShowKernelPowerSpectrum(k, embed_width = 512, save = False):
+def ShowKernelPowerSpectrum(k, embed_width = 512, save = False, **args):
   from matplotlib import pyplot
   assert len(k.shape) == 2
   kwidth = k.shape[-1]
   freqs, power = KernelPowerSpectrum(k, embed_width)
   #~ pyplot.figure(2)
   #~ pyplot.clf()
-  pyplot.plot(freqs, power)
+  pyplot.plot(freqs, power, **args)
   pyplot.yticks([])
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
