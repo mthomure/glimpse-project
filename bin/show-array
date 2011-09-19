@@ -41,7 +41,7 @@ def main():
       else:
         raise util.UsageException("Bad flatten option: %s" % (arg,))
     elif opt == '-o':
-      options = dict([ x.split("=") for x in arg.split(",") ])
+      options = dict([ [ y.strip() for y in x.split("=") ] for x in arg.split(",") ])
     elif opt == '-p':
       plot_cmd = arg
     elif opt == '-s':
