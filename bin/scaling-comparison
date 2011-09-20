@@ -126,9 +126,9 @@ def main(ifname, rdir):
       #~ response_si_resize[i].flat ]))[0,1] for i in range(4) ]
 
   fs = [ response_sf_unpad[0] ] + [ r[1:] for r in response_sf_unpad[1:] ]
-  is = [ response_si_resize[0] ] + [ r[:-1] for r in response_si_resize[1:] ]
+  is_ = [ response_si_resize[0] ] + [ r[:-1] for r in response_si_resize[1:] ]
   corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
-      for f, i in zip(fs, is) ]
+      for f, i in zip(fs, is_) ]
 
   print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
 
