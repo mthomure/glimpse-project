@@ -121,8 +121,15 @@ def main(ifname, rdir):
 
   response_sf_unpad = [ exp.UnpadArray(x, y.shape) for x, y in
       zip(response_scaled_filters, response_si_resize) ]
-  corrs = [ np.corrcoef(np.array([ response_sf_unpad[i].reshape(-1),
-      response_si_resize[i].reshape(-1) ]))[0,1] for i in range(4) ]
+
+  #~ corrs = [ np.corrcoef(np.array([ response_sf_unpad[i].flat,
+      #~ response_si_resize[i].flat ]))[0,1] for i in range(4) ]
+
+  fs = [ response_sf_unpad[0] ] + [ r[1:] for r in response_sf_unpad[1:] ]
+  is = [ response_si_resize[0] ] + [ r[:-1] for r in response_si_resize[1:] ]
+  corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
+      for f, i in zip(fs, is) ]
+
   print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
 
   # Null-hypothesis: correlation between response maps for different filter
