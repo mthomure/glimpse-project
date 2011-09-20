@@ -30,7 +30,7 @@ def MultiScaleFilters(retina, rdir = None, display = True):
   options['s1_scaling'] = 1
   options['s1_kwidth'] = PAD_KWIDTH
   # Get unclipped multi-scale filters
-  mks = exp.MakeMultiscaleGaborKernels(11, 4, 2, 1,
+  mks = core.MakeMultiScaleGaborKernels(11, 4, 2, 1,
       shift_orientations = True, scale_norm = True, embed_kwidth = PAD_KWIDTH)
   # Get response of multi-scale filters to input image
   response_scaled_filters = np.array([ core.BuildS1FromRetina(retina, ks,
@@ -75,7 +75,7 @@ def MultiScaleImages(retina, rdir = None, display = True):
   scales = [ np.array(images[i].shape, float) / np.array(retina.shape)
       for i in range(4) ]
   # Make unclipped single-scale filter
-  ks = exp.MakeMultiscaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
+  ks = core.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
       scale_norm = True, embed_kwidth = pad)[0]
   # Get response of single filter to multi-scale input image
   response_scaled_images = [ core.BuildS1FromRetina(img, ks, options)[0,0]
@@ -96,7 +96,9 @@ def MultiScaleImages(retina, rdir = None, display = True):
 
   if display:
     with Display(rdir, "result - scaled images.png"):
-      gplot.Show2dArrayList(response_si_resize, cols = 2, normalize = False,
+      response_si_pad = [ exp.PadArray(x, images[0].shape, math.exp(-2))
+          for x in response_si_resize ]
+      gplot.Show2dArrayList(response_si_pad, cols = 2, normalize = False,
           colorbars = True, titles = ["Scale %d" % i for i in range(1,5)],
           show = False)
       suptitle("Response of high-frequency filter to scaled images")

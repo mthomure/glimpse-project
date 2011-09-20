@@ -77,7 +77,7 @@ class InsufficientSizeException(BaseException):
 def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
     lambda_ = None, scale_norm = True):
   """Create a kernel matrix by evaluating the 2-D Gabor function.
-  kwidth - width of the square kernel (should be odd)
+  kwidth - width of the kernel (should be odd)
   theta - orientation of the (normal to the) preferred frequency
   gamma - aspect ratio of Gaussian window (gamma = 1 means a circular window,
           0 < gamma < 1 means the window is elongated)
@@ -135,19 +135,21 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
   return ks
 
 def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
-    shift_orientations, **args):
+    shift_orientations = True, embed_kwidth = None, **args):
   from math import pi
   if shift_orientations:
     offset = 0.5
   else:
     offset = 0
+  if embed_kwidth == None:
+    embed_kwidth = kwidth
   fscale = np.arange(num_scales) / float(num_scales)
   scales = (kwidth / 4.0) * (0.5 + 1.5 * fscale)
   lambdas = 2 * scales
   thetas = pi / num_orientations * (np.arange(num_orientations) + offset)
   phis = 2 * pi * np.arange(num_phases) / num_phases
   ks = np.array([[[
-          MakeGaborKernel(kwidth, theta, phi = phi, sigma = sigma,
+          MakeGaborKernel(embed_kwidth, theta, phi = phi, sigma = sigma,
               lambda_ = lambda_, **args)
         for phi in phis ]
       for theta in thetas ]
