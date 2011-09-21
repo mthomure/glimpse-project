@@ -25,13 +25,20 @@ class Display:
     if self.rdir != None and self.fname != None:
       savefig(os.path.join(self.rdir, self.fname))
 
+def MakeMultiScaleKernels():
+  return core.MakeMultiScaleGaborKernels(11, 4, 2, 1,
+      shift_orientations = True, scale_norm = True, embed_kwidth = PAD_KWIDTH)
+
+def MakeSingleScaleKernels():
+  return core.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
+      scale_norm = True, embed_kwidth = 11)[0]
+
 def MultiScaleFilters(retina, rdir = None, display = True):
   options = core.MakeDefaultOptions()
   options['s1_scaling'] = 1
   options['s1_kwidth'] = PAD_KWIDTH
   # Get unclipped multi-scale filters
-  mks = core.MakeMultiScaleGaborKernels(11, 4, 2, 1,
-      shift_orientations = True, scale_norm = True, embed_kwidth = PAD_KWIDTH)
+  mks = MakeMultiScaleKernels()
   # Get response of multi-scale filters to input image
   response_scaled_filters = np.array([ core.BuildS1FromRetina(retina, ks,
       options)[0,0] for ks in mks ])
@@ -43,40 +50,37 @@ def MultiScaleFilters(retina, rdir = None, display = True):
     with Display(rdir, "filters.png"):
       gplot.Show3dArray(mks[:,0,0], cols = 2, colorbar = True,
           titles = ["Kernel %d" % i for i in range(1,5)], show = False)
-      suptitle("Filters padded to %dx%d pixels" % (PAD_KWIDTH, PAD_KWIDTH))
+#      suptitle("Filters padded to %dx%d pixels" % (PAD_KWIDTH, PAD_KWIDTH))
 
   if display:
     with Display(rdir, "power spectrum - filters.png"):
       for i in range(4):
         exp.ShowKernelPowerSpectrum(mks[i,0,0], label = "Kernel %d" % (i+1))
       legend()
-      suptitle("Frequency response for scaled filters")
+#      suptitle("Frequency response for scaled filters")
 
   if display:
     with Display(rdir, "result - scaled filters.png"):
       gplot.Show3dArray(response_sf_wrap, cols = 2, normalize = False,
           colorbars = True, titles = ["Kernel %d" % i for i in range(1,5)],
           show = False)
-      suptitle("Response of scaled filters to original image")
+#      suptitle("Response of scaled filters to original image")
 
   return mks, response_scaled_filters, response_sf_wrap
 
 def MultiScaleImages(retina, rdir = None, display = True):
   options = core.MakeDefaultOptions()
   options['s1_scaling'] = 1
-  #~ pad = 11
-  pad = PAD_KWIDTH
   options = dict(options)
-  options['s1_kwidth'] = pad
+  # Make unclipped single-scale filter
+  ks = MakeSingleScaleKernels()
+  options['s1_kwidth'] = ks.shape[-1]
   # Down-sample the input image at multiple rates to match change in relative
   # frequencies changes in scaled filters.
   images = [ zoom(retina, x / FREQS[0], prefilter = True, mode = 'nearest')
       for x in FREQS ]
   scales = [ np.array(images[i].shape, float) / np.array(retina.shape)
       for i in range(4) ]
-  # Make unclipped single-scale filter
-  ks = core.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
-      scale_norm = True, embed_kwidth = pad)[0]
   # Get response of single filter to multi-scale input image
   response_scaled_images = [ core.BuildS1FromRetina(img, ks, options)[0,0]
       for img in images ]
@@ -92,16 +96,33 @@ def MultiScaleImages(retina, rdir = None, display = True):
       for i in range(4):
         exp.ShowKernelPowerSpectrum(images[i], label = "Scale %d" % (i+1))
       legend()
-      suptitle("Frequency content of scaled input images")
+#      suptitle("Frequency content of scaled input images")
+
+  if display:
+    with Display(rdir, "effective power spectrum - single scale kernel.png"):
+      # use low-frequency kernel for illustrative purposes
+      kidx = 3
+      mks = MakeMultiScaleKernels()
+      freqs, power = exp.KernelPowerSpectrum(mks[kidx, 0, 0])
+      freq_scales = FREQS / FREQS[kidx]
+      power_scales = np.arange(1, 5) / 4.
+      for i, f, p in zip(range(4), freq_scales, power_scales):
+        plot(freqs * f, power * p, label = "Scale %d" % (i+1))
+      legend()
+      ax = gcf().axes[0]
+      ax.set_autoscalex_on(False)
+      ax.set_xlim([0, 0.5])
+      ax.set_yticks([])
+      ax.set_xlabel("Cycles per Pixel")
+      ax.set_ylabel("Power")
+#      suptitle("Frequency response for scaled filters")
 
   if display:
     with Display(rdir, "result - scaled images.png"):
-      response_si_pad = [ exp.PadArray(x, images[0].shape, math.exp(-2))
-          for x in response_si_resize ]
-      gplot.Show2dArrayList(response_si_pad, cols = 2, normalize = False,
+      gplot.Show2dArrayList(response_si_wrap, cols = 2, normalize = False,
           colorbars = True, titles = ["Scale %d" % i for i in range(1,5)],
           show = False)
-      suptitle("Response of high-frequency filter to scaled images")
+#      suptitle("Response of high-frequency filter to scaled images")
 
   return images, response_scaled_images, response_si_resize, response_si_wrap
 
@@ -112,23 +133,40 @@ def main(ifname, rdir):
 
   with Display(rdir, "input image.png"):
     gplot.Show2dArray(retina, colorbar = True, show = False)
-    suptitle("Preprocessed image")
+#    suptitle("Preprocessed image")
 
   mks, response_scaled_filters, response_sf_wrap = \
       MultiScaleFilters(retina, rdir)
   images, response_scaled_images, response_si_resize, response_si_wrap = \
       MultiScaleImages(retina, rdir)
 
-  response_sf_unpad = [ exp.UnpadArray(x, y.shape) for x, y in
-      zip(response_scaled_filters, response_si_resize) ]
+  # If mks filter size is larger than multi-image kernel, crop the response of single-scale kernel
+  if response_si_resize[0].shape[0] > response_scaled_filters[0].shape[0]:
+    as_ = response_scaled_filters
+    bs = [ exp.UnpadArray(x, y.shape) for x, y in zip(response_si_resize, response_scaled_filters) ]
+  else:
+    as_ = [ exp.UnpadArray(x, y.shape) for x, y in
+                          zip(response_scaled_filters, response_si_resize) ]
+    bs = response_si_resize
 
-  #~ corrs = [ np.corrcoef(np.array([ response_sf_unpad[i].flat,
-      #~ response_si_resize[i].flat ]))[0,1] for i in range(4) ]
+  fs = [ as_[0] ] + [ r[1:] for r in as_[1:] ]
+  is_ = [ bs[0] ] + [ r[:-1] for r in bs[1:] ]
 
-  fs = [ response_sf_unpad[0] ] + [ r[1:] for r in response_sf_unpad[1:] ]
-  is_ = [ response_si_resize[0] ] + [ r[:-1] for r in response_si_resize[1:] ]
   corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
       for f, i in zip(fs, is_) ]
+
+  print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
+
+  fs = [ as_[0] ] + [ r[:-1] for r in as_[1:] ]
+  is_ = [ bs[0] ] + [ r[1:] for r in bs[1:] ]
+
+  corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
+      for f, i in zip(fs, is_) ]
+
+  print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
+
+  corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
+      for f, i in zip(as_, bs) ]
 
   print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
 
