@@ -382,6 +382,10 @@ def LoadOptions(fname, expand_options = True):
     options = ExpandOptions(options)
   return options
 
+def ApplyGlobalOptions(options):
+  """Apply all global option entries."""
+  c_src.SetUseSSE(_GetOpt(options, 'sse_enabled'))
+
 ######## GENERAL TRANSFORMATION FUNCTIONS ########
 
 def ScaleImage(img, scale, options):
@@ -787,7 +791,7 @@ def TransformImageFromFile(img_fname, layer, s2_prototypes_fname = None,
   elif LAYER_S2 in layers:
     raise util.UsageException("S2 prototypes required to transform through S2 "
         "layer")
-  c_src.SetUseSSE(_GetOpt(options, 'sse_enabled'))
+  ApplyGlobalOptions(options)
   if storage_callback == None:
     storage_callback = lambda x, y: None
 

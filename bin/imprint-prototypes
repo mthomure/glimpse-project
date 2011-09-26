@@ -21,7 +21,7 @@ def main():
   opts, args = util.GetOptions("i:o:p:")
   img_fname = None
   proto_fname = None
-  options = core.MakeDefaultOptions()
+  options = None
   for opt,arg in opts:
     if opt == '-i':
       img_fname = arg
@@ -35,6 +35,8 @@ def main():
     raise util.UsageException("Missing output S2 prototype path")
   if len(args) % 3 != 0 or len(args) < 3:
     raise util.UsageException("Expected non-empty, list of 3-tuple coordinates")
+  options = core.ExpandOptions(options)
+  core.ApplyGlobalOptions(options)
   coords = util.TakeTriples(map(int, args))
   protos = core.ImprintS2Prototypes(img_fname, coords, options)
   util.Store(protos, proto_fname)
