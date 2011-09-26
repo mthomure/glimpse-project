@@ -68,6 +68,7 @@ def main():
   if num_protos_per_image == None and num_total_protos == None:
     raise util.UsageException("Must specify number of prototypes")
   options = core.ExpandOptions(options)
+  core.ApplyGlobalOptions(options)
   files = GetFiles(args)
   if num_total_protos == None:
     protos_per_image = [num_protos_per_image] * len(files)
