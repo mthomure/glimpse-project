@@ -96,7 +96,7 @@ def PlotArray(o, fname = None, annotations = None, options = None,
     elif ndims > 3:
       o = o.reshape((-1,) + o.shape)
     pyplot = util.InitPlot(fname != None)
-    from glimpse.util import plot
+    from glimpse.util import plot as gplot
     if annotations != None:
       annotations = annotations.reshape((-1,) + annotations.shape[-2:])
     from matplotlib import cm
@@ -106,7 +106,7 @@ def PlotArray(o, fname = None, annotations = None, options = None,
 #      options['cols'] = 5
     if fname != None:
       options['show'] = False
-    plot.Show3DArray(o, annotations, colorbars = colorbar, **options)
+    gplot.Show3DArray(o, annotations, colorbar = colorbar, **options)
     if tight:
       pyplot.subplots_adjust(left = 0.01, right = 0.99, bottom = 0.01,
           top = 0.99)
@@ -139,8 +139,6 @@ if __name__ == '__main__':
         "    -f     Method for flattening array (i.e., combining dimensions\n"
         "           for ND arrays, where N > 2).\n"
         "           One of 'c'oncatenate or 's'um.\n"
-        "    -m     Set the minimum for normalization\n"
-        "    -M     Set the maximum for normalization\n"
         "    -o     Extra options for the plotting command\n"
         "    -p     Command to run after creating plot\n"
         "    -s     Path to save image, instead of displaying it on screen\n"

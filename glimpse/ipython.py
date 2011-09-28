@@ -31,12 +31,16 @@ def array2D(x):
 
 WITH_PLOT = ('DISPLAY' in os.environ)
 if WITH_PLOT:
+
   import glimpse.util.plot as gplot
   from matplotlib import pyplot
+
   def hist(x, **args):
     from matplotlib import pylab
     default_args = dict(bins = 100, hold = False)
-    return pylab.hist(x.flat, **dict(default_args.items() + args.items()))
+    if isinstance(x, numpy.ndarray) and len(x.shape) > 1:
+      x = x.flat
+    return pylab.hist(x, **dict(default_args.items() + args.items()))
 
   def show(x, **args):
     if hasattr(x, 'show'):
@@ -51,8 +55,10 @@ if WITH_PLOT:
         gplot.Show3DArray(x, **args)
       pyplot.draw()
     elif isinstance(x, list) or isinstance(x, tuple):
+      from matplotlib import pyplot
       if isinstance(x[0], np.ndarray):
         gplot.Show2DArrayList(x, **args)
+        pyplot.draw()
       else:
         raise ValueError("Can't display list for objects of type: %s" % type(x))
     else:
