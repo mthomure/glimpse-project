@@ -41,11 +41,11 @@ class ScipyBackend(object):
   def DotProduct(self, data, kernels, scaling):
     """Convolve maps with an array of 2-D kernels."""
     assert len(data.shape) >= 2 and len(data.shape) <= 3
-    assert len(kernels.shape) == len(data.shape) - 1
+    assert len(kernels.shape) == len(data.shape) + 1
     def Op(k):
       prune = _ScipyOpPruner(k.shape, scaling)
       return prune(correlate(data, k))
-    return np.array(map(Op, kernels), c_src.activation_dtype)
+    return np.array(map(Op, kernels), activation_dtype)
 
   def NormDotProduct(self, data, kernels, bias, scaling):
     """Convolve maps with 3-D kernels, normalizing the response by the vector
@@ -73,7 +73,7 @@ class ScipyBackend(object):
     kernels -- (3- or 4-D) array of (2- or 3-D) kernels
     """
     assert len(data.shape) >= 2 and len(data.shape) <= 3
-    assert len(kernels.shape) == len(data.shape) - 1
+    assert len(kernels.shape) == len(data.shape) + 1
     def Op(k):
       prune = _ScipyOpPruner(k.shape, scaling)
       # ||a-b||^2 = (a,a) + (b,b) - 2(a,b), where a is data and b is kernel
@@ -125,3 +125,26 @@ class ScipyBackend(object):
     #~ elif len(data.shape) == 3:
       #~ return data.reshape(data.shape[0], -1).max(1)
     #~ raise ValueError("Unsupported shape for input data: %s" % (data.shape,))
+
+
+
+def ContrastEnhance(data, kwidth, bias):
+  return ScipyBackend().ContrastEnhance(data, kwidth, bias)
+
+def DotProduct(data, kernels, scaling):
+  return ScipyBackend().DotProduct(data, kernels, scaling)
+
+def NormDotProduct(data, kernels, bias, scaling):
+  return ScipyBackend().NormDotProduct(data, kernels, bias, scaling)
+
+def Rbf(data, kernels, beta, scaling):
+  return ScipyBackend().Rbf(data, kernels, beta, scaling)
+
+def NormRbf(data, kernels, bias, beta, scaling):
+  return ScipyBackend().NormRbf(data, kernels, bias, beta, scaling)
+
+def LocalMax(data, kwidth, scaling):
+  return ScipyBackend().LocalMax(data, kwidth, scaling)
+
+def GlobalMax(data):
+  return ScipyBackend().GlobalMax(data)

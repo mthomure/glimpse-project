@@ -54,3 +54,25 @@ class CythonBackend(object):
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
+
+
+def ContrastEnhance(data, kwidth, bias):
+  return CythonBackend().ContrastEnhance(data, kwidth, bias)
+
+def DotProduct(data, kernels, scaling):
+  return CythonBackend().DotProduct(data, kernels, scaling)
+
+def NormDotProduct(data, kernels, bias, scaling):
+  return CythonBackend().NormDotProduct(data, kernels, bias, scaling)
+
+def Rbf(data, kernels, beta, scaling):
+  return CythonBackend().Rbf(data, kernels, beta, scaling)
+
+def NormRbf(data, kernels, bias, beta, scaling):
+  return CythonBackend().NormRbf(data, kernels, bias, beta, scaling)
+
+def LocalMax(data, kwidth, scaling):
+  return CythonBackend().LocalMax(data, kwidth, scaling)
+
+def GlobalMax(data):
+  return CythonBackend().GlobalMax(data)
