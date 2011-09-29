@@ -85,7 +85,8 @@ class Viz2Model(object):
     self._Log("s1-kernels", mks)
     self._Log(image = img, retina = retina)
     retina_ = retina.reshape((1,) + retina.shape)
-    scale_data = []
+    s1s = []
+    c1s = []
     for scale_idx, ks in zip(range(len(mks_)), mks_):
       s1_ = self.backend.NormRbf(retina_, ks, bias = self.params['s1_bias'],
           beta = self.params['s1_beta'], scaling = self.params['s1_scaling'])
@@ -99,23 +100,21 @@ class Viz2Model(object):
       #~ if self.params['c1_whiten']:
         #~ Viz2Model.Whiten(c1)
 
-      scale_data.append((s1, c1))
+      s1s.append(s1)
+      c1s.append(c1)
 
     # DEBUG: viz2 used pann's whitening method, which normalized across scales
     if self.params['c1_whiten']:
-      s1s, c1s = zip(*scale_data)
       c1s = np.array(c1s, activation_dtype)
       c1_shape = c1s.shape
       c1s = c1s.reshape((-1,) + c1s.shape[-2:])
       Viz2Model.Whiten(c1s)
       c1s = c1s.reshape(c1_shape)
-      scale_data = zip(s1s, c1s)
 
     for scale_idx in range(num_scales):
-      s1, c1 = scale_data[scale_idx]
-      self._LogScale(scale_idx, "s1-activity", s1)
-      self._LogScale(scale_idx, "c1-activity", c1)
-    return scale_data
+      self._LogScale(scale_idx, "s1-activity", s1s[scale_idx])
+      self._LogScale(scale_idx, "c1-activity", c1s[scale_idx])
+    return s1s, c1s
 
   @classmethod
   def Whiten(cls, data):
@@ -139,18 +138,20 @@ class Viz2Model(object):
     c1s - list of (3-D) C1 maps, one map per scale
     """
     Viz2Model.CheckPrototypes(s2_prototypes)
+    s2s = []
     c2s = []
     for scale_idx, c1 in zip(range(len(c1s)), c1s):
       s2 = self.backend.NormRbf(c1, s2_prototypes,
           bias = self.params['s2_bias'], beta = self.params['s2_beta'],
           scaling = self.params['s2_scaling'])
+      s2s.append(s2)
       c2 = self.backend.GlobalMax(s2)
       c2s.append(c2)
       self._LogScale(scale_idx, "s2-activity", s2)
       self._LogScale(scale_idx, "c2-activity", c2)
     it = np.array(c2s).max(0)
     self._Log("it-activity", it)
-    return it
+    return s2s, c2s, it
 
   def ImprintPrototypes(self, img, num_prototypes):
     """Compute C1 activity maps and sample patches from random locations.
@@ -202,6 +203,9 @@ class Viz2Params(object):
     ('scale_factor', "Image downsampling factor between scale bands"),
     ('sse_enabled', "Enable use of SSE intrinsics, when available"),
   ]
+
+  def __repr__(self):
+    return str(self._params)
 
   def __init__(self, **args):
     self._params = dict(
@@ -324,8 +328,8 @@ def main():
     if proto_fname == None:
       sys.exit("Missing S2 prototypes")
     protos = util.Load(proto_fname)
-    c1s = [ c1 for s1, c1 in model.BuildThroughC1(img) ]
-    it = model.BuildItFromC1(c1s, protos)
+    s1s, c1s = model.BuildThroughC1(img)
+    s2s, c2s, it = model.BuildItFromC1(c1s, protos)
     #~ util.Store(it, sys.stdout)
   else:
     sys.exit("bad operation '%s': should be one of IMPRINT or TRANSFORM" % cmd)
