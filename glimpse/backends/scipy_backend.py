@@ -1,101 +1,151 @@
 
-from scipy.ndimage import correlate, maximum_filter
+import scipy
+from scipy.ndimage import maximum_filter
 import numpy as np
 from glimpse.core import activation_dtype
 
-def _ScipyOpPruner(kernel_shape, scaling):
-  # Scipy's correlate() applies kernel to border pixels. Return a function that
-  # cuts this out.
-  scaling = int(scaling)
-  if len(kernel_shape) == 2:
-    h, w = kernel_shape  # height, width
-    hh = int(h / 2)
-    hw = int(w / 2)
-    return lambda x: x[ hh : -hh : scaling, hw : -hw : scaling ]
-  elif len(kernel_shape) == 3:
-    b, h, w = kernel_shape  # num bands, height, width
-    if b % 2 == 0:
-      hb = b / 2 - 1
-    else:
-      hb = int(b / 2)
-    hh = int(h / 2)
-    hw = int(w / 2)
-    return lambda x: x[ hb, hh : -hh : scaling, hw : -hw : scaling ]
+def Correlate(data, kernel, output = None):
+  """Apply a multi-band filter to a set of 2-D arrays, by applying Scipy's
+  correlate() to each 2-D input array and then summing across bands.
+  data -- (N-D) input array
+  kernel -- (N-D) kernel array
+  output -- (2-D) output array
+  RETURN (2-D) array containing output of correlation
+  """
+  assert data.ndim >= 2
+  assert data.shape[:-2] == kernel.shape[:-2]
+  if output == None:
+    output = np.zeros(data.shape[-2:], data.dtype)
   else:
-    raise ValueError("Unsupported kernel shape: %s" % (kernel_shape,))
+    assert output.shape == data.shape[-2:]
+    output[:] = 0
+  temp = np.empty_like(output)
+  data_ = data.reshape((-1,) + data.shape[-2:])
+  kernel_ = kernel.reshape((-1,) + kernel.shape[-2:])
+  for dband, kband in zip(data_, kernel_):
+    scipy.ndimage.correlate(dband, kband, output = temp)
+    output += temp
+  return output
+
+def PruneArray(data, kernel_shape, scaling):
+  """Scipy's correlate() applies kernel to border units (in last two
+  dimensions), and performs no subsampling. This function returns a cropped view
+  of the result array, in which border units have been removed, and subsampling
+  has been performed.
+  data -- (N-dim) result array from one or more correlate() calls
+  kernel_shape -- (tuple) shape of the kernel passed to correlate()
+  scaling -- (positive int) subsampling factor
+  RETURN cropped, sampled view (not copy) of the input data
+  """
+  if kernel_shape == None:
+    indices = [slice(None)] * (data.ndim - 2) + [slice(None, None, scaling)] * 2
+  else:
+    assert len(kernel_shape) >= 2
+    h, w = kernel_shape[-2:]
+    hh = int(h / 2)
+    hw = int(w / 2)
+    indices = [slice(None)] * (data.ndim - 2) + [slice(hh, -hh, scaling),
+        slice(hw, -hw, scaling)]
+  return data[indices]
 
 class ScipyBackend(object):
 
   def ContrastEnhance(self, data, kwidth, bias, scaling):
-    """Apply retinal processing to given 2-D data."""
-    assert len(data.shape) == 2
+    """Apply local contrast stretch to an array.
+    data -- (2-D) array of input data
+    kwidth -- (int) kernel width
+    bias -- (float) additive term in denominator
+    scaling -- (positive int) subsampling factor
+    """
+    assert data.ndim == 2
     kshape = (kwidth, kwidth)
-    prune = _ScipyOpPruner(kshape, scaling = scaling)
     # x - mu / std
     k = np.ones(kshape)
     k /= k.size
-    mu = correlate(data, k)
-    sigma = np.sqrt(correlate(data**2, k) + bias)
-    return prune((data - mu) / sigma)
+    mu = Correlate(data, k)
+    # XXX does it matter whether we add the bias before or after apply sqrt()?
+    sigma = np.sqrt(Correlate((data - mu)**2, k) + bias)
+    result = (data - mu) / sigma
+    return PruneArray(result, kshape, scaling)
 
   def DotProduct(self, data, kernels, scaling):
-    """Convolve maps with an array of 2-D kernels."""
-    assert len(data.shape) >= 2 and len(data.shape) <= 3
-    assert len(kernels.shape) == len(data.shape) + 1
-    def Op(k):
-      prune = _ScipyOpPruner(k.shape, scaling)
-      return prune(correlate(data, k))
-    return np.array(map(Op, kernels), activation_dtype)
+    """Convolve an array with a set of kernels.
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels
+    scaling -- (positive int) subsampling factor
+    """
+    assert data.ndim == 3
+    assert kernels.ndim == 4
+    output_bands = np.empty((kernels.shape[0],) + data.shape[-2:], data.dtype)
+    for k, o in zip(kernels, output_bands):
+      Correlate(data, k, o)
+    output_bands = PruneArray(output_bands, kernels.shape, scaling)
+    return output_bands
 
   def NormDotProduct(self, data, kernels, bias, scaling):
-    """Convolve maps with 3-D kernels, normalizing the response by the vector
-    length of the input neighborhood.
-    data - 3-D array of input data
-    kernels - (4-D) array of (3-D) kernels (i.e., all kernels have same shape)
+    """Convolve an array with a set of kernels, normalizing the response by the
+    vector length of the input neighborhood.
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
+              have unit vector length
+    bias -- (float) additive term in denominator
+    scaling -- (positive int) subsampling factor
     """
-    assert len(data.shape) >= 2 and len(data.shape) <= 3
-    assert len(kernels.shape) == len(data.shape) + 1
-    def Op(k):
-      prune = _ScipyOpPruner(k.shape, scaling)
+    assert data.ndim == 3
+    assert kernels.ndim == 4
+    assert np.allclose(np.array(map(np.linalg.norm, kernels)), 1), \
+        "Expected kernels to have unit norm"
+    def Op(k, o):
       # dot product of kernel with local input patches
-      d = prune(correlate(data, k))
+      d = Correlate(data, k, o)
       # norm of local input patches
-      n0 = prune(correlate(data**2, np.ones(k.shape)))
+      n0 = Correlate(data**2, np.ones(k.shape))
       n = np.sqrt(n0 + bias)
       # normalized dot product
-      nd = d / n
-      return nd
-    return np.array(map(Op, kernels), activation_dtype)
+      o /= n
+    output_bands = np.empty((kernels.shape[0],) + data.shape[-2:], data.dtype)
+    for k, o in zip(kernels, output_bands):
+      Op(k, o)
+    output_bands = PruneArray(output_bands, kernels.shape, scaling)
+    return output_bands
 
   def Rbf(self, data, kernels, beta, scaling):
     """Compare kernels to input data using the RBF activation function.
-    data -- (2- or 3-D) array of input data
-    kernels -- (3- or 4-D) array of (2- or 3-D) kernels
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels
+    beta -- (positive float) tuning parameter for radial basis function
+    scaling -- (positive int) subsampling factor
     """
-    assert len(data.shape) >= 2 and len(data.shape) <= 3
-    assert len(kernels.shape) == len(data.shape) + 1
-    def Op(k):
-      prune = _ScipyOpPruner(k.shape, scaling)
-      # ||a-b||^2 = (a,a) + (b,b) - 2(a,b), where a is data and b is kernel
+    assert data.ndim == 3
+    assert kernels.ndim == 4
+    def Op(k, o):
       # (a,a) is squared input patch length
-      input_norm = prune(correlate(data**2, np.ones(k.shape)))
+      input_norm = Correlate(data**2, np.ones(k.shape))
       # (b,b) is squared kernel length
-      kernel_norm = np.linalg.norm(k)
+      kernel_norm = np.dot(k.flat, k.flat)
       # (a,b) is convolution
-      conv = prune(correlate(data, k))
-      # squared distance between input patches and kernel
-      dist = input_norm + kernel_norm - 2 * conv
+      conv = Correlate(data, k)
+      # squared distance between input patches and kernel is
+      #  ||a-b||^2 = (a,a) + (b,b) - 2(a,b)
+      # where a is data and b is kernel.
+      square_dist = input_norm + kernel_norm - 2 * conv
       # Gaussian radial basis function
-      y = np.exp(-2 * beta * dist)
-      return y
-    return np.array(map(Op, kernels), activation_dtype)
+      o[:] = np.exp(-1 * beta * square_dist)
+    output_bands = np.empty((kernels.shape[0],) + data.shape[-2:], data.dtype)
+    for k, o in zip(kernels, output_bands):
+      Op(k, o)
+    output_bands = PruneArray(output_bands, kernels.shape, scaling)
+    return output_bands
 
   def NormRbf(self, data, kernels, bias, beta, scaling):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
-    data -- (2- or 3-D) array of input data
-    kernels -- (3- or 4-D) array of (2- or 3-D) kernels, where each kernel is
-               expected to have unit length
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
+        have unit length
+    bias -- (float) additive term in denominator
+    beta -- (positive float) tuning parameter for radial basis function
+    scaling -- (positive int) subsampling factor
     """
     nd = self.NormDotProduct(data, kernels, bias, scaling)
     y = np.exp(-2 * beta * (1 - nd))
@@ -103,30 +153,25 @@ class ScipyBackend(object):
 
   def LocalMax(self, data, kwidth, scaling):
     """Convolve maps with local 2-D max filter.
-    data - (3-D) array with one 2-D map for each output band
+    data -- (3-D) array of input data
+    kwidth -- (positive int) kernel width
+    scaling -- (positive int) subsampling factor
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     kshape = (kwidth, kwidth)
-    prune = _ScipyOpPruner(kshape, scaling)
-    def Op(band):
-      return prune(maximum_filter(band, kshape))
-    return np.array(map(Op, data), activation_dtype)
+    output = np.empty_like(data)
+    for d, o in zip(data, output):
+      maximum_filter(d, kshape, output = o)
+    return PruneArray(output, kshape, scaling)
 
   def GlobalMax(self, data):
     """Find the per-band maxima.
-    data - (3-D) array of one 2-D map for each output band
+    data -- (3-D) array of input data
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
-    #~ if len(data.shape) == 2:
-      #~ return data.max()
-    #~ elif len(data.shape) == 3:
-      #~ return data.reshape(data.shape[0], -1).max(1)
-    #~ raise ValueError("Unsupported shape for input data: %s" % (data.shape,))
-
-
 
 def ContrastEnhance(data, kwidth, bias, scaling):
   return ScipyBackend().ContrastEnhance(data, kwidth, bias, scaling)
