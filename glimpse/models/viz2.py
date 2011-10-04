@@ -10,17 +10,7 @@
 from glimpse import core, util
 from glimpse.core import activation_dtype
 import numpy as np
-import Image
 import random
-import itertools
-import os
-import sys
-
-from glimpse.backends.scipy_backend import ScipyBackend
-from glimpse.backends.cython_backend import CythonBackend
-
-TIMER = False
-
 
 def PrototypeSampler(c1s, num_prototypes, kwidth, scale_norm):
   """
@@ -31,7 +21,6 @@ def PrototypeSampler(c1s, num_prototypes, kwidth, scale_norm):
   assert (np.array(len(c1s[0].shape)) == 3).all()
   num_scales = len(c1s)
   num_orientations = len(c1s[0])
-  #~ proto = np.empty([num_orientations, kwidth, kwidth], activation_dtype)
   for i in range(num_prototypes):
     scale = random.randint(0, num_scales - 1)
     c1 = c1s[scale]
@@ -136,6 +125,9 @@ class Viz2Model(object):
   def BuildItFromC1(self, c1s, s2_prototypes):
     """Compute location- and scale-invariant features.
     c1s - list of (3-D) C1 maps, one map per scale
+    s2_prototypes - (4-D) array of (3-D) S2 prototypes
+    RETURNS S2 array list (one 3-D array per scale), C2 array list (one vector
+    per scale), and IT vector
     """
     Viz2Model.CheckPrototypes(s2_prototypes)
     s2s = []
@@ -158,7 +150,7 @@ class Viz2Model(object):
     RETURNS list of prototypes, and list of corresponding locations.
     NOTE: prototype values should be copied, as array may be reused
     """
-    c1s = [ c1 for s1, c1 in self.BuildThroughC1(img) ]
+    s1s, c1s = self.BuildThroughC1(img)
     proto_it = PrototypeSampler(c1s, num_prototypes,
         kwidth = self.params['s2_kwidth'], scale_norm = True)
     return zip(*list(proto_it))
@@ -204,11 +196,10 @@ class Viz2Params(object):
     ('sse_enabled', "Enable use of SSE intrinsics, when available"),
   ]
 
-  def __repr__(self):
-    return str(self._params)
-
-  def __init__(self, **args):
-    self._params = dict(
+  @classmethod
+  def __MakeDefaultParams(cls):
+    """Create a default set of parameters."""
+    return dict(
       retina_bias = 1.0,
       retina_enabled = True,
       retina_kwidth = 15,
@@ -239,8 +230,17 @@ class Viz2Params(object):
       scale_factor = 2**(1./2),
       sse_enabled = core.GetUseSSE(),
     )
+
+  def __init__(self, **args):
+    self._params = Viz2Params.__MakeDefaultParams()
     for name, value in args.items():
       self[name] = value
+
+  def __repr__(self):
+    return str(self._params)
+
+  def __eq__(self, params):
+    return params != None and self._params == params._params
 
   def __getitem__(self, name):
     assert name in self._params
@@ -254,7 +254,8 @@ class Viz2Params(object):
     return self._params
 
   def __setstate__(self, state):
-    for name, value in args.items():
+    self._params = Viz2Params.__MakeDefaultParams()
+    for name, value in state.items():
       self[name] = value
 
   def ApplyGlobalParams(self):
@@ -267,72 +268,3 @@ class Viz2Params(object):
       fname -- name of file from which to load options"""
     for name, value in util.LoadByFileName(fname).items():
       self[name] = value
-
-
-###### COMMAND LINE INTERFACE ############
-
-def MakeDirLogger(dname):
-  def logger(**args):
-    for key, value in args.items():
-      fname = "%s.dat" % os.path.join(dname, key)
-      util.Store(value, fname)
-  return logger
-
-def MakeModel(backend = "cython", params_fname = None):
-  mod_name = "%sBackend" % backend.capitalize()
-  backend = eval("%s()" % mod_name)
-  params = Viz2Params()
-  if params_fname != None:
-    params.LoadFromFile(params_fname)
-  params.ApplyGlobalParams()
-  model = Viz2Model(backend, params)
-
-  #~ print "Model backend: %s" % model.backend
-
-  return model
-
-def main():
-  backend = "cython"
-  params_fname = None
-  proto_fname = None
-  rdir = None
-  opts, args = util.GetOptions("b:o:p:r:", [])
-  for opt, arg in opts:
-    if opt == '-b':
-      backend = arg
-    elif opt == '-o':
-      params_fname = arg
-    elif opt == '-p':
-      proto_fname = arg
-    elif opt == '-r':
-      rdir = arg
-  if len(args) < 2:
-    sys.exit("usage: %s CMD IMAGE" % sys.argv[0])
-  cmd, ifname = args[:2]
-  args = args[2:]
-  model = MakeModel(backend, params_fname)
-  if rdir != None:
-    model.logger = MakeDirLogger(rdir)
-    model.logger(params = model.params)
-  img = Image.open(ifname)
-  if cmd.upper() == "IMPRINT":
-    if len(args) < 1:
-      sys.exit("usage: %s IMPRINT IMAGE NUM_PROTOS > PROTOS" % sys.argv[0])
-    num_prototypes = int(args[0])
-    with util.Timer('ImprintPrototypes', TIMER):
-      protos, locations = model.ImprintPrototypes(img, num_prototypes)
-      for loc in locations:
-        print >>sys.stderr, ifname + " " + " ".join(map(str, loc))
-      util.Store(np.array(protos), sys.stdout)
-  elif cmd.upper() == "TRANSFORM":
-    if proto_fname == None:
-      sys.exit("Missing S2 prototypes")
-    protos = util.Load(proto_fname)
-    s1s, c1s = model.BuildThroughC1(img)
-    s2s, c2s, it = model.BuildItFromC1(c1s, protos)
-    #~ util.Store(it, sys.stdout)
-  else:
-    sys.exit("bad operation '%s': should be one of IMPRINT or TRANSFORM" % cmd)
-
-if __name__ == "__main__":
-  main()
