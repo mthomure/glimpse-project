@@ -102,5 +102,7 @@ def PowerSpectrum(image):
   # Compute the frequency (in cycles per pixel) corresponding to each bin.
   freq = numpy.arange(0, size / 2).astype(float) / size
   # Compute the average power for each bin.
+  # XXX the average may be significantly more accurate than the sum, as there
+  # are many fewer low-frequency locations in the FFT.
   #~ avg_per_bin = sum_per_bin / size_per_bin
   return numpy.array([freq, sum_per_bin, size_per_bin])

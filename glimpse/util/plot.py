@@ -88,7 +88,7 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   axes.set_yticks([])
   axes.set_xticks([])
   axes.hold(hold)
-  if show:
+  if hasattr(axes.figure, 'show') and show:
     axes.figure.show()
 
 Show2DArray = Show2dArray
@@ -207,7 +207,7 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
       ca = grid.cbar_axes[i]
       ca.colorbar(img)
       ca.toggle_label(True)
-  if show:
+  if hasattr(figure, 'show') and show:
     figure.show()
 
 Show2DArrayList = Show2dArrayList
