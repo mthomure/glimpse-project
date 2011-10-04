@@ -98,12 +98,19 @@ def Usage(msg, exc = None):
   # print >>sys.stderr, msg
   sys.exit(msg)
 
-def GetOptions(short_opts, long_opts = ()):
+def GetOptions(short_opts, long_opts = (), args = None):
   """Parse command line arguments from sys.argv, raising a UsageException if an
-  error is found."""
+  error is found.
+  short_opts -- set of single-character argument keys (see documentation for
+                getopt module)
+  long_opts -- set of multi-character argument keys
+  args -- list of command line arguments to parse
+  """
   import getopt
+  if args == None:
+    args = sys.argv[1:]
   try:
-    opts, args = getopt.getopt(sys.argv[1:], short_opts, long_opts)
+    opts, args = getopt.getopt(args, short_opts, long_opts)
   except getopt.GetoptError,e:
     raise UsageException(str(e))
   return opts, args
