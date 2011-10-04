@@ -12,12 +12,121 @@
 #include <iostream>
 using std::cout;
 
-// Compute activation for a layer of S-units. Computes RBF as the Gaussian
-// function applied to the normalized dot product of the input and kernel
-// arrays. Thus, this function assumes each kernel has unit length.
-// @param bias Used to alter the divisor when normalizing the input patch.
-// @param beta Controls width of Gaussian envolope when matching S1 prototypes.
-void CProcessSimpleLayer(const ArrayRef3D<float>& input,
+void CDotProduct(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, int scaling, ArrayRef3D<float>& output) {
+  int num_ibands = input.w0;
+  int iheight = input.w1;
+  int iwidth = input.w2;
+  int num_obands = output.w0;
+  int num_kernels = kernels.w0;
+  int num_kbands = kernels.w1;
+  ASSERT_EQUALS(num_ibands, num_kbands);
+  ASSERT_EQUALS(num_kernels, num_obands);
+  int kwidth = kernels.w2;
+  int kheight = kernels.w3;
+  int oheight = output.w1;
+  int owidth = output.w2;
+  int max_oheight, max_owidth;
+  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
+      &max_owidth);
+  ASSERT_TRUE(oheight <= max_oheight);
+  ASSERT_TRUE(owidth <= max_owidth);
+
+  // for all filters
+  for (int oband = 0; oband < num_kernels; ++oband) {
+    // for all locations
+    for (int top = 0; top < oheight; ++top) {
+      for (int left = 0; left < owidth; ++left) {
+        int rj = scaling * top;
+        int ri = scaling * left;
+        float dotprod = 0.0;
+        // for all kernel bands
+        for (int iband = 0; iband < num_ibands; ++iband) {
+          // Dot product of kernels and input neighborhood
+          for (int kj = 0; kj < kheight; ++kj) {
+            for (int ki = 0; ki < kwidth; ++ki) {
+              float x = input(iband, rj + kj, ri + ki);
+              float k = kernels(oband, iband, kj, ki);
+              dotprod += k * x;
+            }
+          }
+        } // end for all kernel bands
+        output(oband, top, left) = dotprod;
+      }
+    } // end for all locations
+  } // end for all filters
+}
+
+void CNormDotProduct(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, float bias, int scaling,
+    ArrayRef3D<float>& output) {
+  int num_ibands = input.w0;
+  int iheight = input.w1;
+  int iwidth = input.w2;
+  int num_obands = output.w0;
+  int num_kernels = kernels.w0;
+  int num_kbands = kernels.w1;
+  ASSERT_EQUALS(num_ibands, num_kbands);
+  ASSERT_EQUALS(num_kernels, num_obands);
+  int kwidth = kernels.w2;
+  int kheight = kernels.w3;
+  int oheight = output.w1;
+  int owidth = output.w2;
+  int max_oheight, max_owidth;
+  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
+      &max_owidth);
+  ASSERT_TRUE(oheight <= max_oheight);
+  ASSERT_TRUE(owidth <= max_owidth);
+
+  // for all filters
+  for (int oband = 0; oband < num_kernels; ++oband) {
+    // for all locations
+    for (int top = 0; top < oheight; ++top) {
+      for (int left = 0; left < owidth; ++left) {
+        int rj = scaling * top;
+        int ri = scaling * left;
+        float squares = 0.0;
+        float dotprod = 0.0;
+
+        // for all kernel bands
+        for (int iband = 0; iband < num_ibands; ++iband) {
+          // Dot product of kernels and input neighborhood
+          for (int kj = 0; kj < kheight; ++kj) {
+            for (int ki = 0; ki < kwidth; ++ki) {
+              float x = input(iband, rj + kj, ri + ki);
+              float k = kernels(oband, iband, kj, ki);
+              dotprod += k * x;
+              squares += x * x;
+            }
+          }
+        } // end for all kernel bands
+
+        // Bias (usually by 1.0) to prevent noise amplification. Add the
+        // bias before taking the square root to avoid ill-conditioned input.
+        float input_norm = sqrt(squares + bias);
+        // An alternative approach to avoid amplifying noise (used, e.g., by
+        // Pinto et al) is to clip the divisor.
+        // float input_norm;
+        // if (squares < 1.0) {
+          // input_norm = 1.0;
+        // } else {
+          // input_norm = sqrt(squares);
+        // }
+
+        // Input patch is not normalized. To compensate, divide dotprod by
+        // norm of the input.
+        dotprod /= input_norm;
+
+        // We have ||k|| = ||x|| = 1. Thus, by Cauchy-Schwarz:
+        //   -1 <= dotprod <= +1
+        DEBUG_ASSERT(-1.0001 <= dotprod && dotprod <= 1.0001);
+        output(oband, top, left) = dotprod;
+      }
+    } // end for all locations
+  } // end for all filters
+}
+
+void CNormRbf(const ArrayRef3D<float>& input,
     const ArrayRef4D<float>& kernels, float bias, float beta, int scaling,
     ArrayRef3D<float>& output) {
   int num_ibands = input.w0;
@@ -90,6 +199,149 @@ void CProcessSimpleLayer(const ArrayRef3D<float>& input,
         // for unit vectors X and V, where <.,.> denotes the dot
         // product.
         float result = exp(-2.0 * beta * (1.0 - dotprod));
+
+        // The above result lies in the closed interval
+        // [exp(-4*beta), 1]. Thus, we rescale to get values in
+        // [-1, 1].
+        //result = 2.0 * (result - scaling_constant) /
+            //(1.0 - scaling_constant) - 1.0;
+
+        output(oband, top, left) = result;
+      }
+    } // end for all locations
+  } // end for all filters
+}
+
+void CRbf(const ArrayRef3D<float>& input, const ArrayRef4D<float>& kernels,
+    float beta, int scaling, ArrayRef3D<float>& output) {
+  int num_ibands = input.w0;
+  int iheight = input.w1;
+  int iwidth = input.w2;
+  int num_obands = output.w0;
+  int num_kernels = kernels.w0;
+  int num_kbands = kernels.w1;
+  ASSERT_EQUALS(num_ibands, num_kbands);
+  ASSERT_EQUALS(num_kernels, num_obands);
+  int kwidth = kernels.w2;
+  int kheight = kernels.w3;
+  int oheight = output.w1;
+  int owidth = output.w2;
+  int max_oheight, max_owidth;
+  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
+      &max_owidth);
+  ASSERT_TRUE(oheight <= max_oheight);
+  ASSERT_TRUE(owidth <= max_owidth);
+
+  // for all filters
+  for (int oband = 0; oband < num_kernels; ++oband) {
+    // for all locations
+    for (int top = 0; top < oheight; ++top) {
+      for (int left = 0; left < owidth; ++left) {
+        int rj = scaling * top;
+        int ri = scaling * left;
+        float square_dist = 0.0;
+
+        // for all kernel bands
+        for (int iband = 0; iband < num_ibands; ++iband) {
+          for (int kj = 0; kj < kheight; ++kj) {
+            for (int ki = 0; ki < kwidth; ++ki) {
+              float x = input(iband, rj + kj, ri + ki);
+              float k = kernels(oband, iband, kj, ki);
+              square_dist += (k - x) * (k - x);
+            }
+          }
+        } // end for all kernel bands
+
+        // Radial basis function with arbitrary vectors.
+        float result = exp(-1 * beta * square_dist);
+
+        output(oband, top, left) = result;
+      }
+    } // end for all locations
+  } // end for all filters
+}
+
+// Compute activation for a layer of S-units. Computes RBF as the Gaussian
+// function applied to the normalized dot product of the input and kernel
+// arrays. Thus, this function assumes each kernel has unit length.
+// @param bias Used to alter the divisor when normalizing the input patch.
+// @param beta Controls width of Gaussian envolope when matching S1 prototypes.
+void CProcessSimpleLayer(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, float bias, float beta, int scaling,
+    ArrayRef3D<float>& output) {
+  int num_ibands = input.w0;
+  int iheight = input.w1;
+  int iwidth = input.w2;
+  int num_obands = output.w0;
+  int num_kernels = kernels.w0;
+  int num_kbands = kernels.w1;
+  ASSERT_EQUALS(num_ibands, num_kbands);
+  ASSERT_EQUALS(num_kernels, num_obands);
+  int kwidth = kernels.w2;
+  int kheight = kernels.w3;
+  int oheight = output.w1;
+  int owidth = output.w2;
+  int max_oheight, max_owidth;
+  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
+      &max_owidth);
+  ASSERT_TRUE(oheight <= max_oheight);
+  ASSERT_TRUE(owidth <= max_owidth);
+  //const float scaling_constant = exp(-4.0 * beta);
+
+  // for all filters
+  for (int oband = 0; oband < num_kernels; ++oband) {
+    // for all locations
+    for (int top = 0; top < oheight; ++top) {
+      for (int left = 0; left < owidth; ++left) {
+        int rj = scaling * top;
+        int ri = scaling * left;
+        float squares = 0.0;
+        float dotprod = 0.0;
+
+        // for all kernel bands
+        for (int iband = 0; iband < num_ibands; ++iband) {
+          // Dot product of kernels and input neighborhood
+          for (int kj = 0; kj < kheight; ++kj) {
+            for (int ki = 0; ki < kwidth; ++ki) {
+              float x = input(iband, rj + kj, ri + ki);
+              float k = kernels(oband, iband, kj, ki);
+              dotprod += k * x;
+              squares += x * x;
+            }
+          }
+        } // end for all kernel bands
+
+        // Bias (usually by 1.0) to prevent noise amplification. Add the
+        // bias before taking the square root to avoid ill-conditioned input.
+        float input_norm = sqrt(squares + bias);
+        // An alternative approach to avoid amplifying noise (used, e.g., by
+        // Pinto et al) is to clip the divisor.
+        // float input_norm;
+        // if (squares < 1.0) {
+          // input_norm = 1.0;
+        // } else {
+          // input_norm = sqrt(squares);
+        // }
+
+        // Input patch is not normalized. To compensate, divide dotprod by
+        // norm of the input.
+        float dotprod0 = dotprod;
+        dotprod /= input_norm;
+
+        // We have ||k|| = ||x|| = 1. Thus, by Cauchy-Schwarz:
+        //   -1 <= dotprod <= +1
+        DEBUG_ASSERT(-1.0001 <= dotprod && dotprod <= 1.0001);
+
+        // Radial basis function with unit vectors, given by:
+        //   y = exp( -beta * ||X - P||^2 )
+        // where X and P are the input and the prototype. Here
+        // we use the identity:
+        //   ||X - V||^2 = 2 ( 1 - <X,V> )
+        // for unit vectors X and V, where <.,.> denotes the dot
+        // product.
+        float result = exp(-2.0 * beta * (1.0 - dotprod));
+
+        result = dotprod0;
 
         // The above result lies in the closed interval
         // [exp(-4*beta), 1]. Thus, we rescale to get values in

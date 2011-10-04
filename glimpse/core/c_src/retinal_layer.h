@@ -10,6 +10,9 @@
 
 #include "array.h"
 
+void CContrastEnhance(const ArrayRef2D<float>& input, int kheight, int kwidth,
+    float bias, ArrayRef2D<float>& output);
+
 void CProcessRetina(const ArrayRef2D<float>& input, int kheight, int kwidth,
     float bias, ArrayRef2D<float>& output);
 

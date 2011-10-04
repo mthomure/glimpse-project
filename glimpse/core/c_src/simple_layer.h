@@ -10,6 +10,20 @@
 
 #include "array.h"
 
+void CDotProduct(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, int scaling, ArrayRef3D<float>& output);
+
+void CNormDotProduct(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, float bias, int scaling,
+    ArrayRef3D<float>& output);
+
+void CNormRbf(const ArrayRef3D<float>& input,
+    const ArrayRef4D<float>& kernels, float bias, float beta, int scaling,
+    ArrayRef3D<float>& output);
+
+void CRbf(const ArrayRef3D<float>& input, const ArrayRef4D<float>& kernels,
+    float beta, int scaling, ArrayRef3D<float>& output);
+
 void CProcessSimpleLayer(const ArrayRef3D<float>& input,
     const ArrayRef4D<float>& kernels, float bias, float beta, int scaling,
     ArrayRef3D<float>& output);

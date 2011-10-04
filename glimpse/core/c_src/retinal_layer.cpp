@@ -25,6 +25,35 @@ void ComputeMeanAndVariance(float* data, int size, float* mean, float* var) {
   *var = (sum2 - sumc * sumc / size) / (size - 1);
 }
 
+void CContrastEnhance(const ArrayRef2D<float>& input, int kheight, int kwidth,
+    float bias, ArrayRef2D<float>& output) {
+  int max_oheight, max_owidth;
+  CMaxOutputDimensions(kheight, kwidth,
+      1.0,  // scaling
+      input.w0, input.w1, &max_oheight, &max_owidth);
+  int oheight = output.w0;
+  int owidth = output.w1;
+  ASSERT_TRUE(oheight <= max_oheight);
+  ASSERT_TRUE(owidth <= max_owidth);
+  int pad = kwidth / 2;
+  Array2D<float> cache(kheight, kwidth);
+  for (int top = 0; top < oheight; ++top) {
+    for (int left = 0; left < owidth; ++left) {
+      // Load the cache
+      for (int ky = 0; ky < kheight; ++ky) {
+        for (int kx = 0; kx < kwidth; ++kx) {
+          cache(ky, kx) = input(top + ky, left + kx);
+        }
+      }
+      // Compute new center pixel
+      float mean, var;
+      ComputeMeanAndVariance(cache.Get(), cache.Size(), &mean, &var);
+      float std = sqrt(var + bias);
+      output(top, left) = (cache(pad, pad) - mean) / std;
+    }
+  }
+}
+
 void CProcessRetina(const ArrayRef2D<float>& input, int kheight, int kwidth,
     float bias, ArrayRef2D<float>& output) {
   int max_oheight, max_owidth;
@@ -54,6 +83,8 @@ void CProcessRetina(const ArrayRef2D<float>& input, int kheight, int kwidth,
   }
 }
 
+// XXX this function reports the correct result, but shifted one pixel to the
+// right. Fix this.
 void CProcessRetinaSSE(const ArrayRef2D<float>& input, int kheight, int kwidth,
     float bias, ArrayRef2D<float>& output) {
 #ifdef __SSE__

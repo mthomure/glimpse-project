@@ -144,10 +144,31 @@ def NormalizeArrayAcrossBand_UnitNorm(np.ndarray[act_t, ndim = 3] data not
 ########## Retinal Layer Processing ################
 
 cdef extern from "c_src/retinal_layer.h" nogil:
+  void CContrastEnhance(ArrayRef2D[float]& idata, int kheight, int kwidth,
+      float bias, ArrayRef2D[float]& odata) except +
   void CProcessRetina(ArrayRef2D[float]& idata, int kheight, int kwidth,
       float bias, ArrayRef2D[float]& odata) except +
   void CProcessRetinaSSE(ArrayRef2D[float]& idata, int kheight, int kwidth,
       float bias, ArrayRef2D[float]& odata) except +
+
+def ContrastEnhance(np.ndarray[act_t, ndim = 2] in_data not None, int kheight,
+    int kwidth, float bias, np.ndarray[act_t, ndim = 2] out_data = None):
+  """Apply retinal processing to the given image data.
+  kwidth - width of retinal kernel
+  bias - constant added to the stdev of local activity (avoids amplifying
+         noise)"""
+  if out_data == None:
+    if kheight != kwidth:
+      raise ValueError("Kernel must be square (spatially)")
+    oheight, owidth, multi_kwidth, lpad = MaxOutputDimensions(kheight, kwidth,
+        1, (in_data.shape[0], in_data.shape[1]), use_sse = False)
+    if oheight <= 0 or owidth <= 0:
+      raise InsufficientSizeException()
+    out_data = np.empty((oheight, owidth), activation_dtype)
+  i = WrapArray2D(in_data)
+  o = WrapArray2D(out_data)
+  CContrastEnhance(i.ptr[0], kheight, kwidth, bias, o.ptr[0])
+  return out_data
 
 def ProcessRetina(np.ndarray[act_t, ndim = 2] in_data not None, int kheight,
     int kwidth, float bias, np.ndarray[act_t, ndim = 2] out_data not None):
@@ -175,6 +196,15 @@ cdef extern from "c_src/simple_layer.h" nogil:
       ArrayRef4D[float]& kernels, float bias, float beta,
       ArrayRef3D[float]& output)
 
+  void CDotProduct(ArrayRef3D[float]& in_data, ArrayRef4D[float]& kernels,
+      int scaling, ArrayRef3D[float]& out_data)
+  void CNormDotProduct(ArrayRef3D[float]& in_data, ArrayRef4D[float]& kernels,
+      float bias, int scaling, ArrayRef3D[float]& out_data)
+  void CNormRbf(ArrayRef3D[float]& in_data, ArrayRef4D[float]& kernels,
+      float bias, float beta, int scaling, ArrayRef3D[float]& out_data)
+  void CRbf(ArrayRef3D[float]& in_data, ArrayRef4D[float]& kernels,
+      float beta, int scaling, ArrayRef3D[float]& out_data)
+
 def ProcessSimpleLayer(np.ndarray[act_t, ndim = 3] in_data not None,
     np.ndarray[act_t, ndim=4] kernels not None, float bias, float beta,
     int scaling, np.ndarray[act_t, ndim=3] out_data not None, bint use_sse):
@@ -192,6 +222,73 @@ def ProcessSimpleLayer(np.ndarray[act_t, ndim = 3] in_data not None,
     CProcessSimpleLayer(in_data_ref.ptr[0], kernels_ref.ptr[0], bias, beta,
         scaling, out_data_ref.ptr[0])
 
+class InsufficientSizeException(BaseException):
+  """Exception indicating that the input array was too small (spatially) to
+  support the requested operation."""
+  pass
+
+def _PrepareFilterArgs(np.ndarray[act_t, ndim = 3] in_data not None,
+    np.ndarray[act_t, ndim=4] kernels not None,
+    np.ndarray[act_t, ndim=3] out_data = None, scaling = 1):
+  if out_data == None:
+    kheight = kernels.shape[2]
+    kwidth = kernels.shape[3]
+    if kheight != kwidth:
+      raise ValueError("Kernel must be square (spatially)")
+    oheight, owidth, multi_kwidth, lpad = MaxOutputDimensions(kheight, kwidth, scaling,
+        (in_data.shape[1], in_data.shape[2]), use_sse = False)
+    nkernels = kernels.shape[0]
+    if oheight <= 0 or owidth <= 0:
+      raise InsufficientSizeException()
+    out_data = np.empty((nkernels, oheight, owidth), np.float32)
+  if in_data.shape[0] != kernels.shape[1]:
+    raise ValueError("Number of bands in kernel must match number of bands in input data")
+  if kernels.shape[0] != out_data.shape[0]:
+    raise ValueError("Number of kernels must match number of bands in output array")
+  return out_data #in_data, kernels, out_data
+
+def DotProduct(np.ndarray[act_t, ndim = 3] in_data not None,
+    np.ndarray[act_t, ndim=4] kernels not None,
+    np.ndarray[act_t, ndim=3] out_data = None, int scaling = 1):
+  out_data = _PrepareFilterArgs(in_data, kernels, out_data, scaling)
+  i = WrapArray3D(in_data)
+  k = WrapArray4D(kernels)
+  o = WrapArray3D(out_data)
+  CDotProduct(i.ptr[0], k.ptr[0], scaling, o.ptr[0])
+  return out_data
+
+def NormDotProduct(np.ndarray[act_t, ndim = 3] in_data not None,
+    np.ndarray[act_t, ndim=4] kernels not None,
+    np.ndarray[act_t, ndim=3] out_data = None, float bias = 1.0,
+    int scaling = 1):
+  out_data = _PrepareFilterArgs(in_data, kernels, out_data, scaling)
+  i = WrapArray3D(in_data)
+  k = WrapArray4D(kernels)
+  o = WrapArray3D(out_data)
+  CNormDotProduct(i.ptr[0], k.ptr[0], bias, scaling, o.ptr[0])
+  return out_data
+
+def NormRbf(np.ndarray[act_t, ndim = 3] in_data not None,
+    np.ndarray[act_t, ndim=4] kernels not None,
+    np.ndarray[act_t, ndim=3] out_data = None, float bias = 1, float beta = 1,
+    int scaling = 1):
+  out_data = _PrepareFilterArgs(in_data, kernels, out_data, scaling)
+  i = WrapArray3D(in_data)
+  k = WrapArray4D(kernels)
+  o = WrapArray3D(out_data)
+  CNormRbf(i.ptr[0], k.ptr[0], bias, beta, scaling, o.ptr[0])
+  return out_data
+
+def Rbf(np.ndarray[act_t, ndim = 3] in_data not None,
+    np.ndarray[act_t, ndim=4] kernels not None,
+    np.ndarray[act_t, ndim=3] out_data = None, float beta = 1,
+    int scaling = 1):
+  out_data = _PrepareFilterArgs(in_data, kernels, out_data, scaling)
+  i = WrapArray3D(in_data)
+  k = WrapArray4D(kernels)
+  o = WrapArray3D(out_data)
+  CRbf(i.ptr[0], k.ptr[0], beta, scaling, o.ptr[0])
+  return out_data
 
 ########## Complex Layer Processing ################
 

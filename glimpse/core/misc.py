@@ -10,7 +10,8 @@
 #
 
 import c_src as c_src
-from c_src import MaxOutputDimensions
+from c_src import MaxOutputDimensions, DotProduct, NormDotProduct, NormRbf, \
+                  Rbf, ContrastEnhance
 from glimpse import util
 from glimpse.util import bitset
 import Image
