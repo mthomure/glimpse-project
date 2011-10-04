@@ -7,42 +7,63 @@ class NotImplemented(Exception):
 class CythonBackend(object):
 
   def ContrastEnhance(self, data, kwidth, bias, scaling):
-    """Apply retinal processing to given 2-D data."""
+    """Apply local contrast stretch to an array.
+    data -- (2-D) array of input data
+    kwidth -- (int) kernel width
+    bias -- (float) additive term in denominator
+    scaling -- (positive int) subsampling factor
+    """
     assert scaling == 1
-    return misc.BuildRetinalLayer(data, kwidth, bias = bias)
+    return misc.ContrastEnhance(data, kwidth, kwidth, bias = bias)
 
   def DotProduct(self, data, kernels, scaling):
-    """Convolve maps with an array of 2-D kernels."""
-    raise NotImplemented()
+    """Convolve an array with a set of kernels.
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels
+    scaling -- (positive int) subsampling factor
+    """
+    return misc.DotProduct(data, kernels, scaling = scaling)
 
   def NormDotProduct(self, data, kernels, bias, scaling):
-    """Convolve maps with 3-D kernels, normalizing the response by the vector
-    length of the input neighborhood.
-    data - 3-D array of input data
-    kernels - (4-D) array of (3-D) kernels (i.e., all kernels have same shape)
+    """Convolve an array with a set of kernels, normalizing the response by the
+    vector length of the input neighborhood.
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
+              have unit vector length
+    bias -- (float) additive term in denominator
+    scaling -- (positive int) subsampling factor
     """
-    raise NotImplemented()
+    return misc.NormDotProduct(data, kernels, bias = bias, scaling = scaling)
 
   def Rbf(self, data, kernels, beta, scaling):
     """Compare kernels to input data using the RBF activation function.
-    data -- (2- or 3-D) array of input data
-    kernels -- (3- or 4-D) array of (2- or 3-D) kernels
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels
+    beta -- (positive float) tuning parameter for radial basis function
+    scaling -- (positive int) subsampling factor
     """
-    raise NotImplemented()
+    return misc.Rbf(data, kernels, beta = beta, scaling = scaling)
 
   def NormRbf(self, data, kernels, bias, beta, scaling):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
-    data -- (2- or 3-D) array of input data
-    kernels -- (3- or 4-D) array of (2- or 3-D) kernels, where each kernel is
-               expected to have unit length
+    data -- (3-D) array of input data
+    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
+        have unit length
+    bias -- (float) additive term in denominator
+    beta -- (positive float) tuning parameter for radial basis function
+    scaling -- (positive int) subsampling factor
     """
-    return misc.BuildSimpleLayer(data, kernels, bias = bias, beta = beta,
+    return misc.NormRbf(data, kernels, bias = bias, beta = beta,
         scaling = scaling)
+    return np.exp(-2 * beta * (1 - misc.NormDotProduct(data, kernels,
+        bias = bias, scaling = scaling)))
 
   def LocalMax(self, data, kwidth, scaling):
     """Convolve maps with local 2-D max filter.
-    data - (3-D) array with one 2-D map for each output band
+    data -- (3-D) array of input data
+    kwidth -- (positive int) kernel width
+    scaling -- (positive int) subsampling factor
     """
     odata, _t = misc.BuildComplexLayer(data, kwidth = kwidth, kheight = kwidth,
         scaling = scaling)
@@ -50,7 +71,7 @@ class CythonBackend(object):
 
   def GlobalMax(self, data):
     """Find the per-band maxima.
-    data - (3-D) array of one 2-D map for each output band
+    data -- (3-D) array of input data
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
