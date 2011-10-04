@@ -18,6 +18,7 @@ def PadArray(data, out_shape, cval):
   return result
 
 def UnpadArray(data, out_shape):
+  assert np.all(np.array(data.shape) >= np.array(out_shape))
   out_shape = np.array(out_shape)
   in_shape = np.array(data.shape)
   begin = ((in_shape - out_shape) / 2.0).astype(int)
@@ -148,7 +149,7 @@ def MakeDisc(kwidth):
   X, Y = meshgrid(Z, Z)
   return X**2 + Y**2 <= 1
 
-def MakeSinusiod2d(kwidth = 11, freq = 0.25, theta = 0, phi = 0):
+def MakeSinusoid2d(kwidth = 11, freq = 0.25, theta = 0, phi = 0):
   from math import pi
   from numpy import mgrid, sin, cos
   #~ assert kwidth % 2 == 1
