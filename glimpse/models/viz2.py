@@ -70,7 +70,8 @@ class Viz2Model(object):
     img = core.ImageToInputArray(img)
     retina = self.backend.ContrastEnhance(img,
         kwidth = self.params['retina_kwidth'],
-        bias = self.params['retina_bias'])
+        bias = self.params['retina_bias'],
+        scaling = 1)
     self._Log("s1-kernels", mks)
     self._Log(image = img, retina = retina)
     retina_ = retina.reshape((1,) + retina.shape)

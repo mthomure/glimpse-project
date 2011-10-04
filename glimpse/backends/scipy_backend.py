@@ -26,11 +26,11 @@ def _ScipyOpPruner(kernel_shape, scaling):
 
 class ScipyBackend(object):
 
-  def ContrastEnhance(self, data, kwidth, bias):
+  def ContrastEnhance(self, data, kwidth, bias, scaling):
     """Apply retinal processing to given 2-D data."""
     assert len(data.shape) == 2
     kshape = (kwidth, kwidth)
-    prune = _ScipyOpPruner(kshape, scaling = 1)
+    prune = _ScipyOpPruner(kshape, scaling = scaling)
     # x - mu / std
     k = np.ones(kshape)
     k /= k.size
@@ -128,8 +128,8 @@ class ScipyBackend(object):
 
 
 
-def ContrastEnhance(data, kwidth, bias):
-  return ScipyBackend().ContrastEnhance(data, kwidth, bias)
+def ContrastEnhance(data, kwidth, bias, scaling):
+  return ScipyBackend().ContrastEnhance(data, kwidth, bias, scaling)
 
 def DotProduct(data, kernels, scaling):
   return ScipyBackend().DotProduct(data, kernels, scaling)

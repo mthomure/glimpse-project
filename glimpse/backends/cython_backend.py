@@ -6,8 +6,9 @@ class NotImplemented(Exception):
 
 class CythonBackend(object):
 
-  def ContrastEnhance(self, data, kwidth, bias):
+  def ContrastEnhance(self, data, kwidth, bias, scaling):
     """Apply retinal processing to given 2-D data."""
+    assert scaling == 1
     return misc.BuildRetinalLayer(data, kwidth, bias = bias)
 
   def DotProduct(self, data, kernels, scaling):
@@ -56,8 +57,8 @@ class CythonBackend(object):
     return data.reshape(data.shape[0], -1).max(1)
 
 
-def ContrastEnhance(data, kwidth, bias):
-  return CythonBackend().ContrastEnhance(data, kwidth, bias)
+def ContrastEnhance(data, kwidth, bias, scaling):
+  return CythonBackend().ContrastEnhance(data, kwidth, bias, scaling)
 
 def DotProduct(data, kernels, scaling):
   return CythonBackend().DotProduct(data, kernels, scaling)
