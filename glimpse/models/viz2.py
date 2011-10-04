@@ -194,7 +194,6 @@ class Viz2Params(object):
 
     ('num_scales', "Number of different scale bands"),
     ('scale_factor', "Image downsampling factor between scale bands"),
-    ('sse_enabled', "Enable use of SSE intrinsics, when available"),
   ]
 
   @classmethod
@@ -229,7 +228,6 @@ class Viz2Params(object):
 
       num_scales = 4,
       scale_factor = 2**(1./2),
-      sse_enabled = core.GetUseSSE(),
     )
 
   def __init__(self, **args):

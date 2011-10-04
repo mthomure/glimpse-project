@@ -1,8 +1,4 @@
-
-from glimpse.core import misc
-
-class NotImplemented(Exception):
-  pass
+import filters
 
 class CythonBackend(object):
 
@@ -14,7 +10,7 @@ class CythonBackend(object):
     scaling -- (positive int) subsampling factor
     """
     assert scaling == 1
-    return misc.ContrastEnhance(data, kwidth, kwidth, bias = bias)
+    return filters.ContrastEnhance(data, kwidth, kwidth, bias = bias)
 
   def DotProduct(self, data, kernels, scaling):
     """Convolve an array with a set of kernels.
@@ -22,7 +18,7 @@ class CythonBackend(object):
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
     """
-    return misc.DotProduct(data, kernels, scaling = scaling)
+    return filters.DotProduct(data, kernels, scaling = scaling)
 
   def NormDotProduct(self, data, kernels, bias, scaling):
     """Convolve an array with a set of kernels, normalizing the response by the
@@ -33,7 +29,7 @@ class CythonBackend(object):
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
     """
-    return misc.NormDotProduct(data, kernels, bias = bias, scaling = scaling)
+    return filters.NormDotProduct(data, kernels, bias = bias, scaling = scaling)
 
   def Rbf(self, data, kernels, beta, scaling):
     """Compare kernels to input data using the RBF activation function.
@@ -42,7 +38,7 @@ class CythonBackend(object):
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
     """
-    return misc.Rbf(data, kernels, beta = beta, scaling = scaling)
+    return filters.Rbf(data, kernels, beta = beta, scaling = scaling)
 
   def NormRbf(self, data, kernels, bias, beta, scaling):
     """Compare kernels to input data using the RBF activation function with
@@ -54,9 +50,9 @@ class CythonBackend(object):
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
     """
-    return misc.NormRbf(data, kernels, bias = bias, beta = beta,
+    return filters.NormRbf(data, kernels, bias = bias, beta = beta,
         scaling = scaling)
-    return np.exp(-2 * beta * (1 - misc.NormDotProduct(data, kernels,
+    return np.exp(-2 * beta * (1 - filters.NormDotProduct(data, kernels,
         bias = bias, scaling = scaling)))
 
   def LocalMax(self, data, kwidth, scaling):
@@ -65,7 +61,7 @@ class CythonBackend(object):
     kwidth -- (positive int) kernel width
     scaling -- (positive int) subsampling factor
     """
-    odata, _t = misc.BuildComplexLayer(data, kwidth = kwidth, kheight = kwidth,
+    odata, _t = filters.LocalMax(data, kwidth = kwidth, kheight = kwidth,
         scaling = scaling)
     return odata
 
