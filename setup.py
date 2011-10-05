@@ -59,20 +59,24 @@ if profiler:
 
 #### Do Not Edit Below This Line ####
 
-cython_backend_ext = Extension(
-  "glimpse.backends.cython_backend.filters",
+ext = Extension(
+  "glimpse.core.c_src",
   [
-    "glimpse/backends/cython_backend/filters.pyx",
-    "glimpse/backends/cython_backend/src/array.cpp",
-    "glimpse/backends/cython_backend/src/bitset_array.cpp",
-    "glimpse/backends/cython_backend/src/filters.cpp",
-    "glimpse/backends/cython_backend/src/util.cpp",
+    "glimpse/core/c_src.pyx",
+    "glimpse/core/c_src/array.cpp",
+    "glimpse/core/c_src/bitset_array.cpp",
+    "glimpse/core/c_src/retinal_layer.cpp",
+    "glimpse/core/c_src/simple_layer.cpp",
+    "glimpse/core/c_src/complex_layer.cpp",
+    "glimpse/core/c_src/util.cpp",
   ],
   depends = [
-    "glimpse/backends/cython_backend/src/array.h",
-    "glimpse/backends/cython_backend/src/bitset_array.h",
-    "glimpse/backends/cython_backend/src/filters.h",
-    "glimpse/backends/cython_backend/src/util.h",
+    "glimpse/core/c_src/array.h",
+    "glimpse/core/c_src/bitset_array.h",
+    "glimpse/core/c_src/retinal_layer.h",
+    "glimpse/core/c_src/simple_layer.h",
+    "glimpse/core/c_src/complex_layer.h",
+    "glimpse/core/c_src/util.h",
   ],
   language = "c++",
   extra_compile_args = extra_compile_args,
@@ -83,12 +87,13 @@ cython_backend_ext = Extension(
 
 setup(
   name = "glimpse",
-  version = "1.1",
+  version = "1.0",
   description = "Library for hierarchical visual models in C++ and Python",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
   cmdclass = {'build_ext': build_ext},
 
-  ext_modules = [ cython_backend_ext ],
+  ext_modules = [ ext ],
+  packages = [ 'glimpse', 'glimpse.core', 'glimpse.util' ],
   include_dirs = [ numpy.get_include() ],
 )
