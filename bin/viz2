@@ -17,20 +17,13 @@ import Image
 import os
 import sys
 
-def MakeDirLogger(dname):
-  def logger(**args):
-    for key, value in args.items():
-      fname = "%s.dat" % os.path.join(dname, key)
-      util.Store(value, fname)
-  return logger
-
-def MakeModel(backend = "cython", params_fname = None):
+def MakeModel(backend = "cython", params_fname = None, **args):
   mod_name = "%sBackend" % backend.capitalize()
   backend = eval("%s()" % mod_name)
   params = Viz2Params()
   if params_fname != None:
     params.LoadFromFile(params_fname)
-  model = Viz2Model(backend, params)
+  model = Viz2Model(backend, params, **args)
   return model
 
 def main():
@@ -52,15 +45,13 @@ def main():
     sys.exit("usage: %s CMD IMAGE" % sys.argv[0])
   cmd, ifname = args[:2]
   args = args[2:]
-  model = MakeModel(backend, params_fname)
-  if rdir != None:
-    model.logger = MakeDirLogger(rdir)
-    model.logger(params = model.params)
   img = Image.open(ifname)
+  img = util.ImageToInputArray(img)
   if cmd.upper() == "IMPRINT":
     if len(args) < 1:
       sys.exit("usage: %s IMPRINT IMAGE NUM_PROTOS > PROTOS" % sys.argv[0])
     num_prototypes = int(args[0])
+    model = MakeModel(backend, params_fname)
     protos, locations = model.ImprintPrototypes(img, num_prototypes)
     for loc in locations:
       print >>sys.stderr, ifname + " " + " ".join(map(str, loc))
@@ -69,8 +60,11 @@ def main():
     if proto_fname == None:
       sys.exit("Missing S2 prototypes")
     protos = util.Load(proto_fname)
-    s1s, c1s = model.BuildThroughC1(img)
-    it = model.BuildItFromC1(c1s, protos)
+    model = MakeModel(backend, params_fname, s2_kernels = protos)
+    results = model.BuildLayers(img, LAYER_RETINA, LAYER_IT)
+    if rdir != None:
+      for name, value in results.items():
+        util.Store(value, os.path.join(rdir, "%s-activity" % name))
     #~ util.Store(it, sys.stdout)
   else:
     sys.exit("bad operation '%s': should be one of IMPRINT or TRANSFORM" % cmd)
