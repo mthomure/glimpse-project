@@ -8,10 +8,11 @@
 # Functions for dealing with N-dimensional arrays.
 #
 
-from glimpse.util import image
 import Image
 import math
 import numpy
+
+ACTIVATION_DTYPE = numpy.float32
 
 def ArgMax(array):
   """Short-hand to find array indices containing the maximum value."""

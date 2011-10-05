@@ -8,6 +8,7 @@
 # Functions for dealing with images, and image processing
 #
 
+from glimpse.util.array import ACTIVATION_DTYPE
 import numpy
 import numpy as np
 from scipy import fftpack
@@ -53,6 +54,20 @@ def ImageToArray(img, array = None, transpose = True):
     else:
       return CopyImage(MakeBuffer()).T
   assert False, "Internal logic error!"
+
+def ImageToInputArray(img):
+  """Load image into memory in the format required by Glimpse.
+  img - PIL Image object containing pixel data
+  RETURNS: 2-D array of image data in the range [0, 1]
+  """
+  img = img.convert('L')
+  array = ImageToArray(img, transpose = True)
+  array = array.astype(ACTIVATION_DTYPE)
+  if not array.flags['C_CONTIGUOUS']:
+    array = array.copy()
+  # Map from [0, 255] to [0, 1]
+  array /= 255
+  return array
 
 def ShowImage(img, fname = None):
   if sys.platform == "darwin":

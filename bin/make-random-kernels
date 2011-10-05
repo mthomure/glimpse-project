@@ -6,7 +6,7 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.core.misc import MakeRandomKernels
+from glimpse.util.kernel import MakeRandomKernels
 from glimpse.util.random import HistogramSampler
 from glimpse import util
 import math

@@ -8,7 +8,8 @@
 
 
 from glimpse import core, util
-from glimpse.core import activation_dtype
+from glimpse.util import ACTIVATION_DTYPE
+from glimpse.util import kernel
 import numpy as np
 import random
 
@@ -61,13 +62,13 @@ class Viz2Model(object):
     s1_kwidth = self.params['s1_kwidth']
     s1_num_orientations = self.params['s1_num_orientations']
     s1_num_phases = self.params['s1_num_phases']
-    mks = core.MakeMultiScaleGaborKernels(kwidth = s1_kwidth,
+    mks = kernel.MakeMultiScaleGaborKernels(kwidth = s1_kwidth,
         num_scales = num_scales, num_orientations = s1_num_orientations,
         num_phases = s1_num_phases, shift_orientations = True,
         scale_norm = True)
     # Reshape kernel array to be 4-D: scale, index, 1, y, x
     mks_ = mks.reshape((num_scales, -1, 1, s1_kwidth, s1_kwidth))
-    img = core.ImageToInputArray(img)
+    img = util.ImageToInputArray(img)
     retina = self.backend.ContrastEnhance(img,
         kwidth = self.params['retina_kwidth'],
         bias = self.params['retina_bias'],
@@ -95,7 +96,7 @@ class Viz2Model(object):
 
     # DEBUG: viz2 used pann's whitening method, which normalized across scales
     if self.params['c1_whiten']:
-      c1s = np.array(c1s, activation_dtype)
+      c1s = np.array(c1s, ACTIVATION_DTYPE)
       c1_shape = c1s.shape
       c1s = c1s.reshape((-1,) + c1s.shape[-2:])
       Viz2Model.Whiten(c1s)

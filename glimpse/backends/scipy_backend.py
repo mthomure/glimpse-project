@@ -2,7 +2,6 @@
 import scipy
 from scipy.ndimage import maximum_filter
 import numpy as np
-from glimpse.core import activation_dtype
 
 def Correlate(data, kernel, output = None):
   """Apply a multi-band filter to a set of 2-D arrays, by applying Scipy's

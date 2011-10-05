@@ -92,7 +92,7 @@ def main():
         " layers above C1")
   img = Image.open(ifname).convert("L")
   img = core.ScaleImage(img, scale, options)
-  ilayer = core.ImageToInputArray(img)
+  ilayer = util.ImageToInputArray(img)
   rlayer = core.BuildRetinaFromImage(ilayer, options)
   layer = GetLayer(ilayer, rlayer, layer_name, options, s2_protos)
   if display_image_layer:

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 from glimpse import util, core
+from glimpse.util import kernel
 import Image
 import math
 import numpy as np
@@ -30,7 +31,7 @@ def Normalize(data):
   return data
 
 def MakeS1Kernels(kwidth):
-  kernels = core.MakeGaborKernels(kwidth = kwidth)
+  kernels = kernel.MakeGaborKernels(kwidth = kwidth)
   map(Normalize, kernels.reshape((-1,) + kernels.shape[-2:]))
   return kernels
 

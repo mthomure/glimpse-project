@@ -5,6 +5,7 @@ import os
 import sys
 from glimpse import core
 from glimpse import util
+from glimpse.util import kernel
 
 LAYERS = ('r', 's1', 'c1', 's2', 'c2', 'it')
 ALL_STORE_ELEMENTS = set(('options', 'r-activity', 's1-kernel', 's1-activity',
@@ -59,12 +60,12 @@ def Transform(img_fname, layers, options, s2_prototypes, use_timer):
   results['options'] = options
   if 'r' not in layers: return results
   with Timer("img", use_timer):
-    img = core.LoadImageFromFile(img_fname)
+    img = util.LoadImageFromFile(img_fname)
   with Timer("retina", use_timer):
     retina = core.BuildRetinaFromImage(img, **options)
   results['r-activity'] = retina
   if 's1' not in layers: return results
-  s1_kernels = core.MakeGaborKernels(**options)
+  s1_kernels = kernel.MakeGaborKernels(**options)
   results['s1-kernel'] = s1_kernels
   with Timer("s1", use_timer):
     s1 = core.BuildS1FromRetina(retina, s1_kernels, 

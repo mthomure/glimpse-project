@@ -7,6 +7,7 @@
 import sys
 from scipy.ndimage.interpolation import zoom
 from glimpse import core, exp, util
+from glimpse.util import kernel
 import numpy as np
 import os
 import math
@@ -26,11 +27,11 @@ class Display:
       savefig(os.path.join(self.rdir, self.fname))
 
 def MakeMultiScaleKernels():
-  return core.MakeMultiScaleGaborKernels(11, 4, 2, 1,
+  return kernel.MakeMultiScaleGaborKernels(11, 4, 2, 1,
       shift_orientations = True, scale_norm = True, embed_kwidth = PAD_KWIDTH)
 
 def MakeSingleScaleKernels():
-  return core.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
+  return kernel.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
       scale_norm = True, embed_kwidth = 11)[0]
 
 def MultiScaleFilters(retina, rdir = None, display = True):

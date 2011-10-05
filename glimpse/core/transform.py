@@ -10,11 +10,12 @@
 #
 
 from glimpse.core import c_src
-from glimpse.core.c_src import activation_dtype
+from glimpse.util import ACTIVATION_DTYPE
 from glimpse.core import misc
 from glimpse import util
 from glimpse.util import array
 from glimpse.util import bitset
+from glimpse.util import kernel
 import Image
 import math
 import numpy as np
@@ -413,7 +414,7 @@ def BuildRetinaFromImage(img, options):
 
 def BuildRetinaFromFile(fname, options):
   """RETURNS: image and retina arrays"""
-  image = misc.ImageToInputArray(Image.open(fname))
+  image = util.ImageToInputArray(Image.open(fname))
   retina = BuildRetinaFromImage(image, options)
   return image, retina
 
@@ -567,7 +568,7 @@ def BuildItFromGlobalC2Max(max_per_scale):
   RETURNS: (vector) per-band max activations, and (1-D array of 1-D bitsets)
            per-band max locations
   """
-  max_per_scale = np.array(max_per_scale, activation_dtype)
+  max_per_scale = np.array(max_per_scale, ACTIVATION_DTYPE)
   max_over_scale = max_per_scale.max(0)
   max_coords_over_scale = np.array([ scale == scale.max() for
       scale in max_per_scale ])
@@ -582,13 +583,13 @@ def MakeS1Kernels(options):
       kwidth = 's1_kwidth', #fscale = 's1_fscale',
       shift_orientations = 's1_shift_orientations')
   args['scale_norm'] = True
-  return misc.MakeGaborKernels(**args)
+  return kernel.MakeGaborKernels(**args)
 
 def DrawGaborAsLine(orient, options, **args):
   args = util.MergeDict(args, **_MapOpts(options,
       num_orientations = 's1_num_orientations', kwidth = 's1_kwidth',
       shift_orientations = 's1_shift_orientations'))
-  return misc.DrawGaborAsLine(orient, **args)
+  return kernel.DrawGaborAsLine(orient, **args)
 
 def ImprintS2Prototypes(img_fname, coords, options):
   """Imprint a set of S2 prototypes from specific regions of C1 activity, which
@@ -598,7 +599,7 @@ def ImprintS2Prototypes(img_fname, coords, options):
   kwidth = _GetOpt(options, 's2_kwidth')
   image, retina, s1_scales, c1_scales = BuildC1FromFile(img_fname, options)
   prototypes = np.empty([num_prototypes, num_orientations, kwidth, kwidth],
-      activation_dtype)
+      ACTIVATION_DTYPE)
   mapper = RegionMapper(options)
   for (scale, y, x), proto in zip(coords, prototypes):
     # Copy C1 activity to kernel array
@@ -619,7 +620,7 @@ def ImprintRandomS2Prototypes(img_fname, num_prototypes, options):
   num_orientations = _GetOpt(options, 's1_num_orientations')
   kwidth = _GetOpt(options, 's2_kwidth')
   prototypes = np.empty([num_prototypes, num_orientations, kwidth, kwidth],
-      activation_dtype)
+      ACTIVATION_DTYPE)
   for proto in prototypes:
     scale = random.randint(0, num_scales - 1)
     c1 = c1_scales[scale]
@@ -645,7 +646,7 @@ def _SingleScaleThroughC1(img, layers, options, s1_kernels, use_timer):
   results = dict()
   if 'r' not in layers: return results
   with util.Timer("img", use_timer):
-    img = misc.ImageToInputArray(img)
+    img = util.ImageToInputArray(img)
   results['image'] = img
   with util.Timer("retina", use_timer):
     retina = BuildRetinaFromImage(img, options)
@@ -713,7 +714,7 @@ def _GlobalC2Max(c2_per_scale):
       for c2, shape in zip(flat_c2s, shapes) ]
     max_per_scale.append(max_per_psize)
     max_coords_per_scale.append(max_coords_per_psize)
-  max_per_scale = np.array(max_per_scale, activation_dtype)
+  max_per_scale = np.array(max_per_scale, ACTIVATION_DTYPE)
   return max_per_scale, max_coords_per_scale
 
 def _ItFromGlobalC2Max(max_per_scale):
@@ -859,7 +860,7 @@ class Results:
     assert self._img_fname != None
     key = 'image'
     if key not in self._d:
-      self._d[key] = misc.ImageToInputArray(Image.open(self._img_fname))
+      self._d[key] = util.ImageToInputArray(Image.open(self._img_fname))
     return self._d[key]
   @property
   def s1_kernels(self):
