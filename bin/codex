@@ -6,7 +6,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse import core
 from glimpse import util
 import math
 import numpy as numpy

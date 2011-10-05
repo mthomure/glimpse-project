@@ -195,7 +195,6 @@ class Viz2Params(object):
 
     ('num_scales', "Number of different scale bands"),
     ('scale_factor', "Image downsampling factor between scale bands"),
-    ('sse_enabled', "Enable use of SSE intrinsics, when available"),
   ]
 
   @classmethod
@@ -230,7 +229,6 @@ class Viz2Params(object):
 
       num_scales = 4,
       scale_factor = 2**(1./2),
-      sse_enabled = core.GetUseSSE(),
     )
 
   def __init__(self, **args):
@@ -259,10 +257,6 @@ class Viz2Params(object):
     self._params = Viz2Params.__MakeDefaultParams()
     for name, value in state.items():
       self[name] = value
-
-  def ApplyGlobalParams(self):
-    """Apply all global option entries."""
-    core.SetUseSSE(self['sse_enabled'])
 
   def LoadFromFile(self, fname):
     """Loads option data either from a python file (if fname ends in ".py"), or

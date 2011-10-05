@@ -1,8 +1,11 @@
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage terms.
 
-from glimpse.core import misc
+# Implementation of filter operations using custom C++ code.
 
-class NotImplemented(Exception):
-  pass
+import filter
 
 class CythonBackend(object):
 
@@ -14,7 +17,7 @@ class CythonBackend(object):
     scaling -- (positive int) subsampling factor
     """
     assert scaling == 1
-    return misc.ContrastEnhance(data, kwidth, kwidth, bias = bias)
+    return filter.ContrastEnhance(data, kwidth, kwidth, bias = bias)
 
   def DotProduct(self, data, kernels, scaling):
     """Convolve an array with a set of kernels.
@@ -22,7 +25,7 @@ class CythonBackend(object):
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
     """
-    return misc.DotProduct(data, kernels, scaling = scaling)
+    return filter.DotProduct(data, kernels, scaling = scaling)
 
   def NormDotProduct(self, data, kernels, bias, scaling):
     """Convolve an array with a set of kernels, normalizing the response by the
@@ -33,7 +36,7 @@ class CythonBackend(object):
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
     """
-    return misc.NormDotProduct(data, kernels, bias = bias, scaling = scaling)
+    return filter.NormDotProduct(data, kernels, bias = bias, scaling = scaling)
 
   def Rbf(self, data, kernels, beta, scaling):
     """Compare kernels to input data using the RBF activation function.
@@ -42,7 +45,7 @@ class CythonBackend(object):
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
     """
-    return misc.Rbf(data, kernels, beta = beta, scaling = scaling)
+    return filter.Rbf(data, kernels, beta = beta, scaling = scaling)
 
   def NormRbf(self, data, kernels, bias, beta, scaling):
     """Compare kernels to input data using the RBF activation function with
@@ -54,10 +57,8 @@ class CythonBackend(object):
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
     """
-    return misc.NormRbf(data, kernels, bias = bias, beta = beta,
+    return filter.NormRbf(data, kernels, bias = bias, beta = beta,
         scaling = scaling)
-    return np.exp(-2 * beta * (1 - misc.NormDotProduct(data, kernels,
-        bias = bias, scaling = scaling)))
 
   def LocalMax(self, data, kwidth, scaling):
     """Convolve maps with local 2-D max filter.
@@ -65,9 +66,8 @@ class CythonBackend(object):
     kwidth -- (positive int) kernel width
     scaling -- (positive int) subsampling factor
     """
-    odata, _t = misc.BuildComplexLayer(data, kwidth = kwidth, kheight = kwidth,
+    return filter.LocalMax(data, kwidth = kwidth, kheight = kwidth,
         scaling = scaling)
-    return odata
 
   def GlobalMax(self, data):
     """Find the per-band maxima.
@@ -76,7 +76,6 @@ class CythonBackend(object):
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
-
 
 def ContrastEnhance(data, kwidth, bias, scaling):
   return CythonBackend().ContrastEnhance(data, kwidth, bias, scaling)

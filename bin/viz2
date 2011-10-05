@@ -1,8 +1,18 @@
 #!/usr/bin/python
 
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+# Create a 2-part, HMAX-like hierarchy of S+C layers.
+# This module implements the "Viz2" model used for the GCNC 2011 experiments.
+
 from glimpse.models.viz2 import *
 from glimpse.backends.cython_backend import CythonBackend
 from glimpse.backends.scipy_backend import ScipyBackend
+from glimpse import util
 import Image
 import os
 import sys
@@ -20,7 +30,6 @@ def MakeModel(backend = "cython", params_fname = None):
   params = Viz2Params()
   if params_fname != None:
     params.LoadFromFile(params_fname)
-  params.ApplyGlobalParams()
   model = Viz2Model(backend, params)
   return model
 

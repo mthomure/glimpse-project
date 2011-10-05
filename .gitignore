@@ -2,3 +2,5 @@
 build
 glimpse/core/c_src.cpp
 glimpse/core/c_src.so
+glimpse/backends/cython_backend/filter.cpp
+glimpse/backends/cython_backend/filter.so

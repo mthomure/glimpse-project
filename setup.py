@@ -85,15 +85,36 @@ ext = Extension(
   undef_macros = undef_macros,
 )
 
+cython_backend_ext = Extension(
+  "glimpse.backends.cython_backend.filter",
+  [
+    "glimpse/backends/cython_backend/filter.pyx",
+    "glimpse/backends/cython_backend/src/array.cpp",
+    "glimpse/backends/cython_backend/src/bitset_array.cpp",
+    "glimpse/backends/cython_backend/src/filter.cpp",
+    "glimpse/backends/cython_backend/src/util.cpp",
+  ],
+  depends = [
+    "glimpse/backends/cython_backend/src/array.h",
+    "glimpse/backends/cython_backend/src/bitset_array.h",
+    "glimpse/backends/cython_backend/src/filter.h",
+    "glimpse/backends/cython_backend/src/util.h",
+  ],
+  language = "c++",
+  extra_compile_args = extra_compile_args,
+  extra_link_args = extra_link_args,
+  define_macros = define_macros,
+  undef_macros = undef_macros,
+)
+
 setup(
   name = "glimpse",
-  version = "1.0",
+  version = "1.1",
   description = "Library for hierarchical visual models in C++ and Python",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
   cmdclass = {'build_ext': build_ext},
 
-  ext_modules = [ ext ],
-  packages = [ 'glimpse', 'glimpse.core', 'glimpse.util' ],
+  ext_modules = [ ext, cython_backend_ext ],
   include_dirs = [ numpy.get_include() ],
 )
