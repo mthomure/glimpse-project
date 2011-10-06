@@ -350,7 +350,7 @@ def MakeDefaultOptions(**options):
     c1_sparsify = False,
     c1_whiten = True,
 
-    s2_beta = 1.0,
+    s2_beta = 5.0,
     s2_bias = 1.0,
     s2_kwidth = 7,
     s2_scaling = 2,
