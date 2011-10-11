@@ -1,0 +1,6 @@
+# Configures the Bash environment to call Glimpse scripts.
+
+SCRIPT_PATH="${BASH_SOURCE[0]}";
+DIR="$( cd "$( dirname "$BASH_SOURCE[0]" )/.." && pwd )"
+PATH=${DIR}/bin:${PATH}
+export PYTHONPATH=${DIR}:${PYTHONPATH}
