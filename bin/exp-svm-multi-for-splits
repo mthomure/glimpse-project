@@ -3,7 +3,9 @@
 # A script to run the multi-class SVM package from SVM-light on feature vectors generated from a corpus of images.
 
 BIN=$(dirname $0)
-MARGIN_PARAM=0.01
+if [[ "$SVM_MARGIN_PARAM" == "" ]]; then
+  SVM_MARGIN_PARAM=0.01
+fi
 
 if [[ "$#" != 1 ]]; then
   echo "usage: $0 EXPERIMENT-DIR" 1>&2
@@ -29,11 +31,14 @@ for F in train test; do
   done > $R/$F.svm
 done
 
-$BIN/svm_multiclass_learn -c $MARGIN_PARAM $R/{train,model}.svm > $R/model.log
-$BIN/svm_multiclass_classify $R/{train,model}.svm $R/train.out > $R/train.log
-$BIN/svm_multiclass_classify $R/{test,model}.svm $R/test.out > $R/test.log
+$BIN/svm-scale -s $R/scale-params.svm $R/train.svm > $R/scaled-train.svm
+$BIN/svm-scale -r $R/scale-params.svm $R/test.svm > $R/scaled-test.svm
+
+$BIN/svm_multiclass_learn -c $SVM_MARGIN_PARAM $R/{scaled-train,model}.svm > $R/model.log
+$BIN/svm_multiclass_classify $R/{scaled-train,model}.svm $R/train.out > $R/train.log
+$BIN/svm_multiclass_classify $R/{scaled-test,model}.svm $R/test.out > $R/test.log
 
 TRAIN=$(awk '/Zero\/one-error/ {print $5}' $R/train.log)
 TEST=$(awk '/Zero\/one-error/ {print $5}' $R/test.log)
-echo "SVM_TRAIN_ACCURACY: $TRAIN"
-echo "SVM_TEST_ACCURACY: $TEST"
+echo "SVM_TRAIN_ERROR: $TRAIN"
+echo "SVM_TEST_ERROR: $TEST"
