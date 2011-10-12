@@ -74,8 +74,8 @@ mkdir -p $RESULT_DIR 2>/dev/null || true
 
 $D/np-to-svm $POS_TRAIN $NEG_TRAIN > $RESULT_DIR/train.svm
 $D/np-to-svm $POS_TEST $NEG_TEST > $RESULT_DIR/test.svm
-$D/svm-scale -s $RESULT_DIR/svm.scale-params $RESULT_DIR/train.svm > $RESULT_DIR/scaled-train.svm
-$D/svm-scale -r $RESULT_DIR/svm.scale-params $RESULT_DIR/test.svm > $RESULT_DIR/scaled-test.svm
+svm-scale -s $RESULT_DIR/svm.scale-params $RESULT_DIR/train.svm > $RESULT_DIR/scaled-train.svm
+svm-scale -r $RESULT_DIR/svm.scale-params $RESULT_DIR/test.svm > $RESULT_DIR/scaled-test.svm
 
 if [[ $TYPE == "LIBSVM" ]]; then
   # Find useful cost parameter and train, using biased linear SVM.
@@ -86,25 +86,25 @@ if [[ $TYPE == "LIBSVM" ]]; then
     C_ARG=""
   fi
   if [[ $BIASED == 1 ]]; then
-    CMD="$D/svm-train -s 0 -t 0 $C_ARG $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
+    CMD="svm-train -s 0 -t 0 $C_ARG $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
   else
-    CMD="$D/svm-train-unbiased -s 0 -t 0 $C_ARG $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
+    CMD="svm-train-unbiased -s 0 -t 0 $C_ARG $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
   fi
   $CMD > $RESULT_DIR/model.log
   for F in train test; do
-    $D/svm-predict $RESULT_DIR/scaled-$F.svm $RESULT_DIR/svm.model $RESULT_DIR/scaled-$F.out > $RESULT_DIR/$F.log
+    svm-predict $RESULT_DIR/scaled-$F.svm $RESULT_DIR/svm.model $RESULT_DIR/scaled-$F.out > $RESULT_DIR/$F.log
     awk '{if(NR==1){ printf substr($3, 0, length($3)-1) / 100.0 " "}}' $RESULT_DIR/$F.log
   done
 
 elif [[ $TYPE == "SVM-LIGHT" ]]; then
   if [[ $BIASED == 1 ]]; then
-    CMD="$D/svm_learn -z c -t 0 $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
+    CMD="svm_learn -z c -t 0 $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
   else
-    CMD="$D/svm_learn -z c -t 0 -b 0 $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
+    CMD="svm_learn -z c -t 0 -b 0 $RESULT_DIR/scaled-train.svm $RESULT_DIR/svm.model"
   fi
   $CMD > $RESULT_DIR/model.log
   for F in train test; do
-    $D/svm_classify $RESULT_DIR/scaled-$F.svm $RESULT_DIR/svm.model $RESULT_DIR/scaled-$F.out > $RESULT_DIR/$F.log
+    svm_classify $RESULT_DIR/scaled-$F.svm $RESULT_DIR/svm.model $RESULT_DIR/scaled-$F.out > $RESULT_DIR/$F.log
     awk '{if(NR==4){ printf substr($5, 0, length($5)-1) / 100.0 " " }}' $RESULT_DIR/$F.log
   done
 
@@ -121,7 +121,7 @@ if [[ $EXTRA_RESULTS == 1 ]]; then
     for G in scaled-{train,test}; do
       for C in "+1" "-1"; do
         $D/svm-to-np $C < $RESULT_DIR/$G.svm \
-        | $D/svm-evaluate -t $TYPE -o c $RESULT_DIR/svm.model \
+        | svm-evaluate -t $TYPE -o c $RESULT_DIR/svm.model \
         | while read F; do echo "$C" "$F"; done
       done | $D/compute-roc -o c -v 1>$RESULT_DIR/$G.roc 2>$RESULT_DIR/$G.auc
     done
