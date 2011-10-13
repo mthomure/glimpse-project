@@ -11,6 +11,8 @@
 import sys
 from glimpse import util
 
+DEFAULT_MODEL = "viz2"
+
 try:
   opts, args = util.GetOptions("m:")
 except util.UsageException, e:
@@ -18,10 +20,14 @@ except util.UsageException, e:
     "  -m MOD   Use model named MOD",
     e
     )
-model_name = "viz2"
+model_name = DEFAULT_MODEL
 for opt, arg in opts:
   if opt == '-m':
-    model_name = arg
+    arg = arg.lower()
+    if arg == "default":
+      model_name = DEFAULT_MODEL
+    else:
+      model_name = arg
 models = __import__("glimpse.models", globals(), locals(), [model_name], 0)
 model = getattr(models, model_name)
 model.Main(args)
