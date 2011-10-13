@@ -13,6 +13,7 @@
 #
 
 : ${NUM_PROCS:=4}
+: ${GLIMPSE_MODEL:=default}
 
 while getopts "n:t:" F; do
   case $F in
@@ -86,4 +87,4 @@ fi
 
 for CLS in $CLS_LIST; do
   cat $RESULT_DIR/$CLS.files
-done | xargs -P $NUM_PROCS -I IMAGE transform $TRANSFORM_ARGS $CORPUS_DIR/IMAGE $DATA_DIR/IMAGE
+done | xargs -P $NUM_PROCS -I {} $D/glimpse -m $GLIMPSE_MODEL transform -r $DATA_DIR/{} $TRANSFORM_ARGS $CORPUS_DIR/{}

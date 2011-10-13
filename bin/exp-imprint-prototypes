@@ -19,6 +19,7 @@ set -e
 #~ NUM_PROTOTYPES=
 #~ RESULT_DIR=
 : ${NUM_PROCS:=4}
+: ${GLIMPSE_MODEL:=default}
 
 if [[ "$#" -lt 3 ]]; then
   echo "usage: $0 NUM_PROTOS CORPUS-DIR RESULT-DIR" 1>&2
@@ -55,10 +56,11 @@ if [[ "$PROTOS_PER_IMG" == "$PROTOS_PER_IMG_CEIL" ]]; then
   (for F in $TRAIN_FILES; do
     echo $CORPUS_DIR/$F
   done \
-  | $D/multi-launch -n $NUM_PROCS $D/imprint-random-prototypes -s -p $PROTOS_PER_IMG $IMPRINT_ARGS \
+  | $D/multi-launch -n $NUM_PROCS $D/glimpse -m $GLIMPSE_MODEL \
+    imprint -s -n $PROTOS_PER_IMG $IMPRINT_ARGS \
   | $D/np-concat -s > $PROTOTYPE_FILE)
 else
   echo "NOTE: Using single-process imprinting -- modify number of prototypes or training files to use multiple processes."
   FILES=$(for F in $TRAIN_FILES; do echo $CORPUS_DIR/$F; done)
-  $D/imprint-random-prototypes -P $NUM_PROTOTYPES $IMPRINT_ARGS $FILES > $PROTOTYPE_FILE
+  $D/glimpse -m $GLIMPSE_MODEL imprint -s -n $NUM_PROTOTYPES $IMPRINT_ARGS $FILES > $PROTOTYPE_FILE
 fi
