@@ -31,7 +31,7 @@ fi
 CLS_LIST=$(for F in $CORPUS_DIR/*; do echo $(basename $F); done)
 mkdir $RESULT_DIR/splits
 for CLS in $CLS_LIST; do
-  BASE=$RESULT_DIR/splits/$CLS
+   BASE=$RESULT_DIR/splits/$CLS
   (cd $CORPUS_DIR && find $CLS -type f) > $BASE.files
   LINES=$(wc -l $BASE.files | cut -d' ' -f 1)
   HALF_LINES=$(($LINES / 2))
@@ -39,7 +39,7 @@ for CLS in $CLS_LIST; do
     HALF_LINES=$(($HALF_LINES+1))
   fi
   shuf $BASE.files | split -l $HALF_LINES -a 1 - $BASE.
-  mv $BASE.{a,train}
-  mv $BASE.{b,test}
+  mv $BASE.a $RESULT_DIR/splits/train-$CLS.files
+  mv $BASE.b $RESULT_DIR/splits/test-$CLS.files
 done
 
