@@ -318,23 +318,27 @@ def MakeImprintHandler(model_func, param_help_func):
           stream = True
       if len(args) < 1:
         raise util.UsageException()
-      ifname = args[0]
-      img = Image.open(ifname)
-      img = util.ImageToInputArray(img)
-      model = model_func(backend, params_fname)
-      protos, locations = model.ImprintPrototypes(img, num_prototypes)
+      all_protos = []
+      all_locations = []
+      for ifname in args:
+        img = Image.open(ifname)
+        img = util.ImageToInputArray(img)
+        model = model_func(backend, params_fname)
+        protos, locations = model.ImprintPrototypes(img, num_prototypes)
+        all_protos.extend(protos)
+        all_locations.extend(locations)
       if stream == True:
-        for p in protos:
+        for p in all_protos:
           util.Store(p, sys.stdout)
       else:
-        util.Store(np.array(protos), sys.stdout)
+        util.Store(np.array(all_protos), sys.stdout)
       if print_locations == True:
-        for loc in locations:
+        for loc in all_locations:
           print >>sys.stderr, ifname + " " + " ".join(map(str, loc))
     except util.UsageException, e:
       if e.msg:
         print >>sys.stderr, e.msg
-      util.Usage("[options] IMAGE\n"
+      util.Usage("[options] IMAGE ...\n"
           "  -b STR   Set backend type (one of cython, scipy."
           " default: %s)\n" % backend + \
           "  -h       Print this help and exit\n"
