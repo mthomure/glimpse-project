@@ -10,6 +10,7 @@
 from glimpse.util import kernel
 from scipy.ndimage.interpolation import zoom
 from viz2 import PrototypeSampler, Whiten, CheckPrototypes
+from viz2 import LAYER_RETINA, LAYER_C1, ALL_LAYERS
 import numpy as np
 
 class Model(object):
@@ -112,15 +113,6 @@ class Model(object):
     protos = list(proto_it)
     return zip(*protos)
 
-# Identifiers for layers that can be computed
-LAYER_RETINA = 'r'
-LAYER_S1 = 's1'
-LAYER_C1 = 'c1'
-LAYER_S2 = 's2'
-LAYER_C2 = 'c2'
-LAYER_IT = 'it'
-# The set of all layers in this model, in order of processing.
-ALL_LAYERS = (LAYER_RETINA, LAYER_S1, LAYER_C1, LAYER_S2, LAYER_C2, LAYER_IT)
 ALL_BUILDERS = (Model.BuildRetinaFromImage, Model.BuildS1FromRetina,
     Model.BuildC1FromS1, Model.BuildS2FromC1, Model.BuildC2FromS2,
     Model.BuildItFromC2)
@@ -232,9 +224,8 @@ def MakeDefaultParamDict():
 
 from glimpse.backends.cython_backend import CythonBackend
 from glimpse.backends.scipy_backend import ScipyBackend
+from viz2 import MakeImprintHandler, MakeTransformHandler
 from glimpse import util
-import Image
-import os
 import sys
 
 def MakeModel(backend = "cython", params_fname = None, **args):
@@ -251,149 +242,16 @@ def PrintParamHelp():
       "\n".join(("    %s - %s." % (k,v) for k,v in ALL_OPTIONS))
   sys.exit(-1)
 
-def Imprint(args):
-  backend = "cython"
-  num_prototypes = 1
-  try:
-    params_fname = None
-    print_locations = False
-    stream = False
-    opts, args = util.GetOptions("b:Hln:o:p:s", args = args)
-    for opt, arg in opts:
-      if opt == '-b':
-        backend = arg
-      elif opt == '-H':
-        PrintParamHelp()
-      elif opt == '-l':
-        print_locations = True
-      elif opt == '-n':
-        num_prototypes = int(arg)
-      elif opt == '-o':
-        params_fname = arg
-      elif opt == '-s':
-        stream = True
-    if len(args) < 1:
-      raise util.UsageException()
-    ifname = args[0]
-    img = Image.open(ifname)
-    img = util.ImageToInputArray(img)
-    model = MakeModel(backend, params_fname)
-    protos, locations = model.ImprintPrototypes(img, num_prototypes)
-    if stream == True:
-      for p in protos:
-        util.Store(p, sys.stdout)
-    else:
-      util.Store(np.array(protos), sys.stdout)
-    if print_locations == True:
-      for loc in locations:
-        print >>sys.stderr, ifname + " " + " ".join(map(str, loc))
-  except util.UsageException, e:
-    if e.msg:
-      print >>sys.stderr, e.msg
-    util.Usage("[options] IMAGE\n"
-        "  -b STR   Set backend type (one of cython, scipy."
-        " default: %s)\n" % backend + \
-        "  -h       Print this help and exit\n"
-        "  -H       Print extra help regarding valid options, and exit\n"
-        "  -l       Print location of C1 patches used as prototypes\n"
-        "  -n INT   Set number of prototypes to imprint"
-        " (default: %d)\n" % num_prototypes + \
-        "  -o PATH  Path to options file\n"
-        "  -s       Print prototypes as a stream"
-    )
-
-# Identifiers for objects that can be stored
-STORAGE_ELEMENTS = set(['options', 'image', 's1-kernels', 's2-kernels'] +
-    [ "%s-activity" % x for x in ALL_LAYERS ])
-
-def Transform(args):
-  backend = "cython"
-  store_list = "none"
-  output_layer = LAYER_IT
-  try:
-    params_fname = None
-    proto_fname = None
-    rdir = None
-    print_it = False
-    protos = None
-    opts, args = util.GetOptions("b:Hil:o:p:r:s:", args = args)
-    for opt, arg in opts:
-      if opt == '-b':
-        backend = arg
-      elif opt == '-i':
-        print_it = True
-      elif opt == '-H':
-        PrintParamHelp()
-      if opt == '-l':
-        if arg not in ALL_LAYERS:
-          raise util.UsageException("Invalid layer (-l) name: %s" % arg)
-        output_layer = arg
-      elif opt == '-o':
-        params_fname = arg
-      elif opt == '-p':
-        protos = util.Load(arg)
-      elif opt == '-r':
-        rdir = arg
-      elif opt == '-s':
-        store_list = arg
-    if len(args) < 1:
-      raise util.UsageException()
-    if store_list == "all":
-      store_list = STORAGE_ELEMENTS
-    elif store_list == "none":
-      store_list = set()
-    else:
-      store_list = set(x.lower() for x in store_list.split(","))
-      if not store_list.issubset(STORAGE_ELEMENTS):
-        raise util.UsageException("User specified invalid storage (-s)" \
-            "elements: %s" % ",".join(store_list.difference(STORAGE_ELEMENTS)))
-    if output_layer in (LAYER_S2, LAYER_C2, LAYER_IT) and protos == None:
-      raise util.UsageException("Must specify S2 prototypes to compute"
-          " '%s' layer" % output_layer)
-    ifname = args[0]
-    img = Image.open(ifname)
-    img = util.ImageToInputArray(img)
-    model = MakeModel(backend, params_fname, s2_kernels = protos)
-    results = model.BuildLayers(img, LAYER_RETINA, output_layer)
-    if rdir != None:
-      results_for_output = dict([ ("%s-activity" % k, v) for k, v in results.items() ])
-      results_for_output['options'] = model.params
-      results_for_output['s1-kernels'] = model.s1_kernels
-      results_for_output['s2-kernels'] = model.s2_kernels
-      for name in set(results_for_output.keys()).intersection(store_list):
-        fname = os.path.join(rdir, name)
-        util.Store(results_for_output[name], fname)
-    if print_it:
-      util.Store(results[LAYER_IT], sys.stdout)
-  except util.UsageException, e:
-    if e.msg:
-      print >>sys.stderr, e.msg
-    util.Usage("[options] IMAGE\n"
-        "  -b STR   Set backend type (one of cython, scipy."
-        " default: %s)\n" % backend + \
-        "  -i       Write IT data to stdout\n"
-        "  -h       Print this help and exit\n"
-        "  -H       Print extra help regarding valid options, and exit\n"
-        "  -l LAYR  Transform image through LAYR (r, s1, c1, s2, c2, it)"
-        " (default: %s)\n" % output_layer + \
-        "  -o PATH  Path to options file\n"
-        "  -p PATH  Path to S2 prototypes\n"
-        "  -r PATH  Path to result directory\n"
-        """  -s STR   Select layer information to be stored -- given by comma-
-           seperated STR. Can also be the special values 'all' or 'none'.
-           Legal values include:\n%s""" % \
-            "\n".join(("             %s" % e \
-                for e in sorted(STORAGE_ELEMENTS)))
-    )
-
 def Main(args):
   try:
     if len(args) < 1:
       raise util.UsageException()
     cmd = args[0].lower()
     if cmd == "imprint":
+      Imprint = MakeImprintHandler(MakeModel, PrintParamHelp)
       Imprint(args[1:])
     elif cmd == "transform":
+      Transform = MakeTransformHandler(MakeModel, PrintParamHelp)
       Transform(args[1:])
     else:
       raise util.UsageException("Unknown command: %s" % cmd)
