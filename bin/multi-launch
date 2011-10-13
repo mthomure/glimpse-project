@@ -57,7 +57,7 @@ for PROC in $PROCS; do
   i=$PROC
   EXPAND_CMD=$(eval echo $CMD)
   if [[ "$VERBOSE" == "1" ]]; then
-    echo $EXPAND_CMD $(cat $PROC_DIR/$PROC)
+    echo $EXPAND_CMD $(cat $PROC_DIR/$PROC) 1>&2
   fi
   $EXPAND_CMD $(cat $PROC_DIR/$PROC) > $PROC_DIR/result-$PROC &
 done
