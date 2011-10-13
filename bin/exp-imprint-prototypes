@@ -37,10 +37,14 @@ if [[ ! -d "$RESULT_DIR/splits" ]]; then
 fi
 TRAIN_FILES=$(cat $RESULT_DIR/splits/train-*.files)
 
-# Compute the number of prototypes to imprint from each image. If this is
-# uniform, split imprint job to multiple processes. Otherwise, use single
-# process.
+# At most, we need only one image per prototype.
 NUM_IMAGES=$(echo $TRAIN_FILES | wc -w)
+if [[ "$NUM_PROTOTYPES" < "$NUM_IMAGES" ]]; then
+  TRAIN_FILES=$(cat $RESULT_DIR/splits/train-*.files | shuf | head -n $NUM_PROTOTYPES)
+  NUM_IMAGES=$(echo $TRAIN_FILES | wc -w)
+fi
+
+# Compute the number of prototypes to imprint from each image.
 PROTOS_PER_IMG=$(echo "scale=0; $NUM_PROTOTYPES / $NUM_IMAGES" | bc)
 BCFUNCS=$(cat <<EOF
   scale=10
