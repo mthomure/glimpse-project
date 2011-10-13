@@ -1,0 +1,27 @@
+#!/usr/bin/python
+
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+# This is a frontend script for model-specific operations.
+
+import sys
+from glimpse import util
+
+try:
+  opts, args = util.GetOptions("m:")
+except util.UsageException, e:
+  util.Usage("[options]\n"
+    "  -m MOD   Use model named MOD",
+    e
+    )
+model_name = "viz2"
+for opt, arg in opts:
+  if opt == '-m':
+    model_name = arg
+models = __import__("glimpse.models", globals(), locals(), [model_name], 0)
+model = getattr(models, model_name)
+model.Main(args)
