@@ -40,7 +40,7 @@ class Model(object):
     # Create scale pyramid of retinal map
     num_scales = self.params['num_scales']
     factor = self.params['scale_factor']
-    rs = [ zoom(retina, factor ** scale) for scale in range(num_scales) ]
+    rs = [ zoom(retina, 1 / factor ** scale) for scale in range(num_scales) ]
     s1_kwidth = self.params['s1_kwidth']
     s1_num_orientations = self.params['s1_num_orientations']
     s1_num_phases = self.params['s1_num_phases']
