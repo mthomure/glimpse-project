@@ -121,7 +121,7 @@ if [[ $EXTRA_RESULTS == 1 ]]; then
     for G in scaled-{train,test}; do
       for C in "+1" "-1"; do
         $D/svm-to-np $C < $RESULT_DIR/$G.svm \
-        | $D/svm-evaluate -t $TYPE -o c $RESULT_DIR/svm.model \
+        | svm-evaluate -t $TYPE -o c $RESULT_DIR/svm.model \
         | while read F; do echo "$C" "$F"; done
       done | $D/compute-roc -o c -v 1>$RESULT_DIR/$G.roc 2>$RESULT_DIR/$G.auc
     done

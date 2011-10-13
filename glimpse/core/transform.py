@@ -21,7 +21,13 @@ import math
 import numpy as np
 import os
 import random
+import struct
 import sys
+
+# Calculate bit-width of this computer's memory bus.
+if struct.calcsize("P") == 4:
+  # For now, disable SSE on 32-bit systems.
+  c_src.SetUseSSE(False)
 
 # Identifiers for layers that can be computed
 LAYER_RETINA = 'r'
@@ -348,7 +354,7 @@ def MakeDefaultOptions(**options):
     c1_sparsify = False,
     c1_whiten = True,
 
-    s2_beta = 1.0,
+    s2_beta = 5.0,
     s2_bias = 1.0,
     s2_kwidth = 7,
     s2_scaling = 2,

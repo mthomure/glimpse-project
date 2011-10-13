@@ -56,3 +56,13 @@ def ArrayToGreyscaleImage(array, normalize = True):
 def ArrayToRGBImage(array):
   return Image.fromarray(array, 'RGB')
 
+def ArrayListToVector(arrays):
+  """Convert list of numpy arrays to a single numpy vector."""
+  assert len(arrays) > 0
+  out_size = sum(a.size for a in arrays)
+  out = numpy.empty((out_size,), arrays[0].dtype)
+  offset = 0
+  for a in arrays:
+    out[offset : offset + a.size] = a.flat
+    offset += a.size
+  return out

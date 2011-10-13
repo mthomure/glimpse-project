@@ -96,7 +96,12 @@ fi
 
 if [[ "$SVM" == 1 ]]; then
   echo "+ Computing SVM accuracy for existing splits"
-  $D/exp-svm-for-splits "$RESULT_DIR"
+  NUM_CLS=${#CLS_LIST[@]}
+  if [[ "$NUM_CLS" == 2 ]]; then
+    $D/exp-svm-for-splits "$RESULT_DIR"
+  else
+    $D/exp-svm-multi-for-splits "$RESULT_DIR"
+  fi
 fi
 
 if [[ "$SVM_CROSSVAL" == 1 ]]; then
