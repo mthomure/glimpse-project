@@ -47,6 +47,8 @@ class Viz2Model(object):
     self.s2_kernels = s2_kernels
 
   def BuildRetinaFromImage(self, img):
+    if not self.params['retina_enabled']:
+      return img
     retina = self.backend.ContrastEnhance(img,
         kwidth = self.params['retina_kwidth'],
         bias = self.params['retina_bias'],
@@ -105,12 +107,7 @@ class Viz2Model(object):
     return s2s
 
   def BuildC2FromS2(self, s2s):
-    num_scales = self.params['num_scales']
-    c2s = []
-    for scale in range(num_scales):
-      s2 = s2s[scale]
-      c2 = self.backend.GlobalMax(s2)
-      c2s.append(c2)
+    c2s = map(self.backend.GlobalMax, s2s)
     return c2s
 
   def BuildItFromC2(self, c2s):
@@ -132,7 +129,6 @@ class Viz2Model(object):
   def ImprintPrototypes(self, img, num_prototypes):
     """Compute C1 activity maps and sample patches from random locations.
     RETURNS list of prototypes, and list of corresponding locations.
-    NOTE: prototype values should be copied, as array may be reused
     """
     results = self.BuildLayers(img, LAYER_RETINA, LAYER_C1)
     c1s = results[LAYER_C1]
@@ -173,8 +169,8 @@ def CheckPrototypes(prototypes):
 #### OPTION HANDLING ###########
 
 ALL_OPTIONS = [
-  ('retina_enabled', "Indicates whether the retinal layer is used"),
   ('retina_bias', "Term added to standard deviation of local window"),
+  ('retina_enabled', "Indicates whether the retinal layer is used"),
   ('retina_kwidth', "Spatial width of input neighborhood for retinal units"),
 
   ('s1_beta', "Beta parameter of RBF for S1 cells"),
@@ -188,11 +184,9 @@ ALL_OPTIONS = [
                  in an output array that is 1/2 the width and half the
                  height of the input array)"""),
   ('s1_shift_orientations', "Rotate Gabors by a small positive angle"),
-  ('s1_sparsify', "Supress activation for non-maximal edge orientations at S1"),
 
   ('c1_kwidth', "Spatial width of input neighborhood for C1 units"),
   ('c1_scaling', "Subsampling factor"),
-  ('c1_sparsify', "Supress activation for non-maximal edge orientations at C1"),
   ('c1_whiten', "Whether to normalize the total energy at each C1 location"),
 
   ('s2_beta', "Beta parameter of RBF for S1 cells"),
@@ -204,7 +198,6 @@ ALL_OPTIONS = [
   ('c2_scaling', "Subsampling factor"),
 
   ('num_scales', "Number of different scale bands"),
-  ('scale_factor', "Image downsampling factor between scale bands"),
 ]
 
 class Viz2Params(object):
