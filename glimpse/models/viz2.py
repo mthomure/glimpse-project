@@ -347,9 +347,11 @@ def MakeImprintHandler(model_func, param_help_func):
       )
   return Imprint
 
-# Identifiers for objects that can be stored
-STORAGE_ELEMENTS = set(['options', 'image', 's1-kernels', 's2-kernels'] +
-    [ "%s-activity" % x for x in ALL_LAYERS ])
+# Identifiers for objects that can be stored. The 'feature-vector' is currently
+# a copy of the IT activity. In the future, however, this may be a concatenation
+# of C1, C2, and IT activity.
+STORAGE_ELEMENTS = set(['options', 'image', 's1-kernels', 's2-kernels',
+    'feature-vector'] + [ "%s-activity" % x for x in ALL_LAYERS ])
 
 def MakeTransformHandler(model_func, param_help_func):
   def Transform(args):
@@ -406,6 +408,7 @@ def MakeTransformHandler(model_func, param_help_func):
         results_for_output['options'] = model.params
         results_for_output['s1-kernels'] = model.s1_kernels
         results_for_output['s2-kernels'] = model.s2_kernels
+        results_for_output['feature-vector'] = results[LAYER_IT]
         for name in set(results_for_output.keys()).intersection(store_list):
           fname = os.path.join(rdir, name)
           util.Store(results_for_output[name], fname)
