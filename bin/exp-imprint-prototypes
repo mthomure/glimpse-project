@@ -51,16 +51,16 @@ EOF
 PROTOS_PER_IMG_CEIL=$(echo -e "$BCFUNCS \n ceil($NUM_PROTOTYPES / $NUM_IMAGES)" | bc)
 
 PROTOTYPE_FILE=$RESULT_DIR/s2.protos
-if [[ "$PROTOS_PER_IMG" == "$PROTOS_PER_IMG_CEIL" ]]; then
-  # Imprint prototypes from training set
-  (for F in $TRAIN_FILES; do
-    echo $CORPUS_DIR/$F
-  done \
-  | $D/multi-launch -n $NUM_PROCS $D/glimpse -m $GLIMPSE_MODEL \
-    imprint -s -n $PROTOS_PER_IMG $IMPRINT_ARGS \
-  | $D/np-concat -s > $PROTOTYPE_FILE)
-else
-  echo "NOTE: Using single-process imprinting -- modify number of prototypes or training files to use multiple processes."
-  FILES=$(for F in $TRAIN_FILES; do echo $CORPUS_DIR/$F; done)
-  $D/glimpse -m $GLIMPSE_MODEL imprint -s -n $NUM_PROTOTYPES $IMPRINT_ARGS $FILES > $PROTOTYPE_FILE
+# Imprint prototypes from training set
+(for F in $TRAIN_FILES; do
+  echo $CORPUS_DIR/$F
+done \
+| $D/multi-launch -n $NUM_PROCS $D/glimpse -m $GLIMPSE_MODEL \
+  imprint -s -n $PROTOS_PER_IMG_CEIL $IMPRINT_ARGS \
+| $D/np-concat -s > $PROTOTYPE_FILE)
+
+if [[ "$PROTOS_PER_IMG" != "$PROTOS_PER_IMG_CEIL" ]]; then
+  # Imprinted too many prototypes. Remove the extra.
+  codex -o p -c "o[:$NUM_PROTOTYPES]" $PROTOTYPE_FILE > $PROTOTYPE_FILE.tmp
+  mv $PROTOTYPE_FILE.tmp $PROTOTYPE_FILE
 fi
