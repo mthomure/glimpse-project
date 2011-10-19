@@ -172,6 +172,10 @@ class ScipyBackend(object):
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
 
+  def PrepareArray(self, array):
+    """Prepare array to be passed to backend methods."""
+    return array
+
 def ContrastEnhance(data, kwidth, bias, scaling):
   return ScipyBackend().ContrastEnhance(data, kwidth, bias, scaling)
 

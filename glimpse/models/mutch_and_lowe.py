@@ -27,6 +27,9 @@ class Model(object):
     self.s1_kernels = s1_kernels
     self.s2_kernels = s2_kernels
 
+  def BuildImageFromInput(self, input_):
+    return ImageLayerFromInputArray(input_, self.backend)
+
   def BuildRetinaFromImage(self, img):
     if not self.params['retina_enabled']:
       return img

@@ -35,6 +35,20 @@ def PrototypeSampler(c1s, num_prototypes, kwidth, scale_norm):
     yield proto, (scale, y, x)
   raise StopIteration
 
+def ImageLayerFromInputArray(input_, backend):
+  """Create the initial image layer from some input.
+  input_ -- Image or (2-D) array of input data. If array, values should lie in
+            the range [0, 1].
+  RETURNS (2-D) array containing image layer data
+  """
+  if isinstance(input_, Image.Image):
+    input_ = input_.convert('L')
+    input_ = util.ImageToArray(input_, transpose = True)
+    input_ = input_.astype(np.float)
+    # Map from [0, 255] to [0, 1]
+    input_ /= 255
+  return backend.PrepareArray(input_)
+
 class Viz2Model(object):
 
   def __init__(self, backend, params, s1_kernels = None, s2_kernels = None):
@@ -48,6 +62,9 @@ class Viz2Model(object):
           scale_norm = True)
     self.s1_kernels = s1_kernels
     self.s2_kernels = s2_kernels
+
+  def BuildImageFromInput(self, input_):
+    return ImageLayerFromInputArray(input_, self.backend)
 
   def BuildRetinaFromImage(self, img):
     if not self.params['retina_enabled']:
@@ -129,11 +146,11 @@ class Viz2Model(object):
       results[layer_name] = data
     return results
 
-  def ImprintPrototypes(self, img, num_prototypes):
+  def ImprintPrototypes(self, input_, num_prototypes):
     """Compute C1 activity maps and sample patches from random locations.
     RETURNS list of prototypes, and list of corresponding locations.
     """
-    results = self.BuildLayers(img, LAYER_RETINA, LAYER_C1)
+    results = self.BuildLayers(input_, LAYER_IMAGE, LAYER_C1)
     c1s = results[LAYER_C1]
     proto_it = PrototypeSampler(c1s, num_prototypes,
         kwidth = self.params['s2_kwidth'], scale_norm = True)
@@ -141,6 +158,7 @@ class Viz2Model(object):
     return zip(*protos)
 
 # Identifiers for layers that can be computed
+LAYER_IMAGE = 'i'
 LAYER_RETINA = 'r'
 LAYER_S1 = 's1'
 LAYER_C1 = 'c1'
@@ -148,10 +166,11 @@ LAYER_S2 = 's2'
 LAYER_C2 = 'c2'
 LAYER_IT = 'it'
 # The set of all layers in this model, in order of processing.
-ALL_LAYERS = (LAYER_RETINA, LAYER_S1, LAYER_C1, LAYER_S2, LAYER_C2, LAYER_IT)
-ALL_BUILDERS = (Viz2Model.BuildRetinaFromImage, Viz2Model.BuildS1FromRetina,
-    Viz2Model.BuildC1FromS1, Viz2Model.BuildS2FromC1, Viz2Model.BuildC2FromS2,
-    Viz2Model.BuildItFromC2)
+ALL_LAYERS = (LAYER_IMAGE, LAYER_RETINA, LAYER_S1, LAYER_C1, LAYER_S2, LAYER_C2,
+    LAYER_IT)
+ALL_BUILDERS = (Viz2Model.BuildImageFromInput, Viz2Model.BuildRetinaFromImage,
+    Viz2Model.BuildS1FromRetina, Viz2Model.BuildC1FromS1,
+    Viz2Model.BuildS2FromC1, Viz2Model.BuildC2FromS2, Viz2Model.BuildItFromC2)
 
 def Whiten(data):
   data -= data.mean(0)
@@ -322,7 +341,6 @@ def MakeImprintHandler(model_func, param_help_func):
       all_locations = []
       for ifname in args:
         img = Image.open(ifname)
-        img = util.ImageToInputArray(img)
         model = model_func(backend, params_fname)
         protos, locations = model.ImprintPrototypes(img, num_prototypes)
         all_protos.extend(protos)
@@ -404,9 +422,8 @@ def MakeTransformHandler(model_func, param_help_func):
             " '%s' layer" % output_layer)
       ifname = args[0]
       img = Image.open(ifname)
-      img = util.ImageToInputArray(img)
       model = model_func(backend, params_fname, s2_kernels = protos)
-      results = model.BuildLayers(img, LAYER_RETINA, output_layer)
+      results = model.BuildLayers(img, LAYER_IMAGE, output_layer)
       if rdir != None:
         results_for_output = dict([ ("%s-activity" % k, v) for k, v in results.items() ])
         results_for_output['options'] = model.params

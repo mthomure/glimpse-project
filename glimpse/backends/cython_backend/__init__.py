@@ -6,6 +6,7 @@
 # Implementation of filter operations using custom C++ code.
 
 import filter
+from glimpse.util import ACTIVATION_DTYPE
 
 class CythonBackend(object):
 
@@ -76,6 +77,14 @@ class CythonBackend(object):
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
+
+  def PrepareArray(self, array):
+    """Prepare array to be passed to backend methods."""
+    array = array.astype(ACTIVATION_DTYPE)
+    # Make sure data is contiguous in memory
+    if not array.flags['C_CONTIGUOUS']:
+      array = array.copy()
+    return array
 
 def ContrastEnhance(data, kwidth, bias, scaling):
   return CythonBackend().ContrastEnhance(data, kwidth, bias, scaling)
