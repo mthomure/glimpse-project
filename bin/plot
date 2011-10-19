@@ -7,7 +7,6 @@
 # terms.
 
 from glimpse import util
-import glimpse.util.plot as plot_mod
 import matplotlib
 import numpy as np
 import sys
@@ -47,7 +46,7 @@ def main():
     data_sets = list(util.LoadAll(args, input_encoding))
   except Exception:
     sys.exit("Failed to load dataset, maybe wrong input type (see -i option)?")
-  plot = plot_mod.InitPlot(ofname != None)
+  plot = util.InitPlot(ofname != None)
   line_args = [ {} for i in range(len(data_sets)) ]
   show_legend = False
   axis = None
