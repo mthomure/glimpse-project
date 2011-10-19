@@ -1,3 +1,9 @@
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage terms.
+
+# Implementation of filter operations using Scipy's ndimage.correlate().
 
 import scipy
 from scipy.ndimage import maximum_filter
@@ -32,20 +38,26 @@ def PruneArray(data, kernel_shape, scaling):
   of the result array, in which border units have been removed, and subsampling
   has been performed.
   data -- (N-dim) result array from one or more correlate() calls
-  kernel_shape -- (tuple) shape of the kernel passed to correlate()
+  kernel_shape -- (tuple) shape of the kernel passed to correlate(). If None,
+                  then cropping is disabled and only subsampling is performed.
   scaling -- (positive int) subsampling factor
   RETURN cropped, sampled view (not copy) of the input data
   """
   if kernel_shape == None:
-    indices = [slice(None)] * (data.ndim - 2) + [slice(None, None, scaling)] * 2
+    # Keep all bands
+    band_indices = [slice(None)] * (data.ndim - 2)
+    # Perform subsampling of maps
+    map_indices = [slice(None, None, scaling)] * 2
   else:
+    # Keep all bands
+    band_indices = [slice(None)] * (data.ndim - 2)
+    # Crop borders of maps by half the kernel width, and perform subsampling.
     assert len(kernel_shape) >= 2
     h, w = kernel_shape[-2:]
     hh = int(h / 2)
     hw = int(w / 2)
-    indices = [slice(None)] * (data.ndim - 2) + [slice(hh, -hh, scaling),
-        slice(hw, -hw, scaling)]
-  return data[indices]
+    map_indices = [slice(hh, -hh, scaling), slice(hw, -hw, scaling)]
+  return data[band_indices + map_indices]
 
 class ScipyBackend(object):
 

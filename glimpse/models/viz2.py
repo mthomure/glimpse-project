@@ -17,8 +17,9 @@ import random
 def PrototypeSampler(c1s, num_prototypes, kwidth, scale_norm):
   """
   c1 - list of (3-D) C1 activity maps, one map per scale.
-  RETURNS: iterator over prototype arrays. Note that returned prototypes should
-           be copied, as the returned array may be reused.
+  RETURNS: iterator over prototype arrays and corresponding locations (i.e.,
+           iterator elements are 2-tuples). Prototype location gives top-left
+           corner of C1 region.
   """
   assert (np.array(len(c1s[0].shape)) == 3).all()
   num_scales = len(c1s)
@@ -65,6 +66,11 @@ class Viz2Model(object):
     self.s2_kernels = s2_kernels
 
   def BuildImageFromInput(self, input_):
+    """Create the initial image layer from some input.
+    input_ -- Image or (2-D) array of input data. If array, values should lie in
+              the range [0, 1].
+    RETURNS (2-D) array containing image layer data
+    """
     return ImageLayerFromInputArray(input_, self.backend)
 
   def BuildRetinaFromImage(self, img):
@@ -496,11 +502,9 @@ def MakeDefaultParamDict():
     s1_num_phases = 2,
     s1_scaling = 2,
     s1_shift_orientations = True,
-    s1_sparsify = False,
 
     c1_kwidth = 5,
     c1_scaling = 2,
-    c1_sparsify = False,
     c1_whiten = True,
 
     s2_beta = 5.0,
