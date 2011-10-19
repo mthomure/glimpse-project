@@ -483,9 +483,14 @@ class Viz2Params(object):
 
   def LoadFromFile(self, fname):
     """Loads option data either from a python file (if fname ends in ".py"), or
-    a pickled dictionary.
+    a pickled Viz2Params file.
       fname -- name of file from which to load options"""
-    for name, value in util.LoadByFileName(fname).items():
+    values = util.LoadByFileName(fname)
+    if isinstance(values, Viz2Params):
+      values = values._params
+    elif not isinstance(values, dict):
+      raise ValueError("Unknown data in file %s" % fname)
+    for name, value in values.items():
       self[name] = value
 
 def MakeDefaultParamDict():

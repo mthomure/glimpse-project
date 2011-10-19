@@ -7,6 +7,7 @@
 # Create a 2-part, HMAX-like hierarchy of S+C layers.
 # This module implements the scale-pyramid approach used by Mutch & Lowe (2008).
 
+from glimpse import util
 from glimpse.util import kernel
 from scipy.ndimage.interpolation import zoom
 from viz2 import PrototypeSampler, Whiten, CheckPrototypes, \
