@@ -8,6 +8,7 @@ from glimpse.backends.cython_backend import CythonBackend
 from glimpse.backends.scipy_backend import ScipyBackend
 import Image
 import os
+import re
 import sys
 from viz2 import *
 
@@ -177,13 +178,171 @@ def MakeTransformHandler(model_func, param_help_func):
       )
   return Transform
 
+NAME_TO_LAYER = {
+  "image" : LAYER_IMAGE,
+  "i" : LAYER_IMAGE,
+  "retina" : LAYER_RETINA,
+  "r" : LAYER_RETINA,
+  "s1" : LAYER_S1,
+  "c1" : LAYER_C1,
+  "s2" : LAYER_S2,
+}
+
+def MakeRegionAnnotationHandler(param_class):
+  def AnnotateRegion(args):
+    try:
+      params = param_class()
+      to_layer = LAYER_IMAGE
+      save_fname = None
+      cmds = []
+      opts, args = util.GetOptions("c:n:o:r:s:", args = args)
+      for opt, arg in opts:
+        if opt == '-c':
+          cmds.append(ParseCoordStr(arg, center = True))
+        elif opt == '-n':
+          cmds.append(ParseCoordStr(arg, center = False))
+        elif opt == '-o':
+          params.LoadFromFile(arg)
+        elif opt == '-r':
+          cmds.append(ParseRegionStr(arg))
+        elif opt == '-s':
+          save_fname = arg
+      if len(args) < 1:
+        raise util.UsageException("Missing image path")
+      img_fname = args[0]
+      # Show the input image.
+      img = Image.open(img_fname)
+      img = img.convert("L")
+      img = util.ImageToArray(img)
+      util.InitPlot(save_fname != None)
+      import matplotlib.pyplot as plt
+      fig = plt.gcf()
+      # Remove image padding
+      fig.subplotpars.left = 0
+      fig.subplotpars.bottom = 0
+      fig.subplotpars.right = 1
+      fig.subplotpars.top = 1
+      # Scale figure to aspect ratio of image
+      fig.set_figwidth(img.shape[1] / img.shape[0] * fig.get_figheight())
+      # Show the image
+      plt.imshow(img, cmap = plt.cm.gray, origin = 'upper', figure = fig)
+      plt.yticks([])
+      plt.xticks([])
+      # Map coordinates from given layer to image.
+      for cmd in cmds:
+        cmd(img, params)
+      if save_fname == None:
+        plt.show()
+      else:
+        plt.savefig(save_fname)
+    except util.UsageException, e:
+      if e.msg:
+        print >>sys.stderr, e.msg
+      util.Usage("[options] IMAGE\n"
+          "  -c       Map coordinate from upper layer to center of receptive\n"
+          "           field\n"
+          "  -n       Map coordinate from upper layer to top-left of\n"
+          "           receptive field\n"
+          "  -o FILE  Load model parameters from FILE\n"
+          "  -s FILE  Save figure to FILE"
+          )
+  return AnnotateRegion
+
+def ParseCoordStr(s, center):
+  """Parse a coordinate specification, such as "s2[y, x], color='red'"."""
+  pattern = r"^(\w+)\[([^\]]*)\](.*)$"
+  try:
+    m = re.match(pattern, s)
+    assert m != None and len(m.groups()) == 3
+    from_layer_name, coord_str, options = m.groups()
+    # Parse options (such as object color)
+    options = filter((lambda x: x.strip() != ""), options.split(","))
+    options = [ x.split("=") for x in options ]
+    options = [ (name.strip(), eval(value.strip())) for name, value in options ]
+    options = dict(options)
+    # Parse coordinate components
+    coord = map(int, coord_str.split(","))
+    assert len(coord) == 2
+  except:
+    raise util.UsageException("Bad format for coordinate string: %s" % s)
+  # Look up layer for input coordinate
+  if from_layer_name not in NAME_TO_LAYER:
+    raise util.UsageException("Unknown (-l) layer: %s" % from_layer_name)
+  from_layer = NAME_TO_LAYER[from_layer_name]
+  options = dict(options.items() + [('center', center)])
+  return lambda img, params: MapCoordinate(params, from_layer, LAYER_IMAGE,
+      coord, **options)
+
+def ParseRegionStr(s):
+  """Parse a region specification, such as "s2[y0:y1, x0:x1], color='red'"."""
+  pattern = r"^(\w+)\[([^\]]*)\](.*)$"
+  try:
+    m = re.match(pattern, s)
+    assert m != None and len(m.groups()) == 3
+    from_layer_name, coords_str, options = m.groups()
+    # Parse options (such as object color)
+    options = filter((lambda x: x.strip() != ""), options.split(","))
+    options = [ x.split("=") for x in options ]
+    options = [ (name.strip(), eval(value.strip())) for name, value in options ]
+    options = dict(options)
+    # Parse components of region coordinates
+    coords = [ slice(*map(int, c.split(":"))) for c in coords_str.split(",") ]
+    assert len(coords) == 2
+  except:
+    raise util.UsageException("Bad format for region string: %s" % s)
+  # Look up layer for input coordinate
+  if from_layer_name not in NAME_TO_LAYER:
+    raise util.UsageException("Unknown (-l) layer: %s" % from_layer_name)
+  from_layer = NAME_TO_LAYER[from_layer_name]
+  return lambda img, params: MapRegion(params, from_layer, LAYER_IMAGE,
+      img.shape, coords, **options)
+
+def MapCoordinate(params, from_layer, to_layer, coords, color = 'red',
+    center = True):
+  mapper = CoordinateMapper(params, center = center)
+  try:
+    f = mapper.GetMappingFunction(from_layer, to_layer)
+  except ValueError:
+    raise util.UsageException("No mapping from %s to %s" % (from_layer,
+        to_layer))
+  icoords = map(f, coords)
+  # Reverse input coords from (y, x) to (x, y).
+  icoords = icoords[::-1]
+  # Draw red circle at image coordinate.
+  import matplotlib.pyplot as plt
+  cir = plt.Circle(icoords, radius = 2, color = color, alpha = 0.5,
+      fill = False, linewidth = 2)
+  ax = plt.gca()
+  ax.add_patch(cir)
+
+def MapRegion(params, from_layer, to_layer, img_shape, coords, color = 'red'):
+  mapper = RegionMapper(params)
+  try:
+    f = mapper.GetMappingFunction(from_layer, to_layer)
+  except ValueError:
+    raise util.UsageException("No mapping from %s to %s" % (from_layer,
+        to_layer))
+  icoords = map(f, coords)
+  # Draw red box around region given as image coordinates.
+  ymin = icoords[0].start
+  ymax = icoords[0].stop
+  height, width = img_shape
+  xmin = float(icoords[1].start) / width
+  xmax = float(icoords[1].stop) / width
+  import matplotlib.pyplot as plt
+  plt.axhspan(ymin, ymax, xmin, xmax, color = color, alpha = 0.5,
+      fill = False, linewidth = 2)
+
 def Main(args):
   try:
     if len(args) < 1:
       raise util.UsageException()
     cmd = args[0].lower()
     args = args[1:]
-    if cmd == "imprint":
+    if cmd == "annotate":
+      AnnotateRegion = MakeRegionAnnotationHandler(Viz2Params)
+      AnnotateRegion(args)
+    elif cmd == "imprint":
       Imprint = MakeImprintHandler(MakeModel, PrintParamHelp)
       Imprint(args)
     elif cmd == "transform":
@@ -192,4 +351,4 @@ def Main(args):
     else:
       raise util.UsageException("Unknown command: %s" % cmd)
   except util.UsageException, e:
-    util.Usage("[imprint|transform]", e)
+    util.Usage("[annotate|imprint|transform]", e)
