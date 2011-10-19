@@ -96,14 +96,14 @@ def MakeTransformHandler(model_func, param_help_func):
       params_fname = None
       proto_fname = None
       rdir = None
-      print_it = False
+      print_features = False
       protos = None
-      opts, args = util.GetOptions("b:Hil:o:p:r:s:", args = args)
+      opts, args = util.GetOptions("b:fHl:o:p:r:s:", args = args)
       for opt, arg in opts:
         if opt == '-b':
           backend = arg
-        elif opt == '-i':
-          print_it = True
+        elif opt == '-f':
+          print_features = True
         elif opt == '-H':
           param_help_func()
         if opt == '-l':
@@ -132,28 +132,36 @@ def MakeTransformHandler(model_func, param_help_func):
       if output_layer in (LAYER_S2, LAYER_C2, LAYER_IT) and protos == None:
         raise util.UsageException("Must specify S2 prototypes to compute"
             " '%s' layer" % output_layer)
-      ifname = args[0]
-      img = Image.open(ifname)
-      model = model_func(backend, params_fname, s2_kernels = protos)
-      results = model.BuildLayers(img, LAYER_IMAGE, output_layer)
       if rdir != None:
-        results_for_output = dict([ ("%s-activity" % k, v) for k, v in results.items() ])
-        results_for_output['options'] = model.params
-        results_for_output['s1-kernels'] = model.s1_kernels
-        results_for_output['s2-kernels'] = model.s2_kernels
-        results_for_output['feature-vector'] = results[LAYER_IT]
-        for name in set(results_for_output.keys()).intersection(store_list):
-          fname = os.path.join(rdir, name)
-          util.Store(results_for_output[name], fname)
-      if print_it:
-        util.Store(results[LAYER_IT], sys.stdout)
+        if len(args) > 1:
+          raise util.UsageException("Can't specify result directory when "
+              "transforming multiple images.")
+        if not os.path.isdir(rdir):
+          raise util.UsageException("Not an existing directory: %s" % rdir)
+      for ifname in args:
+        img = Image.open(ifname)
+        model = model_func(backend, params_fname, s2_kernels = protos)
+        results = model.BuildLayers(img, LAYER_IMAGE, output_layer)
+        if rdir != None:
+          results_for_output = dict([ ("%s-activity" % k, v) for k, v
+              in results.items() ])
+          results_for_output['options'] = model.params
+          results_for_output['s1-kernels'] = model.s1_kernels
+          results_for_output['s2-kernels'] = model.s2_kernels
+          if LAYER_IT in results:
+            results_for_output['feature-vector'] = results[LAYER_IT]
+          for name in set(results_for_output.keys()).intersection(store_list):
+            fname = os.path.join(rdir, name)
+            util.Store(results_for_output[name], fname)
+        if print_features:
+          util.Store(results[LAYER_IT], sys.stdout)
     except util.UsageException, e:
       if e.msg:
         print >>sys.stderr, e.msg
       util.Usage("[options] IMAGE\n"
           "  -b STR   Set backend type (one of cython, scipy."
           " default: %s)\n" % backend + \
-          "  -i       Write IT data to stdout\n"
+          "  -f       Write feature vector to stdout\n"
           "  -h       Print this help and exit\n"
           "  -H       Print extra help regarding valid options, and exit\n"
           "  -l LAYR  Transform image through LAYR (r, s1, c1, s2, c2, it)"
