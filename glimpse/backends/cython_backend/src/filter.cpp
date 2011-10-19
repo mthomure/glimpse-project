@@ -28,7 +28,7 @@ void ComputeMeanAndVariance(float* data, int size, float* mean, float* var) {
 void CContrastEnhance(const ArrayRef2D<float>& input, int kheight, int kwidth,
     float bias, ArrayRef2D<float>& output) {
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth,
+  COutputMapShapeForInput(kheight, kwidth,
       1.0,  // scaling
       input.w0, input.w1, &max_oheight, &max_owidth);
   int oheight = output.w0;
@@ -69,8 +69,8 @@ void CDotProduct(const ArrayRef3D<float>& input,
   int oheight = output.w1;
   int owidth = output.w2;
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
-      &max_owidth);
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth,
+      &max_oheight, &max_owidth);
   ASSERT_TRUE(oheight <= max_oheight);
   ASSERT_TRUE(owidth <= max_owidth);
 
@@ -115,8 +115,8 @@ void CNormDotProduct(const ArrayRef3D<float>& input,
   int oheight = output.w1;
   int owidth = output.w2;
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
-      &max_owidth);
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth,
+      &max_oheight, &max_owidth);
   ASSERT_TRUE(oheight <= max_oheight);
   ASSERT_TRUE(owidth <= max_owidth);
 
@@ -183,8 +183,8 @@ void CRbf(const ArrayRef3D<float>& input, const ArrayRef4D<float>& kernels,
   int oheight = output.w1;
   int owidth = output.w2;
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
-      &max_owidth);
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth,
+      &max_oheight, &max_owidth);
   ASSERT_TRUE(oheight <= max_oheight);
   ASSERT_TRUE(owidth <= max_owidth);
 
@@ -233,8 +233,8 @@ void CNormRbf(const ArrayRef3D<float>& input,
   int oheight = output.w1;
   int owidth = output.w2;
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
-      &max_owidth);
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth,
+      &max_oheight, &max_owidth);
   ASSERT_TRUE(oheight <= max_oheight);
   ASSERT_TRUE(owidth <= max_owidth);
   //const float scaling_constant = exp(-4.0 * beta);
@@ -311,8 +311,8 @@ void CLocalMax(const ArrayRef3D<float>& input, int kheight,
   int iheight = input.w1;
   int iwidth = input.w2;
   int max_oheight, max_owidth;
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &max_oheight,
-      &max_owidth);
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth,
+      &max_oheight, &max_owidth);
   int oheight = output.w1;
   int owidth = output.w2;
   ASSERT_TRUE(oheight <= max_oheight);

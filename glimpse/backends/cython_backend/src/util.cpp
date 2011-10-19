@@ -42,21 +42,13 @@ void handler(const std::string& msg, const char* file, int line) {
   throw MyException(buffer.str());
 }
 
-void CMaxOutputDimensions(int kheight, int kwidth, int scaling, int input_height,
-    int input_width, int* output_height, int* output_width) {
-  // Given a kernel of height kheight, there are
-  //   input_height - kheight + 1
-  // possible vertical locations to apply the kernel to the input matrix. The
-  // situation is analogous for the output width. Use this to compute the
-  // bounding box of defined elements in the output layer.
-  // *output_height = input_height / scaling - kheight + 1;
-  // *output_width = input_width / scaling - kwidth + 1;
-
+void COutputMapShapeForInput(int kheight, int kwidth, int scaling,
+    int input_height, int input_width, int* output_height, int* output_width) {
   *output_height = (input_height - kheight + 1) / scaling;
   *output_width = (input_width - kwidth + 1) / scaling;
 }
 
-void CInputDimensionsForOutput(int kheight, int kwidth, int scaling,
+void CInputMapShapeForOutput(int kheight, int kwidth, int scaling,
     int output_height, int output_width, int* input_height, int* input_width) {
   *input_height = output_height * scaling + kheight - 1;
   *input_width = output_width * scaling + kwidth - 1;

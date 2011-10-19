@@ -172,6 +172,33 @@ class ScipyBackend(object):
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1)
 
+  def OutputMapShapeForInput(self, kheight, kwidth, scaling, iheight, iwidth):
+    """Given an input map with the given dimensions, compute the shape of the
+    corresponding output map.
+    kheight -- (positive int) kernel height
+    kwidth -- (positive int) kernel width
+    scaling -- (positive int) subsampling factor
+    iheight -- (positive int) input map height
+    iwidth -- (positive int) input map width
+    RETURNS (tuple) output map height and width, in that order
+    """
+    oheight = iheight / scaling - kheight + 1
+    owidth = iwdith / scaling - kheight + 1
+
+  def InputMapShapeForOutput(self, kheight, kwidth, scaling, oheight, owidth):
+    """The inverse of OutputMapShapeForInput(). Given an output map with the
+    given dimensions, compute the shape of the corresponding input map.
+    kheight -- (positive int) kernel height
+    kwidth -- (positive int) kernel width
+    scaling -- (positive int) subsampling factor
+    oheight -- (positive int) output map height
+    owidth -- (positive int) output map width
+    RETURNS (tuple) input map height and width, in that order
+    """
+    iheight = oheight * scaling + kheight - 1
+    iwidth = owidth * scaling + kwidth - 1
+    return iheight, iwidth
+
   def PrepareArray(self, array):
     """Prepare array to be passed to backend methods."""
     return array

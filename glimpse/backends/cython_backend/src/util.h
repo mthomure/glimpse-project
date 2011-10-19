@@ -75,14 +75,15 @@ void ThrowEqualsException(const T1& actual, const T2& expected, const char* file
 
 bool IsEnabledSSE();
 bool IsEnabledDebugging();
-void CMaxOutputDimensions(int kheight, int kwidth, int scaling,
-    int input_height, int input_width, int* output_height, int* output_width);
 void CMaxOutputDimensionsSSE(int kheight, int kwidth, int scaling,
     int input_height, int input_width, int* output_height, int* output_width,
     int* multi_kwidth, int* lpad);
-void CInputDimensionsForOutput(int kheight, int kwidth, int scaling,
-    int output_height, int output_width, int* input_height, int* input_width);
 void CInputDimensionsForOutputSSE(int kheight, int kwidth, int scaling,
+    int output_height, int output_width, int* input_height, int* input_width);
+
+void COutputMapShapeForInput(int kheight, int kwidth, int scaling,
+    int input_height, int input_width, int* output_height, int* output_width);
+void CInputMapShapeForOutput(int kheight, int kwidth, int scaling,
     int output_height, int output_width, int* input_height, int* input_width);
 
 #endif // __UTIL_H__

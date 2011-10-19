@@ -35,10 +35,10 @@ cdef extern from "src/bitset_array.h":
 
 cdef extern from "src/util.h":
   bint IsEnabledDebugging()
-  void CMaxOutputDimensions(int kheight, int kwidth, int scaling,
+  void COutputMapShapeForInput(int kheight, int kwidth, int scaling,
       int input_height, int input_width, int* output_height, \
-          int* output_width) except +
-  void CInputDimensionsForOutput(int kheight, int kwidth, int scaling,
+      int* output_width) except +
+  void CInputMapShapeForOutput(int kheight, int kwidth, int scaling,
       int output_height, int output_width, int* input_height, \
       int* input_width) except +
 
@@ -99,21 +99,22 @@ cdef class WrapBitsetArray3D:
 def GetUseDebugging():
   return IsEnabledDebugging()
 
-# TODO check if we can express iterable type on in_shape as constraint
-def MaxOutputDimensions(int kheight, int kwidth, int scaling, int iheight,
+def OutputMapShapeForInput(int kheight, int kwidth, int scaling, int iheight,
     int iwidth):
+  """Get the size of the output layer that corresponds to the given input layer
+  size."""
   cdef int oheight, owidth
-  CMaxOutputDimensions(kheight, kwidth, scaling, iheight, iwidth, &oheight,
+  COutputMapShapeForInput(kheight, kwidth, scaling, iheight, iwidth, &oheight,
       &owidth)
   return oheight, owidth
 
-def InputDimensionsForOutput(int kheight, int kwidth, int scaling, int oheight,
+def InputMapShapeForOutput(int kheight, int kwidth, int scaling, int oheight,
     int owidth):
   """Get the size of the input layer that corresponds to the given output layer
   size."""
   cdef int iheight, iwidth
-  CInputDimensionsForOutput(kheight, kwidth, scaling, oheight, owidth,
-      &iheight, &iwidth)
+  CInputMapShapeForOutput(kheight, kwidth, scaling, oheight, owidth, &iheight,
+      &iwidth)
   return iheight, iwidth
 
 ###### OPS DECLARATIONS ##################
@@ -143,7 +144,7 @@ def ContrastEnhance(np.ndarray[act_t, ndim = 2] in_data not None, int kheight,
   if kheight != kwidth:
     raise ValueError("Kernel must be square (spatially)")
   if out_data == None:
-    oheight, owidth = MaxOutputDimensions(kheight, kwidth,
+    oheight, owidth = OutputMapShapeForInput(kheight, kwidth,
         1,  # scaling
         in_data.shape[0], in_data.shape[1])
     if oheight <= 0 or owidth <= 0:
@@ -167,7 +168,7 @@ def _Prepare3dFilterArgs(np.ndarray[act_t, ndim = 3] in_data not None,
     kwidth = kernels.shape[3]
     if kheight != kwidth:
       raise ValueError("Kernel must be square (spatially)")
-    oheight, owidth = MaxOutputDimensions(kheight, kwidth, scaling,
+    oheight, owidth = OutputMapShapeForInput(kheight, kwidth, scaling,
         in_data.shape[1], in_data.shape[2])
     nkernels = kernels.shape[0]
     if oheight <= 0 or owidth <= 0:
@@ -229,7 +230,7 @@ def LocalMax(np.ndarray[act_t, ndim = 3] in_data not None, int kheight,
   if kheight != kwidth:
     raise ValueError("Kernel must be square (spatially)")
   if out_data == None:
-    oheight, owidth = MaxOutputDimensions(kheight, kwidth, scaling,
+    oheight, owidth = OutputMapShapeForInput(kheight, kwidth, scaling,
         in_data.shape[1], in_data.shape[2])
     if oheight <= 0 or owidth <= 0:
       raise InsufficientSizeException()
