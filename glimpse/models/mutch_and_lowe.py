@@ -9,8 +9,9 @@
 
 from glimpse.util import kernel
 from scipy.ndimage.interpolation import zoom
-from viz2 import PrototypeSampler, Whiten, CheckPrototypes
-from viz2 import LAYER_RETINA, LAYER_C1, ALL_LAYERS
+from viz2 import PrototypeSampler, Whiten, CheckPrototypes, \
+    ImageLayerFromInputArray
+from viz2 import LAYER_IMAGE, LAYER_C1, ALL_LAYERS
 import numpy as np
 
 class Model(object):
@@ -109,16 +110,16 @@ class Model(object):
     """Compute C1 activity maps and sample patches from random locations.
     RETURNS list of prototypes, and list of corresponding locations.
     """
-    results = self.BuildLayers(img, LAYER_RETINA, LAYER_C1)
+    results = self.BuildLayers(img, LAYER_IMAGE, LAYER_C1)
     c1s = results[LAYER_C1]
     proto_it = PrototypeSampler(c1s, num_prototypes,
         kwidth = self.params['s2_kwidth'], scale_norm = True)
     protos = list(proto_it)
     return zip(*protos)
 
-ALL_BUILDERS = (Model.BuildRetinaFromImage, Model.BuildS1FromRetina,
-    Model.BuildC1FromS1, Model.BuildS2FromC1, Model.BuildC2FromS2,
-    Model.BuildItFromC2)
+ALL_BUILDERS = (Model.BuildImageFromInput, Model.BuildRetinaFromImage,
+    Model.BuildS1FromRetina, Model.BuildC1FromS1,
+    Model.BuildS2FromC1, Model.BuildC2FromS2, Model.BuildItFromC2)
 
 #### OPTION HANDLING ###########
 
@@ -222,41 +223,3 @@ def MakeDefaultParamDict():
     num_scales = 4,
     scale_factor = 2**0.5,
   )
-
-#### COMMAND LINE INTERFACE ###########
-
-from glimpse.backends.cython_backend import CythonBackend
-from glimpse.backends.scipy_backend import ScipyBackend
-from viz2 import MakeImprintHandler, MakeTransformHandler
-from glimpse import util
-import sys
-
-def MakeModel(backend = "cython", params_fname = None, **args):
-  mod_name = "%sBackend" % backend.capitalize()
-  backend = eval("%s()" % mod_name)
-  params = Params()
-  if params_fname != None:
-    params.LoadFromFile(params_fname)
-  model = Model(backend, params, **args)
-  return model
-
-def PrintParamHelp():
-  print "Possible values to set in the options file include:\n" + \
-      "\n".join(("    %s - %s." % (k,v) for k,v in ALL_OPTIONS))
-  sys.exit(-1)
-
-def Main(args):
-  try:
-    if len(args) < 1:
-      raise util.UsageException()
-    cmd = args[0].lower()
-    if cmd == "imprint":
-      Imprint = MakeImprintHandler(MakeModel, PrintParamHelp)
-      Imprint(args[1:])
-    elif cmd == "transform":
-      Transform = MakeTransformHandler(MakeModel, PrintParamHelp)
-      Transform(args[1:])
-    else:
-      raise util.UsageException("Unknown command: %s" % cmd)
-  except util.UsageException, e:
-    util.Usage("[transform]", e)

@@ -15,19 +15,25 @@ DEFAULT_MODEL = "viz2"
 
 try:
   opts, args = util.GetOptions("m:")
+  model_name = DEFAULT_MODEL
+  for opt, arg in opts:
+    if opt == '-m':
+      arg = arg.lower()
+      if arg == "default":
+        model_name = DEFAULT_MODEL
+      else:
+        model_name = arg
+  mname = "%s_cmds" % model_name
+  models = __import__("glimpse.models", globals(), locals(),
+      [mname], 0)
+  try:
+    model = getattr(models, mname)
+  except AttributeError:
+    raise util.UsageException("Unknown model (-m): %s" % model_name)
 except util.UsageException, e:
   util.Usage("[options]\n"
     "  -m MOD   Use model named MOD",
     e
-    )
-model_name = DEFAULT_MODEL
-for opt, arg in opts:
-  if opt == '-m':
-    arg = arg.lower()
-    if arg == "default":
-      model_name = DEFAULT_MODEL
-    else:
-      model_name = arg
-models = __import__("glimpse.models", globals(), locals(), [model_name], 0)
-model = getattr(models, model_name)
+  )
+
 model.Main(args)
