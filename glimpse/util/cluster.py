@@ -124,7 +124,7 @@ class Network(object):
 
   def _GetClusterStatus(self, cluster_host, jobs):
     cmds = [ "cd %s" % RESULTS_DIR ]
-    cmds += [ "local-job-status %s" % job.id_ for job in jobs ]
+    cmds += [ "gjob local status %s" % job.id_ for job in jobs ]
     cmd = "\n".join(cmds)
     args = [ "ssh", "-q", cluster_host ]
     p = subprocess.Popen(args, stdin = subprocess.PIPE,
@@ -187,7 +187,7 @@ class Network(object):
     """Start a job on a remote host, returning the allocated job ID."""
     # Make experiment directory, recording experiment ID.
     job_id = CheckRemoteCommands(host,
-        ["cd '%s'" % RESULTS_DIR, "local-job-mkdir"], self.verbose)
+        ["cd '%s'" % RESULTS_DIR, "gjob local mkdir"], self.verbose)
     job_id = job_id.strip()
     exp_dir = os.path.join(RESULTS_DIR, job_id)
     # Copy experimental files to remote experiment directory.
@@ -195,7 +195,7 @@ class Network(object):
         verbose = self.verbose)
     WriteRemoteFile(host, os.path.join(exp_dir, ".cmds"),
         "\n".join(job.spec.cmds) + "\n", self.verbose)
-    cmd = "local-job-start '%s' bash .cmds 1>%s/log 2>%s/err &" % (exp_dir,
+    cmd = "gjob local start '%s' bash .cmds 1>%s/log 2>%s/err &" % (exp_dir,
         exp_dir, exp_dir)
     CheckRemoteCommands(host, [cmd], self.verbose)
     return job_id
