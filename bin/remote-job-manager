@@ -1,18 +1,23 @@
 #!/usr/bin/python
 
-# Manages M jobs on N compute nodes, for M > N.
-# By default, tries to read list of hosts from ~/etc/cluster/default.
-# Requires
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
+# This script manages M jobs on N compute nodes, where M may be greater than N.
+#
+# This script requires the commands
 #   ssh
 #   scp
 # to be on the local path (i.e., it must be in a directory included in the PATH
-# environment variable), and requires
-#   local-job-mkdir
-#   local-job-start
-#   local-job-status
-# to be on the path for every remote node. Requires access from this node to all
-# cluster nodes via shared-key authentication, and requires that the login
-# message be suppressed on remote nodes (e.g., using ~/.hushlogin).
+# environment variable), that this node has access to compute nodes via shared-key
+# authentication, and that the login message be suppressed on remote nodes
+# (e.g., using ~/.hushlogin). Also requires the 'gjob' command to be on the remote path.
+#
+# Note that the 'gjob' command (on the local node) can be used to interact with jobs
+# launched by 'remote-job-manager' (this script).
 
 from glimpse import util
 from glimpse.util.cluster import Builder, Network, LoggingManager
@@ -20,17 +25,29 @@ import os
 import sys
 
 def main():
-  opts, args = util.GetOptions('c:dv')
-  verbose = False
+  opts, args = util.GetOptions('c:dr:s:v')
+  cluster_fnames = None
   debug = False
-  cluster_fnames = "~/etc/clusters/linuxlab"
+  results_dir = None
+  sleep_time_in_secs = 2
+  verbose = False
+  if 'GJOB_REMOTE_PATH' in os.environ:
+    results_dir = os.environ['GJOB_REMOTE_PATH']
   for opt,arg in opts:
     if opt == '-c':
       cluster_fnames = arg
     elif opt == '-d':
       debug = True
+    elif opt == '-r':
+      results_dir = arg
+    elif opt == '-s':
+      sleep_time_in_secs = int(arg)
     elif opt == '-v':
       verbose = True
+  if results_dir == None:
+    raise util.UsageException("Missing results directory (-r)")
+  if cluster_fnames == None:
+    raise util.UsageException("Missing cluster file (-c)")
   if len(args) < 1 or args[0] == "-":
     script = sys.stdin
   else:
@@ -57,8 +74,8 @@ def main():
     pprint(job_specs)
     return
   # Process jobs
-  network = Network(clusters, verbose = verbose)
-  manager = LoggingManager(sys.stdout)
+  network = Network(results_dir, clusters, verbose = verbose)
+  manager = LoggingManager(sleep_time_in_secs, sys.stdout)
   manager.Setup(job_specs, network)
   manager.ProcessJobs()
   print
@@ -73,9 +90,15 @@ if __name__ == '__main__':
     util.Usage(
       "[options] JOB-SPECS\n"
       "options:\n"
-      "  -c FNAME Override default clusters. File should contain main cluster\n"
-      "           host (for status updates) as first line, then list of\n"
-      "           worker hosts (for launching jobs) on proceeding lines.\n"
-      "  -d       Enable debugging mode\n"
-      "  -v       Be verbose with output"
+      "  -c FNAMES Comma-separated list of cluster file paths. File should\n"
+      "            contain management node for cluster (for status updates)\n"
+      "            as first line, then list of worker nodes (for launching\n"
+      "            jobs) on remaining lines.\n"
+      "  -d        Enable debugging mode\n"
+      "  -r PATH   Set the base result directory on worker nodes to PATH\n"
+      "            (reads from the GJOB_REMOTE_PATH environment variable\n"
+      "            by default)\n"
+      "  -s SECS   Set the time to sleep in seconds while waiting on running\n"
+      "            jobs\n"
+      "  -v        Be verbose with output"
     )

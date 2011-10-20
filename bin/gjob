@@ -13,12 +13,13 @@
 # 'scp' are on the local path. Additionally, the local (remote)
 # 'kill' sub-command of this script expects the 'pkill' command to
 # be on the local (remote) path.
+#
+# Remote commands require the GJOB_REMOTE_PATH environment variable to be set,
+# which indicates the root path for new job directories on remote nodes.
 
 set -e
 
 #### COMMANDS FOR LOCAL JOBS ####
-
-GJOB_REMOTE_PATH=research/results
 
 function LocalJobDelete {
   cd $1
@@ -102,6 +103,10 @@ function LocalJobStatus {
 #### COMMANDS FOR REMOTE JOBS ####
 
 function RemoteJobCmd {
+  if [[ "$GJOB_REMOTE_PATH" == "" ]]; then
+    echo "Error: GJOB_REMOTE_PATH environment variable not set." 1>&2
+    exit -1
+  fi
   JOB=$1
   INTERACTIVE=$2
   HOST=$(dirname $JOB)
@@ -125,6 +130,11 @@ function RemoteJobKill {
 }
 
 function RemoteJobStart {
+  if [[ "$GJOB_REMOTE_PATH" == "" ]]; then
+    echo "Error: GJOB_REMOTE_PATH environment variable not set." 1>&2
+    echo $GJOB_REMOTE_PATH
+    exit -1
+  fi
   if [[ "$CLUSTER" == 1 ]]; then
     HOST=$(cat $1 | shuf | head -n 1)
   else

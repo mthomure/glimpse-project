@@ -10,36 +10,6 @@ import random
 import subprocess
 import time
 
-# Base directory for job data.
-RESULTS_DIR = "research/results"
-SLEEP_TIME_IN_SECS = 2
-
-class Spec(object):
-  """Describes the commands necessary to launch a job."""
-
-  def __init__(self, cmds, files = [], name = None):
-    assert(len(cmds) > 0), "Must specify at least one command"
-    self.cmds = cmds
-    self.files = files
-    self.name = name or "no-name"
-
-  def __str__(self):
-    return "Spec(name: %s, cmds: %s, files: %s)" % (self.name, self.cmds,
-        self.files)
-
-  __repr__ = __str__
-
-class Job(object):
-  """The record of a job, including its spec and ID."""
-
-  def __init__(self, job_spec):
-    self.spec = job_spec
-    self.id_ = None
-    self.host = None
-
-  def __str__(self):
-    return "Job(id: %s, host: %s, spec: %s)" % (self.id_, self.host, self.spec)
-
 STATE_FREE = "free"  # resource is ready for use
 STATE_BUSY = "busy"  # resource is not ready, in use
 STATE_DONE = "done"  # single-use resource has been consumed
@@ -104,9 +74,14 @@ class Queue(object):
 class Network(object):
   """Handles remote command invocations."""
 
-  def __init__(self, clusters, verbose = False):
-    """Create new network object, where clusters is a dictionary mapping a
-    "cluster host" to a list of "member hosts"."""
+  def __init__(self, results_dir, clusters, verbose = False):
+    """Create new network object.
+    results_dir -- Directory on remote machines in which to store results
+    clusters -- (dictionary) mapping from a management node for a cluster to a
+                list of worker nodes. The management node is used only to check
+                job status, while worker nodes actually run those jobs.
+    """
+    self.results_dir = results_dir
     self.clusters = clusters
     self.verbose = verbose
 
@@ -123,7 +98,13 @@ class Network(object):
     assert(false), "Unknown host: %s" % host
 
   def _GetClusterStatus(self, cluster_host, jobs):
-    cmds = [ "cd %s" % RESULTS_DIR ]
+    """Get the status of all jobs running on the given cluster.
+    cluster_host -- (string) maintenance node for cluster
+    jobs -- (JobSpec list) specs for jobs of interest
+    Requires that the command 'local-job-status' be on the remote path of the
+    maintenance node, and that 'ssh' be on the local path.
+    """
+    cmds = [ "cd %s" % self.results_dir ]
     cmds += [ "gjob local status %s" % job.id_ for job in jobs ]
     cmd = "\n".join(cmds)
     args = [ "ssh", "-q", cluster_host ]
@@ -176,20 +157,23 @@ class Network(object):
     return results
 
   def GetStderr(self, job):
-    return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(RESULTS_DIR,
-        job.id_, "err")], verbose = self.verbose)
+    return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(
+        self.results_dir, job.id_, "err")], verbose = self.verbose)
 
   def GetStdout(self, job):
-    return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(RESULTS_DIR,
-        job.id_, "log")], verbose = self.verbose)
+    return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(
+        self.results_dir, job.id_, "log")], verbose = self.verbose)
 
   def LaunchJob(self, job, host):
-    """Start a job on a remote host, returning the allocated job ID."""
+    """Start a job on a remote host, returning the allocated job ID.
+    Requires that the command 'gjob' be on the remote path of the worker node. The set of job commands is launched as a
+    bash script.
+    """
     # Make experiment directory, recording experiment ID.
     job_id = CheckRemoteCommands(host,
-        ["cd '%s'" % RESULTS_DIR, "gjob local mkdir"], self.verbose)
+        ["cd '%s'" % self.results_dir, "gjob local mkdir"], self.verbose)
     job_id = job_id.strip()
-    exp_dir = os.path.join(RESULTS_DIR, job_id)
+    exp_dir = os.path.join(self.results_dir, job_id)
     # Copy experimental files to remote experiment directory.
     CopyLocalFilesToRemoteHost(host, exp_dir, *job.spec.files,
         verbose = self.verbose)
@@ -200,31 +184,49 @@ class Network(object):
     CheckRemoteCommands(host, [cmd], self.verbose)
     return job_id
 
-def CopyLocalFilesToRemoteHost(host, remote_path, *args, **kwargs):
-  if len(args) < 1:
+def CopyLocalFilesToRemoteHost(host, remote_path, *files, **check_opts):
+  """Copy a set of files to a remote node.
+  host -- name of remote node
+  remote_path -- path of remote directory to which local files are copied
+  files -- set of local files to copy
+  check_opts -- optional arguments for CheckLocalCommand()
+  Requires that the command 'scp' be on the local path.
+  """
+  if len(files) < 1:
     return
   if kwargs['verbose']:
-    print "Writing %s to '%s' on '%s'" % (args, remote_path, host)
-  for local_path in args:
+    print "Writing %s to '%s' on '%s'" % (files, remote_path, host)
+  for local_path in files:
     assert(os.path.exists(local_path)), "Local file not found: %s" % local_path
-  CheckLocalCommand(["scp", "-q"] + list(args) + ["%s:%s" % (host,
-      remote_path)], **kwargs)
+  CheckLocalCommand(["scp", "-q"] + list(files) + ["%s:%s" % (host,
+      remote_path)], **check_opts)
 
-def WriteRemoteFile(host, path, contents, verbose = False):
+def WriteRemoteFile(host, remote_path, contents, verbose = False):
+  """Write data stored in memory to a file on a remote node.
+  host -- name of remote node
+  remote_path -- path of output file on remote node
+  contents -- data to write
+  verbose -- flag controlling whether extra logging information is printed
+  Requires that the command 'ssh' be on the local path.
+  """
   if verbose:
-    print "Writing to '%s' on '%s'\n%s" % (path, host, contents)
-  p = subprocess.Popen(("ssh", "-q", host, "cat > %s" % path),
+    print "Writing to '%s' on '%s'\n%s" % (remote_path, host, contents)
+  p = subprocess.Popen(("ssh", "-q", host, "cat > %s" % remote_path),
       stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   stdout, stderr = p.communicate(contents)
   if not (stderr == None or stderr == ""):
-    raise Exception("Remote write failed to '%s' on '%s'\n%s" % (path, host,
-        stderr))
+    raise Exception("Remote write failed to '%s' on '%s'\n%s" % (remote_path,
+        host, stderr))
   return stdout
 
 def CheckRemoteCommands(host, cmds, verbose = False):
   """Open a pipe via SSH, execute given commands, close the pipe, and return
   stdout.
-  @param cmds list of string-formatted commands to execute"""
+  host -- name of remote node
+  cmds -- (string list) commands to execute on remote node
+  verbose -- flag controlling whether extra logging information is printed
+  Requires that the command 'ssh' be on the local path.
+  """
   if verbose:
     print "Running remote commands on '%s'\n%s" % (host,
         "\t" + "\n\t".join(cmds))
@@ -237,8 +239,11 @@ def CheckRemoteCommands(host, cmds, verbose = False):
   return stdout
 
 def CheckLocalCommand(cmd, verbose = False):
-  """Run a single command on local machine, returning stdout.
-  @param cmd list of command tokens"""
+  """Run a single command on local machine, returning stdout. Throw an exception
+  if the command failed.
+  cmd -- (string list) command to run
+  verbose -- flag controlling whether extra logging information is printed
+  """
   if verbose:
     print "Running local command: '%s'" % " ".join(cmd)
   retcode = subprocess.call(cmd)
@@ -248,12 +253,18 @@ def CheckLocalCommand(cmd, verbose = False):
 class Manager(object):
   """Allocates N jobs to M hosts, with N > M."""
 
-  def __init__(self):
+  def __init__(self, sleep_time_in_secs):
+    self.sleep_time_in_secs = sleep_time_in_secs
     self.jobs = None
     self.hosts = None
     self.network = None
 
   def Setup(self, job_specs, network):
+    """Initialize the manager to process a set of jobs.
+    jobs_specs -- (JobSpec list) Command, arguments, and files required to
+                  launch each of a set of jobs.
+    network -- (Network) The network on which to launch the jobs.
+    """
     jobs = [ Job(spec) for spec in job_specs ]
     self.jobs = Queue([STATE_FREE, STATE_BUSY, STATE_DONE], jobs)
     self.network = network
@@ -308,12 +319,13 @@ class Manager(object):
         job_finished = self.UpdateJobStatus()
         if not job_finished:
           self.HandleSleep()
-          time.sleep(SLEEP_TIME_IN_SECS)
+          time.sleep(self.sleep_time_in_secs)
 
 class LoggingManager(Manager):
   """Manager that logs job events to disk."""
 
-  def __init__(self, log):
+  def __init__(self, sleep_time_in_secs, log):
+    Manager.__init__(self, sleep_time_in_secs)
     self.log = log
     self.last_was_sleep = False
 
@@ -338,12 +350,36 @@ class LoggingManager(Manager):
   def HandleSleep(self):
     if self.last_was_sleep:
       self.log.write(".")
-      #~ print >>self.log, ".",
     else:
-      #~ print >>self.log, "WAIT .",
       self.log.write("WAIT .")
       self.last_was_sleep = True
     self.log.flush()
+
+class JobSpec(object):
+  """Describes the commands necessary to launch a job."""
+
+  def __init__(self, cmds, files = [], name = None):
+    assert(len(cmds) > 0), "Must specify at least one command"
+    self.cmds = cmds
+    self.files = files
+    self.name = name or "no-name"
+
+  def __str__(self):
+    return "JobSpec(name: %s, cmds: %s, files: %s)" % (self.name, self.cmds,
+        self.files)
+
+  __repr__ = __str__
+
+class Job(object):
+  """The record of a job, including its spec and ID."""
+
+  def __init__(self, job_spec):
+    self.spec = job_spec
+    self.id_ = None
+    self.host = None
+
+  def __str__(self):
+    return "Job(id: %s, host: %s, spec: %s)" % (self.id_, self.host, self.spec)
 
 class Builder(object):
   """Provides a builder syntax for constructing job lists."""
@@ -354,7 +390,7 @@ class Builder(object):
 
   def AddJob(self, **args):
     for i in range(args.get('repeat', self.repeat)):
-      self.job_specs.append( Spec(args.get('commands', []), args.get('files',
+      self.job_specs.append( JobSpec(args.get('commands', []), args.get('files',
           []), args.get('name', None)) )
 
   def SetRepeat(self, repeat):
