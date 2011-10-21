@@ -513,7 +513,8 @@ def MakeDefaultParamDict():
     c1_whiten = True,
 
     s2_beta = 5.0,
-    s2_bias = 1.0,
+    s2_bias = 0.1,  # Configured to match distribution of C1 norm under
+                    # whitening.
     s2_kwidth = 7,
     s2_scaling = 2,
 
