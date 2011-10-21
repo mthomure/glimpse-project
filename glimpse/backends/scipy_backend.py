@@ -110,8 +110,9 @@ class ScipyBackend(object):
       # dot product of kernel with local input patches
       d = Correlate(data, k, o)
       # norm of local input patches
-      n0 = Correlate(data**2, np.ones(k.shape))
-      n = np.sqrt(n0 + bias)
+      n = Correlate(data**2, np.ones(k.shape))
+      # use conditional bias
+      n[ n < bias ] = bias
       # normalized dot product
       o /= n
     output_bands = np.empty((kernels.shape[0],) + data.shape[-2:], data.dtype)

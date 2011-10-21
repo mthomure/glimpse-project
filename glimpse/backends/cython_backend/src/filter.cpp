@@ -145,15 +145,11 @@ void CNormDotProduct(const ArrayRef3D<float>& input,
 
         // Bias (usually by 1.0) to prevent noise amplification. Add the
         // bias before taking the square root to avoid ill-conditioned input.
-        float input_norm = sqrt(squares + bias);
+        //   float input_norm = sqrt(squares + bias);
         // An alternative approach to avoid amplifying noise (used, e.g., by
         // Pinto et al) is to clip the divisor.
-        // float input_norm;
-        // if (squares < 1.0) {
-          // input_norm = 1.0;
-        // } else {
-          // input_norm = sqrt(squares);
-        // }
+        squares = (squares < bias ? bias : squares);
+        float input_norm = sqrt(squares);
 
         // Input patch is not normalized. To compensate, divide dotprod by
         // norm of the input.
@@ -264,15 +260,11 @@ void CNormRbf(const ArrayRef3D<float>& input,
 
         // Bias (usually by 1.0) to prevent noise amplification. Add the
         // bias before taking the square root to avoid ill-conditioned input.
-        float input_norm = sqrt(squares + bias);
+        //   float input_norm = sqrt(squares + bias);
         // An alternative approach to avoid amplifying noise (used, e.g., by
         // Pinto et al) is to clip the divisor.
-        // float input_norm;
-        // if (squares < 1.0) {
-          // input_norm = 1.0;
-        // } else {
-          // input_norm = sqrt(squares);
-        // }
+        squares = (squares < bias ? bias : squares);
+        float input_norm = sqrt(squares);
 
         // Input patch is not normalized. To compensate, divide dotprod by
         // norm of the input.
