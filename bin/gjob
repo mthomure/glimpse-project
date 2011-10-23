@@ -102,7 +102,7 @@ function LocalJobStatus {
 
 #### COMMANDS FOR REMOTE JOBS ####
 
-function RemoteJobCmd {
+function RemoteJobCommand {
   if [[ "$GJOB_REMOTE_PATH" == "" ]]; then
     echo "Error: GJOB_REMOTE_PATH environment variable not set." 1>&2
     exit -1
