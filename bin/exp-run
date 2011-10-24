@@ -53,7 +53,7 @@ if [[ "$NUM_PROTOTYPES" != "" ]]; then
     mv $RESULT_DIR/{s2.protos,sample.protos}
     echo "PROTOTYPE_SOURCE: random"
     echo "+ Generating random prototypes from distribution of imprinted prototypes"
-    $D/make-random-prototypes -n $NUM_RANDOM_PROTOTYPES $RESULT_DIR/sample.protos > $RESULT_DIR/s2.protos
+    $D/make-random-kernels -a h -n $NUM_RANDOM_PROTOTYPES -f $RESULT_DIR/sample.protos > $RESULT_DIR/s2.protos
   else
     echo "PROTOTYPE_SOURCE: imprint"
   fi

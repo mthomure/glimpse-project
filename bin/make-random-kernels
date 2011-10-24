@@ -30,7 +30,7 @@ def main():
   kshape = None
   for opt,arg in opts:
     if opt == '-a':
-      if alg not in ALL_ALGORITHMS:
+      if arg not in ALL_ALGORITHMS:
         raise util.UsageException("Bad algorithm: %s" % arg)
       algorithm = arg
     elif opt == '-b':
