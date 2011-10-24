@@ -28,6 +28,7 @@ def main():
   normal_std = 1
   nkernels = 100
   kshape = None
+  resolution = 0.0025
   normalize = False
   for opt,arg in opts:
     if opt == '-a':
@@ -44,6 +45,8 @@ def main():
       nkernels = int(arg)
     elif opt == '-N':
       normalize = True
+    elif opt == '-r':
+      resolution = float(arg)
     elif opt == '-s':
       normal_std = float(arg)
   if algorithm == None:
@@ -63,7 +66,7 @@ def main():
     for x in odata:
       np.random.shuffle(x)
   elif algorithm == ALG_HISTOGRAM:
-    sampler = HistogramSampler(idata, nbins)
+    sampler = HistogramSampler(idata, nbins, resolution = resolution)
     kshape = np.array(idata.shape[1:])
     nelements = nkernels * kshape.prod()
     oshape = [nkernels] + list(kshape)
@@ -102,6 +105,7 @@ if __name__ == '__main__':
       "  -n NUM  Set number of kernels to generate (default is 100). If ALG\n"
       "          is 's', then NUM can not be more than the number of input\n"
       "          kernels.\n"
+      "  -r NUM  Set the resolution of the histogram sampler\n"
       "  -s STD  Set the standard deviation of the normal distribution"
     )
 
