@@ -62,6 +62,23 @@ class Viz2Model(object):
           num_orientations = params['s1_num_orientations'],
           num_phases = params['s1_num_phases'], shift_orientations = True,
           scale_norm = True)
+    else:
+      # S1 kernels should have dimensions [scale, orientation, phase, y, x].
+      expected_shape = tuple(params[k] for k in ('num_scales',
+          's1_num_orientations', 's1_num_phases', 's1_kwidth', 's1_kwidth'))
+      assert s1_kernels.shape == expected_shape, \
+          "S1 kernels have wrong shape: expected %s but got %s" % \
+          (expected_shape, s1_kernels.shape)
+      s1_kernels = backend.PrepareArray(s1_kernels)
+    if s2_kernels != None:
+      # S2 kernels should have dimensions [proto_idx, orientation, y, x].
+      ntheta = params['s1_num_orientations']
+      kwidth = params['s1_kwidth']
+      assert s2_kernels.ndim == 4 and s2_kernels.shape[0] > 0 \
+          and s2_kernels.shape[1:] == (ntheta, kwidth, kwidth), \
+          "S2 kernels have wrong shape: expected (*, %d, %d, %d) but got %s" % \
+          (ntheta, kwidth, kwidth, s2_kernels.shape)
+      s2_kernels = backend.PrepareArray(s2_kernels)
     self.s1_kernels = s1_kernels
     self.s2_kernels = s2_kernels
 
@@ -83,6 +100,10 @@ class Viz2Model(object):
     return retina
 
   def BuildS1FromRetina(self, retina):
+    """Apply S1 processing to some existing retinal layer data.
+    retina -- (2-D array) result of retinal layer processing
+    RETURNS list of (4-D) S1 activity arrays, with one array per scale
+    """
     # Reshape retina to be 3D array
     retina_ = retina.reshape((1,) + retina.shape)
     num_scales = self.params['num_scales']
@@ -99,6 +120,7 @@ class Viz2Model(object):
           beta = self.params['s1_beta'], scaling = self.params['s1_scaling'])
       # Reshape S1 to be 4D array
       s1 = s1_.reshape((s1_num_orientations, s1_num_phases) + s1_.shape[-2:])
+      # Pool over phase.
       s1 = s1.max(1)
       s1s.append(s1)
     return s1s
@@ -142,6 +164,11 @@ class Viz2Model(object):
     return it
 
   def BuildLayers(self, data, input_layer, output_layer):
+    """Process the input data, building up to the given output layer.
+    data -- input array
+    input_layer -- layer ID of input array
+    output_layer -- layer ID of output array
+    """
     start = ALL_LAYERS.index(input_layer)
     stop = ALL_LAYERS.index(output_layer)
     layers = ALL_LAYERS[start : stop + 1]
