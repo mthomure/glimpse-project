@@ -38,7 +38,7 @@ def main():
     elif opt == '-f':
       ifname = arg
     elif opt == '-k':
-      kshape = map(int, arg.split(","))
+      kshape = tuple(map(int, arg.split(",")))
     elif opt == '-m':
       normal_mean = float(arg)
     elif opt == '-n':
@@ -54,11 +54,11 @@ def main():
   if (algorithm == ALG_SHUFFLE or algorithm == ALG_HISTOGRAM) \
       and ifname == None:
     raise util.UsageException("File of input kernels required")
-  idata = util.Load(ifname)
   if algorithm == ALG_SHUFFLE:
-    if nkernels <= len(idata):
+    idata = util.Load(ifname)
+    if nkernels > len(idata):
       raise util.UsageException("Asked for %d shuffled kernels, but only "
-          "%d available" % (nkerels, len(idata)))
+          "%d available" % (nkernels, len(idata)))
     indices = np.arange(len(idata))
     np.random.shuffle(indices)
     indices = indices[:nkernels]
@@ -66,6 +66,7 @@ def main():
     for x in odata:
       np.random.shuffle(x)
   elif algorithm == ALG_HISTOGRAM:
+    idata = util.Load(ifname)
     sampler = HistogramSampler(idata, nbins, resolution = resolution)
     kshape = np.array(idata.shape[1:])
     nelements = nkernels * kshape.prod()
@@ -73,8 +74,7 @@ def main():
     odata = sampler.Sample(nelements).reshape(oshape).astype(np.float32)
   elif algorithm == ALG_NORMAL:
     if kshape == None:
-      raise util.UsageException("Missing kernel shape for algorithm %s" %
-          algorithm)
+      raise util.UsageException("Missing kernel shape")
     odata = MakeRandomKernels(nkernels, kshape, mean = normal_mean,
         std = normal_std, normalize = False)
   else:
@@ -101,6 +101,7 @@ if __name__ == '__main__':
       "  -b NUM  Set number of bins for histogram of input data (default is\n"
       "          100).\n"
       "  -f FILE Read input kernels from FILE\n"
+      "  -k SHP  Set the kernel shape, needed for algorithm (n)\n"
       "  -m MEAN Set the mean of the normal distribution\n"
       "  -n NUM  Set number of kernels to generate (default is 100). If ALG\n"
       "          is 's', then NUM can not be more than the number of input\n"
