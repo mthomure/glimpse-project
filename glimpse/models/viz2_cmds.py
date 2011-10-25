@@ -34,7 +34,8 @@ def MakeImprintHandler(model_func, param_help_func):
       params_fname = None
       print_locations = False
       stream = False
-      opts, args = util.GetOptions("b:Hln:o:p:s", args = args)
+      normalize = False
+      opts, args = util.GetOptions("b:Hln:No:p:s", args = args)
       for opt, arg in opts:
         if opt == '-b':
           backend = arg
@@ -44,6 +45,8 @@ def MakeImprintHandler(model_func, param_help_func):
           print_locations = True
         elif opt == '-n':
           num_prototypes = int(arg)
+        elif opt == '-N':
+          normalize = False
         elif opt == '-o':
           params_fname = arg
         elif opt == '-s':
@@ -55,7 +58,8 @@ def MakeImprintHandler(model_func, param_help_func):
       for ifname in args:
         img = Image.open(ifname)
         model = model_func(backend, params_fname)
-        protos, locations = model.ImprintPrototypes(img, num_prototypes)
+        protos, locations = model.ImprintPrototypes(img, num_prototypes,
+            normalize = normalize)
         all_protos.extend(protos)
         all_locations.extend(locations)
       if stream == True:
@@ -77,6 +81,7 @@ def MakeImprintHandler(model_func, param_help_func):
           "  -l       Print location of C1 patches used as prototypes\n"
           "  -n INT   Set number of prototypes to imprint"
           " (default: %d)\n" % num_prototypes + \
+          "  -N       Disable normalization of prototypes\n"
           "  -o PATH  Path to options file\n"
           "  -s       Print prototypes as a stream"
       )

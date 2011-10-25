@@ -107,14 +107,17 @@ class Model(object):
       results[layer_name] = data
     return results
 
-  def ImprintPrototypes(self, img, num_prototypes):
+  def ImprintPrototypes(self, input_, num_prototypes, normalize = True):
     """Compute C1 activity maps and sample patches from random locations.
+    input_ -- (Image or 2-D array) unprocessed image data
+    num_prototype -- (positive int) number of prototypes to imprint
+    normalize -- (bool) whether to scale each prototype to have unit length
     RETURNS list of prototypes, and list of corresponding locations.
     """
     results = self.BuildLayers(img, LAYER_IMAGE, LAYER_C1)
     c1s = results[LAYER_C1]
     proto_it = PrototypeSampler(c1s, num_prototypes,
-        kwidth = self.params['s2_kwidth'], scale_norm = True)
+        kwidth = self.params['s2_kwidth'], scale_norm = normalize)
     protos = list(proto_it)
     return zip(*protos)
 
