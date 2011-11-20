@@ -10,13 +10,13 @@
 
 from __future__ import absolute_import  # use base "os", not "glimpse.util.os"
 
+from glimpse.util import array
+from glimpse.util import image
 import itertools
 import math
 import numpy
 import os
 import sys
-from glimpse.util import array
-from glimpse.util import image
 
 def MergeDict(new_dict, **base_dict):
   """Merge two dictionaries, with entries in the first dictionary taking
@@ -112,7 +112,12 @@ def Usage(msg, exc = None):
 
 def GetOptions(short_opts, long_opts = (), args = None):
   """Parse command line arguments from sys.argv, raising a UsageException if an
-  error is found."""
+  error is found.
+  short_opts -- set of single-character argument keys (see documentation for
+                getopt module)
+  long_opts -- set of multi-character argument keys
+  args -- list of command line arguments to parse
+  """
   import getopt
   if args == None:
     args = sys.argv[1:]
