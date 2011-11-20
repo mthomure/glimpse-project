@@ -194,7 +194,7 @@ def CopyLocalFilesToRemoteHost(host, remote_path, *files, **check_opts):
   """
   if len(files) < 1:
     return
-  if kwargs['verbose']:
+  if check_opts.get('verbose', False):
     print "Writing %s to '%s' on '%s'" % (files, remote_path, host)
   for local_path in files:
     assert(os.path.exists(local_path)), "Local file not found: %s" % local_path
