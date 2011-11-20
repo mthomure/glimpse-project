@@ -8,7 +8,6 @@
 # Functions for dealing with N-dimensional arrays.
 #
 
-from glimpse.util import image
 import Image
 import math
 import numpy
