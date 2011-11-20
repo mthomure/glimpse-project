@@ -172,3 +172,19 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
       # Scale vector norm of given array to unity.
       k /= np.linalg.norm(k)
   return kernels
+
+def MakeLanczosKernel():
+  """Construct a smoothing filter based on the Lanczos window.
+  RETURNS (2-d array) fixed-size, square kernel
+  http://en.wikipedia.org/wiki/Lanczos_resampling
+  http://stackoverflow.com/questions/1854146/what-is-the-idea-behind-scaling-an-
+  image-using-lanczos
+  """
+  from numpy import arange, sinc, outer
+  a = 3.0
+  # Use a step size smaller than one to expand the kernel size.
+  step = 1
+  X = arange(-a, a+1, step)
+  k1 = sinc(X) * sinc(X / float(a))
+  k2 = outer(k1, k1)
+  return k2
