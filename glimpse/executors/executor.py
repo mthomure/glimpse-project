@@ -21,7 +21,9 @@ class IExecutor:
   def GetMany(self, num_results):
     """Retrieve a batch of results. As with PutMany(), some executors may have
     better performance using this method as compared to repeatedly calling
-    Get()."""
+    Get().
+    RETURN iterator over results. This iterator should be exhausted before any
+           further calls to Get() or GetMany()."""
 
   def IsEmpty(self):
     """Determine if any results are available via Get()."""
@@ -51,15 +53,10 @@ class BasicExecutor:
     return len(map(self.Put, requests))
 
   def Get(self):
-    """Retrieve the result of running a task submitted via Put()."""
     return self.queue.pop()
 
   def GetMany(self, num_results):
-    """Retrieve a batch of multiple results. As with PutMany(), some executors
-    may have better performance using this methdo as compared to repeatedly
-    calling Get()."""
     return ( self.Get() for _ in range(num_results) )
 
   def IsEmpty(self):
-    """Determine if any elements are available via Get()."""
     return len(self.queue) == 0
