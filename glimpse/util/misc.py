@@ -10,12 +10,13 @@
 
 from __future__ import absolute_import  # use base "os", not "glimpse.util.os"
 
+from glimpse.util import array
+from glimpse.util import image
+import itertools
 import math
 import numpy
 import os
 import sys
-from glimpse.util import array
-from glimpse.util import image
 
 def MergeDict(new_dict, **base_dict):
   """Merge two dictionaries, with entries in the first dictionary taking
@@ -43,6 +44,17 @@ def TakePairs(lst):
 def TakeTriples(lst):
   """Convert a list of values into a list of 3-tuples."""
   return [ (lst[i],lst[i+1],lst[i+2]) for i in range(0, len(lst), 3) ]
+
+def GroupIterator(elements, group_size):
+  """Create an iterator that returns sub-groups of an underlying iterator. For
+  example, using a group size of two with an input of the set of all natural
+  numbers will result in the elements (0, 1), (2, 3), (4, 5), ..."""
+  return itertools.izip( *[ iter(elements) ] * group_size )
+
+def UngroupIterator(groups):
+  """Create an iterator that returns each element from each group, one element
+  at a time. This is the inverse of the GroupIterator()."""
+  return itertools.chain(groups)
 
 def ToArray(obj):
   if isinstance(obj, numpy.ndarray):

@@ -66,3 +66,25 @@ def ArrayListToVector(arrays):
     out[offset : offset + a.size] = a.flat
     offset += a.size
   return out
+
+def PadArray(data, out_shape, cval):
+  """Pad the border of an array with a constant value."""
+  out_shape = numpy.array(out_shape)
+  in_shape = numpy.array(data.shape)
+  result = numpy.empty(out_shape)
+  result[:] = cval
+  begin = ((out_shape - in_shape) / 2.0).astype(int)
+  result[ [ slice(b, e) for b, e in zip(begin, begin + in_shape) ] ] = data
+  return result
+
+def CropArray(data, out_shape):
+  """Remove the border of an array.
+  data -- input array
+  out_shape -- shape of central region to return
+  RETURNS view of the central region of input array.
+  """
+  assert numpy.all(numpy.array(data.shape) >= numpy.array(out_shape))
+  out_shape = numpy.array(out_shape)
+  in_shape = numpy.array(data.shape)
+  begin = ((in_shape - out_shape) / 2.0).astype(int)
+  return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]

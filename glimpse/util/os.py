@@ -10,6 +10,7 @@
 
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -60,6 +61,10 @@ class Cmd(object):
     C 2>&1 1>/dev/null | P    Cmd("C").TieStderrToStdout().ReturnStderr()"""
 
   def __init__(self, *args):
+    """Construct a command object.
+    args -- (list) arguments to subprocess.Popen(), with path to binary as first
+            value
+    """
     self.args = args
     self.cmd_str = " ".join(args)
     self.popen_stdout = None
