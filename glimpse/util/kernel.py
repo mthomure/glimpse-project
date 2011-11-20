@@ -92,7 +92,9 @@ def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
   return ks
 
 # gaussian scale is:
-#   sigmas = 11/32 * arange(4, 14, 3) => [ 44/32, 77/32, 110/32, 143/32 ] = [ 1.4, 2.4, 3.4, 4.5 ]
+#   sigmas = 11/32 * arange(4, 14, 3)
+#          = [ 44/32, 77/32, 110/32, 143/32 ]
+#          = [ 1.4, 2.4, 3.4, 4.5 ]
 # sinusoidal wavelength is:
 #   lambdas = sigmas * 2
 #   lambdas = 11/16 * arange(4, 14, 3) => [ 2.8, 4.8, 6.9, 8.9 ]
@@ -164,9 +166,9 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
   RETURNS: N-D array of kernel values [where N = len(kshape)+1]
   """
   shape = (nkernels,) + kshape
-  s2_kernels = np.random.normal(mean, std, shape).astype(np.float32)
+  kernels = np.random.normal(mean, std, shape).astype(np.float32)
   if normalize:
-    for k in s2_kernels:
+    for k in kernels:
       # Scale vector norm of given array to unity.
-      k /= math.sqrt(np.sum(k**2))
-  return s2_kernels
+      k /= np.linalg.norm(k)
+  return kernels
