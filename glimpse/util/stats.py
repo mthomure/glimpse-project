@@ -45,6 +45,7 @@ def Pca(X):
   order = numpy.argsort(eigenvalues)[::-1]
   transform = transform[ order ]
   stdev = numpy.sqrt(eigenvalues)[ order ]
+  mean = mean[ order ]
   return transform, stdev, mean
 
 def CalculateRoc(labels, evaluations):
