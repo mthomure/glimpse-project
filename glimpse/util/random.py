@@ -27,11 +27,11 @@ class HistogramSampler(object):
   # Relative drop in range of values between observed and generated variates.
   range_error = 0
 
-  def __init__(self, data, nbins = 100, resolution = 0.0025):
+  def __init__(self, data, bins = 100, resolution = 0.0025):
     """
     Construct a new sampler object.
     data -- (1-D) array of observations for a single random variable
-    nbins -- (positive int) number of bins to use when generating the histogram
+    bins -- (positive int) number of bins to use when generating the histogram
     resolution -- (float in [0,1)) resolution of each element of the cum-dist
                   array. For example, a resolution of 0.25 means that a
                   histogram bin is represented in the cum-dist array only when
