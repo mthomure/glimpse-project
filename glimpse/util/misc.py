@@ -45,14 +45,20 @@ def TakeTriples(lst):
 
 def GroupIterator(elements, group_size):
   """Create an iterator that returns sub-groups of an underlying iterator. For
-  example, using a group size of two with an input of the set of all natural
-  numbers will result in the elements (0, 1), (2, 3), (4, 5), ..."""
-  return itertools.izip( *[ iter(elements) ] * group_size )
+  example, using a group size of three with an input of the first seven natural
+  numbers will result in the elements (0, 1, 2), (3, 4, 5), (6,). Note that tail
+  elements are not ignored."""
+  element_iter = iter(elements)
+  while True:
+    batch = tuple(itertools.islice(element_iter, group_size))
+    if len(batch) == 0:
+      raise StopIteration
+    yield batch
 
 def UngroupIterator(groups):
   """Create an iterator that returns each element from each group, one element
   at a time. This is the inverse of the GroupIterator()."""
-  return itertools.chain(groups)
+  return itertools.chain(*groups)
 
 def ToArray(obj):
   if isinstance(obj, numpy.ndarray):
