@@ -19,7 +19,7 @@ def main():
   global o  # Make the array object globally accessible, in case this script is
             # run through ipython.
   global annotations
-  opts, args = util.GetOptions("a:bc:f:o:p:s:S:t")
+  opts, args = util.GetOptions("a:bc:f:o:p:s:S:t:")
   cmd = None
   colorbar = False
   flatten_method = 'c'
@@ -27,7 +27,7 @@ def main():
   save_path = None
   size = None
   plot_cmd = None
-  tight = False
+  title = None
   for opt,arg in opts:
     if opt == '-a':
       annotations = util.Load(arg)
@@ -50,7 +50,7 @@ def main():
       size = map(float, arg.split(","))
       assert len(size) == 2
     elif opt == '-t':
-      tight = True
+      title = arg
   if len(args) < 1:
     # raise util.UsageException("Missing filename of pickled array")
     ifname = sys.stdin
@@ -64,7 +64,7 @@ def main():
   print "Array stats (min, max, mean):", o.min(), o.max(), o.mean()
   # Try to show array as matplotlib plot, using Image-based display as a backup.
   if PlotArray(o, save_path, annotations, options, colorbar, size, plot_cmd,
-      tight):
+      title):
     return o
   # Failed to display using matplotlib, so show as image.
   if flatten_method == 's':
@@ -84,7 +84,7 @@ def main():
   return o
 
 def PlotArray(o, fname = None, annotations = None, options = None,
-    colorbar = False, size = None, plot_cmd = None, tight = False):
+    colorbar = False, size = None, plot_cmd = None, title = None):
   if options == None:
     options = {}
   try:
@@ -107,9 +107,8 @@ def PlotArray(o, fname = None, annotations = None, options = None,
     if fname != None:
       options['show'] = False
     gplot.Show3DArray(o, annotations, colorbar = colorbar, **options)
-    if tight:
-      pyplot.subplots_adjust(left = 0.01, right = 0.99, bottom = 0.01,
-          top = 0.99)
+    if title != None:
+      pyplot.suptitle(title)
     if plot_cmd != None:
       exec plot_cmd
     if fname == None:
