@@ -8,7 +8,7 @@
 # Functions for dealing with images, and image processing
 #
 
-from garray import ACTIVATION_DTYPE
+from garray import ACTIVATION_DTYPE, PadArray
 import numpy
 import numpy as np
 from scipy import fftpack
@@ -38,7 +38,8 @@ def ImageToArray(img, array = None, transpose = True):
     if transpose:
       shape = shape[::-1]
     shape = tuple(shape)
-    assert shape == array.shape, "Array has wrong shape: expected %s but got %s" % (shape, array.shape)
+    assert shape == array.shape, "Array has wrong shape: expected %s but got" \
+        "%s" % (shape, array.shape)
   if array != None:
     if not transpose:
       CheckArrayShape()
@@ -70,13 +71,29 @@ def ShowImageOnLinux(img, fname = None):
   RunCommand("eog -n %s" % path, False, False)
 
 def PowerSpectrum2d(image):
-  return numpy.abs(fftpack.fftshift(fftpack.fft2(image))) ** 2
+  """Compute the 2-D power spectrum for an image.
+  image -- (2-D array) image data
+  RETURNS (2-D array) squared amplitude from FFT of image
+  """
+  from scipy.fftpack import fftshift, fft2
+  return np.abs(fftshift(fft2(image))) ** 2
 
-def PowerSpectrum(image):
+def PowerSpectrum(image, width = None):
   """Get the 1-D power spectrum (squared-amplitude at each frequency) for a
-  given input image.
+  given input image. This is computed from the 2-D power spectrum via a
+  rotational average.
+  image -- input data
+  width -- (optional int) width of image to use for FFT (i.e., image width plus
+           padding)
+  RETURNS (2-D) array whose rows contain the value, sum, and count of bins in
+          the power histogram.
   """
   # from: http://www.astrobetter.com/fourier-transforms-of-images-in-python/
+  assert image.ndim == 2
+  if width != None:
+    image = PadArray(image,
+        np.repeat(width, 2),  # shape of padded array
+        0)  # border value
   f2d = PowerSpectrum2d(image)
   # Get sorted radii.
   x, y = numpy.indices(f2d.shape)

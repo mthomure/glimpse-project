@@ -8,8 +8,7 @@
 # Functions for plotting data with Matplotlib.
 #
 
-import misc
-
+from glimpse.util import gimage, misc
 import math
 # Following imports assume matplotlib environment has been initialized.
 from matplotlib import cm
@@ -17,14 +16,6 @@ from matplotlib import pyplot
 from mpl_toolkits.axes_grid import AxesGrid
 import numpy as np
 import operator
-
-# See glimpse.util.__init__.py for implementation of InitPlot().
-
-def Histogram(data, nbins = 100, **args):
-  """Create histogram of numpy ndarray. If output filename is given, write
-  figure to file. Otherwise, display it on screen."""
-  args = misc.MergeDict(args, normed = True, histtype = 'stepfilled')
-  pyplot.hist(data.flat, nbins, **args)
 
 _sp_y = _sp_x = _sp_j = 0
 def MakeSubplot(y, x):
@@ -222,3 +213,15 @@ def Show3dArray(xs, annotations = None, figure = None, **args):
   Show2dArrayList(xs, annotations, figure = figure, **args)
 
 Show3DArray = Show3dArray
+
+def ShowImagePowerSpectrum(data, width = None, **plot_args):
+  """Display the 1-D power spectrum of an image.
+  data -- (2-D array) image data
+  width -- (int) effective width of image (with padding) for FFT
+  plot_args -- (dict) optional arguments passed to plot() command
+  """
+  freqs, power, cnts = gimage.PowerSpectrum(data, width)
+  pyplot.plot(freqs, power, **plot_args)
+  pyplot.yticks([])
+  pyplot.xlabel('Cycles per Pixel')
+  pyplot.ylabel('Power')
