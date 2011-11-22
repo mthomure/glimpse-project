@@ -9,9 +9,9 @@
 
 import copy
 import logging
-from misc import LayerSpec
+from glimpse.models.misc import LayerSpec
 import numpy as np
-from viz2_ops import ModelOps
+from ops import ModelOps
 
 class Layer(object):
   IMAGE = LayerSpec(0, "image")

@@ -282,10 +282,10 @@ def Brokers(config):
 def TransformImages(config, *fnames):
 
   # use default model for now
-  from glimpse.models.viz2_model import Model, Layer, State, ModelTransform
-  from glimpse.models import InputSource
-  from glimpse.models.viz2_params import Params
-  from glimpse.backends import CythonBackend
+  from glimpse.models.viz2.model import Model, Layer, State, ModelTransform
+  from glimpse.models.misc import InputSource
+  from glimpse.models.viz2.params import Params
+  from glimpse.backends.cython_backend import CythonBackend
   model = Model(CythonBackend(), Params())
   layer = Layer.RETINA
   xform = ModelTransform(model, layer, save_all = False)
@@ -293,6 +293,7 @@ def TransformImages(config, *fnames):
   context = zmq.Context()
   executor = ClusterExecutor(context, config.request_sender,
       config.result_receiver, config.command_sender, config.command_receiver)
+  executor.Setup()
   output_states = DynamicMap(executor, xform, input_states)
 
   output_states = list(output_states)

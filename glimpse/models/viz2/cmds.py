@@ -12,14 +12,14 @@ from layer_mapping import *
 from model import *
 import numpy as np
 import os
-from params import Viz2Params
+from params import Params
 import re
 import sys
 
 def MakeModel(backend = "cython", params_fname = None, **args):
   mod_name = "%sBackend" % backend.capitalize()
   backend = eval("%s()" % mod_name)
-  params = Viz2Params()
+  params = Params()
   if params_fname != None:
     params.LoadFromFile(params_fname)
   model = Viz2Model(backend, params, **args)
@@ -349,7 +349,7 @@ def Main(args):
     cmd = args[0].lower()
     args = args[1:]
     if cmd == "annotate":
-      AnnotateRegion = MakeRegionAnnotationHandler(Viz2Params)
+      AnnotateRegion = MakeRegionAnnotationHandler(Params)
       AnnotateRegion(args)
     elif cmd == "imprint":
       Imprint = MakeImprintHandler(MakeModel, PrintParamHelp)

@@ -95,12 +95,14 @@ def DynamicMap(executor, function, arguments, group_size = None):
     num_arguments = None
     try:
       num_arguments = len(arguments)
+      logging.info("DynamicMap: submitting %d jobs" % num_arguments)
     except TypeError:
       pass
     if hasattr(executor, 'GroupSize'):
       group_size = executor.GroupSize(num_arguments)
 
-      logging.info("DynamicMap: executor (%s) chose group size of %d elements" % (executor, group_size))
+      logging.info("DynamicMap: executor (%s) chose group size of %d elements" \
+          % (executor, group_size))
 
       assert group_size > 0
     else:

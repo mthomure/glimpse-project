@@ -5,9 +5,9 @@
 # terms.
 
 import copy
+from glimpse.models.misc import ImageLayerFromInputArray, SampleC1Patches
 from glimpse.util import kernel
 from glimpse.util import ACTIVATION_DTYPE
-from misc import ImageLayerFromInputArray, SampleC1Patches
 import numpy as np
 
 class ModelOps(object):
