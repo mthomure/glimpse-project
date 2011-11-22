@@ -38,7 +38,7 @@ def MakeImprintHandler(model_func, param_help_func):
       params_fname = None
       print_locations = False
       stream = False
-      normalize = False
+      normalize = True
       opts, args = util.GetOptions("b:Hln:No:p:s", args = args)
       for opt, arg in opts:
         if opt == '-b':
