@@ -20,7 +20,7 @@ ALG_NORMAL = "n"
 ALL_ALGORITHMS = (ALG_SHUFFLE, ALG_HISTOGRAM, ALG_NORMAL)
 
 def main():
-  opts, args = util.GetOptions("a:b:f:k:m:n:r:s:")
+  opts, args = util.GetOptions("a:b:f:k:m:n:Nr:s:")
   ifname = None
   algorithm = None
   nbins = 100

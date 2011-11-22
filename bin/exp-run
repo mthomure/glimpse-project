@@ -23,6 +23,7 @@ fi
 D=$(dirname $0)
 CORPUS_DIR=$1
 RESULT_DIR=$2
+: ${RANDOM_PROTO_TYPE:=histogram}
 
 if [[ "$NUM_PROCS" == "" ]]; then
   # Match number of threads to available cores.
@@ -52,8 +53,16 @@ if [[ "$NUM_PROTOTYPES" != "" ]]; then
   if [[ "$NUM_RANDOM_PROTOTYPES" != "" ]]; then
     mv $RESULT_DIR/{s2.protos,sample.protos}
     echo "PROTOTYPE_SOURCE: random"
-    echo "+ Generating random prototypes from distribution of imprinted prototypes"
-    $D/make-random-kernels -a h -n $NUM_RANDOM_PROTOTYPES -f $RESULT_DIR/sample.protos > $RESULT_DIR/s2.protos
+    if [[ "$RANDOM_PROTO_TYPE" == "histogram" ]]; then
+      echo "+ Generating random prototypes from distribution of imprinted prototypes"
+      $D/make-random-kernels -a h -n $NUM_RANDOM_PROTOTYPES -f $RESULT_DIR/sample.protos > $RESULT_DIR/s2.protos
+    elif [[ "$RANDOM_PROTO_TYPE" == "shuffle" ]]; then
+      echo "+ Generating random prototypes by shuffling imprinted prototypes"
+      $D/make-random-kernels -a s -n $NUM_RANDOM_PROTOTYPES -f $RESULT_DIR/sample.protos > $RESULT_DIR/s2.protos
+    else
+      echo "Error: Unknown RANDOM_PROTO_TYPE ($RANDOM_PROTO_TYPE)" 1>&2
+      exit -1
+    fi
   else
     echo "PROTOTYPE_SOURCE: imprint"
   fi
