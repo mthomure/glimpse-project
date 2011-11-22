@@ -27,6 +27,8 @@ def Correlate(data, kernel, output = None):
   temp = np.empty_like(output)
   data_ = data.reshape((-1,) + data.shape[-2:])
   kernel_ = kernel.reshape((-1,) + kernel.shape[-2:])
+  # TODO consider changing the following to:
+  #   scipy.signal.convolve(data_, kernel_, mode='valid')
   for dband, kband in zip(data_, kernel_):
     scipy.ndimage.correlate(dband, kband, output = temp)
     output += temp
