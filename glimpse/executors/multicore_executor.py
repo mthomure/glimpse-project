@@ -39,33 +39,34 @@ class MulticoreResult(object):
   STATUS_FAIL = "FAIL"  # indicates that error occurred while processing request
 
 class _Subprocess(multiprocessing.Process):
-  """A process that reads from a queue of tasks, applies a callback to subsets
-  of those tasks, and writes the results to an output queue."""
+  """A process that reads from a queue of tasks, applies a request handler to
+  subsets of those tasks, and writes the results to an output queue."""
 
   SENTINEL = "DONE"  # placed on the input queue to indicate to sub-processes
                      # that they should terminate.
 
-  def __init__(self, callback, in_queue, out_queue):
-    """Create a process that will apply a callback to subsets of input elements.
-    callback -- (callable) takes a sequence of input elements to process.
-                returns a corresponding sequence of output elements (in the case
-                of a map operation), or a scalar (in the case of a reduce
-                operation).
+  def __init__(self, request_handler, in_queue, out_queue):
+    """Create a process that will apply a request handler to subsets of input
+    elements.
+    request_handler -- (callable) takes a sequence of input elements to process.
+                       returns a corresponding sequence of output elements (in
+                       the case of a map operation), or a scalar (in the case of
+                       a reduce operation).
     in_queue -- queue of input element chunks
     out_queue -- queue of output element chunks
     sentinel -- value that will be placed on the input queue when list of input
                 elements is exhausted
     """
     super(_Subprocess, self).__init__(name = "MulticoreExecutorSubprocess")
-    self.callback, self.in_queue, self.out_queue = (callback, in_queue,
-        out_queue)
+    self.request_handler, self.in_queue, self.out_queue = (request_handler,
+        in_queue, out_queue)
 
   def run(self):
     for request in QueueIterator(self.in_queue, self.SENTINEL):
       result = MulticoreResult()
       result.chunk_idx = request.chunk_idx
       try:
-        result.payload = self.callback(request.payload)
+        result.payload = self.request_handler(request.payload)
         result.status = MulticoreResult.STATUS_SUCCESS
       except Exception, e:
         result.exception = e
@@ -73,19 +74,19 @@ class _Subprocess(multiprocessing.Process):
       self.out_queue.put(result, block = False)
 
 class MulticoreExecutor(object):
-  """Apply a user-given callback to a set of elements in parallel, using
-  multiple sub-processes."""
+  """Apply a request handler to a set of elements in parallel, using multiple
+  sub-processes."""
 
-  def __init__(self, callback, num_processes = None):
+  def __init__(self, request_handler, num_processes = None):
     """
-    callback -- (callable) takes a single input element to process, and returns
-                a corresponding output element.
+    request_handler -- (callable) takes a single input element to process, and
+                       returns a corresponding output element.
     num_processes -- (int) number of sub-processes to use. defaults to number of
                      cores on machine.
     """
     if num_processes == None:
       num_processes = multiprocessing.cpu_count()
-    self.callback = callback
+    self.request_handler = request_handler
     self.num_processes = num_processes
     self._ready = False
     self.in_queue = multiprocessing.Queue()
@@ -94,6 +95,24 @@ class MulticoreExecutor(object):
     self.Setup()
     self.task_count = 0  # number of tasks submitted, but not returned
 
+  def GroupSize(self, num_requests = None):
+    """Determine a useful request size for the multicore executor. This is used
+    by dynamic_executor.DynamicExecutorMapper.
+    num_requests -- (int) total number of available requests
+    """
+    if num_requests == None:
+      group_size = 10  # use a group size of 10 by default
+      logging.info("MulticoreExecutor.GroupSize: can't determine number of "
+          "requests, using default of %d requests per core" % group_size)
+      return group_size
+    group_size, extra = divmod(num_requests, self.num_processes)
+    if extra > 0:
+      group_size += 1
+    logging.info("MulticoreExecutor.GroupSize: distributing "
+        "%d requests across %d cores with group size of %d" % (
+        num_requests, self.num_processes, group_size))
+    return group_size
+
   def Setup(self):
     assert self.in_queue.empty()
     assert self.out_queue.empty()
@@ -101,7 +120,7 @@ class MulticoreExecutor(object):
     logging.info("Launching sub-processes")
     self.processes = []
     for _ in range(self.num_processes):
-      p = _Subprocess(self.callback, self.in_queue, self.out_queue)
+      p = _Subprocess(self.request_handler, self.in_queue, self.out_queue)
       p.daemon = True
       p.start()
       self.processes.append(p)
@@ -135,11 +154,11 @@ class MulticoreExecutor(object):
     return result.payload
 
   def PutMany(self, requests):
-    put_count = 0
+    num_requests = 0
     for request in requests:
       self.Put(request)
-      put_count += 1
-    return put_count
+      num_requests += 1
+    return num_requests
 
   def GetMany(self, num_results):
     return ( self.Get() for _ in range(num_results) )

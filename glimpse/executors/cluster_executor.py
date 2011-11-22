@@ -5,6 +5,7 @@
 # terms.
 
 from glimpse.util import zmq_cluster
+from glimpse.util.zmq_cluster import Connect, ReceiverTimeoutException, Worker
 import itertools
 import logging
 from multicore_executor import QueueIterator
@@ -35,7 +36,7 @@ def _SinkTarget(out_queue, result_receiver, command_receiver = None,
   idx = 0
   # Walk the iterator returned by sink.Receive()
   for result in results:
-    logging.info("SinkTarget: got %d'th result: %r" % (idx, result))
+    logging.info("SinkTarget: got #%d result: %r" % (idx, result))
     out_queue.put(result)
     idx += 1
   #~ map(out_queue.put, results)
@@ -45,17 +46,17 @@ class ClusterExecutor(object):
   """Applies a pre-defined operation to a set of elements in parallel, using
   a cluster of worker nodes. The operation is defined when the worker processes
   are launched. In contrast to the MulticoreExecutor, the user function is not
-  supplied to this object's constructor. Instead, the ClusterWorker() function
-  should be called on each worker node, with the user function passed as an
-  argument. In the sense that this object can be thought of as a client of the
-  worker nodes, it is assumed that there is at most one client using the cluster
-  at any given time."""
+  supplied to the ClusterExecutor. Instead, it is assumed that all worker nodes
+  use a zmq_cluster.Worker object to run the same request handler. In the sense
+  that this object can be thought of as a client of the worker nodes, it is
+  assumed that there is at most one client using the cluster at any given
+  time."""
 
   SENTINEL = "DONE"
 
-  def __init__(self, context, request_sender, result_receiver,
-      command_sender, command_receiver, result_modifier = None,
-      chunk_size = None, use_threading = False):
+  def __init__(self, context, request_sender, result_receiver, command_sender,
+      command_receiver, result_modifier = None, use_threading = False,
+      group_size = None):
     """Create a new cluster executor.
     context -- (zmq.Context)
     request_sender -- (zmq.socket or Connect) channel for sending requests to
@@ -75,27 +76,33 @@ class ClusterExecutor(object):
                        check the status indicator of a result before processing
                        its payload, since this will not be done before the
                        modifier function is called.
-    chunk_size -- (int) number of requests to bundle together into a single
-                  cluster request message
     use_threading -- (bool) whether sink messages should be handled on a
                      seperate thread, rather than a sub-process.
+    group_size -- (int) size of batched cluster requests (see
+                  dynamic_executor.DynamicExecutorMapper)
     """
-    if chunk_size == None:
-      # By default, make requests large enough to occupy 16-core machine
-      chunk_size = 16
+    if group_size == None:
+      group_size = 16  # make group big enough to occupy a 16-core machine
     self.request_sender = request_sender
     self.result_receiver = result_receiver
     self.command_sender = command_sender
     self.command_receiver = command_receiver
     self.result_modifier = result_modifier
-    self.chunk_size = chunk_size
     self.context = context
     self.use_threading = use_threading
+    self.group_size = group_size
     self.in_queue = multiprocessing.Queue()
     self.out_queue = multiprocessing.Queue()
     self.ventilator = None
     self.sink = None
     self.task_count = 0  # number of out-standing task requests
+
+  def GroupSize(self, num_requests = None):
+    """Determine a useful request size for the multicore executor. This is used
+    by dynamic_executor.DynamicExecutorMapper.
+    num_requests -- (int) total number of available requests
+    """
+    return self.group_size
 
   def Setup(self):
     assert self.in_queue.empty() and self.out_queue.empty()
@@ -112,7 +119,7 @@ class ClusterExecutor(object):
     else:
       logging.info("ClusterExecutor: starting sink as process")
       # Do not share context with sub-process sink (this would be an error).
-      self.sink = multiprocessing.Process(target = _SinkWrapper, args = args,
+      self.sink = multiprocessing.Process(target = _SinkTarget, args = args,
           name = "SinkProcess")
     self.sink.daemon = True
     self.sink.start()
