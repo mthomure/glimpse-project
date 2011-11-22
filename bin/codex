@@ -80,7 +80,7 @@ def main():
     except Exception, e:
       print >>sys.stderr, "Error evaluating BEGIN command: %s" % e
       sys.exit(-1)
-  idx = 0
+  _idx = 0
   for obj in util.LoadAll(fnames, input_encoding):
     o = obj
     if as_array:
@@ -99,7 +99,7 @@ def main():
           result = obj
         if not (result == None or silent):
           util.Store(result, sys.stdout, output_encoding)
-        idx += 1
+        _idx += 1
     else:
       # Evaluate command once on the entire input array.
       if cmd:
@@ -112,7 +112,7 @@ def main():
         result = obj
       if not (result == None or silent):
         util.Store(result, sys.stdout, output_encoding)
-      idx += 1
+      _idx += 1
 
   if end_cmd != None:
     # Evaluate the END command after processing the input array.
