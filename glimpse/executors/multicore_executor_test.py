@@ -1,14 +1,25 @@
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
 
-from glimpse.executors.executor import ExecutorMap
+from glimpse.executors.executor import StaticMap, DynamicMap, \
+    DynamicMapRequestHandler
 from glimpse.executors.multicore_executor import MulticoreExecutor
 import logging
 import unittest
+
+class TestFunction(object):
+
+  def __call__(self, x):
+    return x * 100
 
 class TestMulticoreExecutor(unittest.TestCase):
 
   def helper(self, xs, callback, num_processes = None):
     ex = MulticoreExecutor(callback, num_processes = num_processes)
-    actual = sorted(ExecutorMap(ex, xs))
+    actual = sorted(StaticMap(ex, xs))
     del ex
     expected = map(callback, xs)
     self.assertEqual(expected, actual)
@@ -25,8 +36,6 @@ class TestMulticoreExecutor(unittest.TestCase):
     xs = range(10)
     self.helper(xs, callback, num_processes = 2)
 
-
-
   # test that Put/Get() pairs work as expected
   def test_putGet(self):
     callback = lambda x: x * 100
@@ -39,7 +48,7 @@ class TestMulticoreExecutor(unittest.TestCase):
     callback = lambda x: x * 100
     ex = MulticoreExecutor(callback, num_processes = 1)
     xs = range(10)
-    actual = sorted(ExecutorMap(ex, xs))
+    actual = sorted(StaticMap(ex, xs))
     expected = map(callback, xs)
     self.assertEqual(expected, actual)
 
@@ -48,7 +57,7 @@ class TestMulticoreExecutor(unittest.TestCase):
     callback = lambda x: x * 100
     ex = MulticoreExecutor(callback, num_processes = 4)
     xs = range(10)
-    actual = sorted(ExecutorMap(ex, xs))
+    actual = sorted(StaticMap(ex, xs))
     expected = map(callback, xs)
     self.assertEqual(expected, actual)
 
@@ -57,11 +66,11 @@ class TestMulticoreExecutor(unittest.TestCase):
     callback = lambda x: x * 100
     ex = MulticoreExecutor(callback, num_processes = 4)
     xs = range(10)
-    actual = sorted(ExecutorMap(ex, xs))
+    actual = sorted(StaticMap(ex, xs))
     expected = map(callback, xs)
     self.assertEqual(expected, actual)
     xs = range(20, 30)
-    actual = sorted(ExecutorMap(ex, xs))
+    actual = sorted(StaticMap(ex, xs))
     expected = map(callback, xs)
     self.assertEqual(expected, actual)
 
@@ -72,9 +81,29 @@ class TestMulticoreExecutor(unittest.TestCase):
       return os.getpid()
     num_processes = 8
     ex = MulticoreExecutor(callback, num_processes = num_processes)
-    xs = range(num_processes * 10)
-    num_used_processes = len(set(ExecutorMap(ex, xs)))
+    xs = range(num_processes * 100)
+    num_used_processes = len(set(StaticMap(ex, xs)))
     self.assertEqual(num_processes, num_used_processes)
+
+
+class TestMulticoreExecutor(unittest.TestCase):
+
+  def test_dynamicMap(self):
+    executor = MulticoreExecutor(DynamicMapRequestHandler, num_processes = 4)
+    function = TestFunction()  # lambda function isn't picklable, so use object
+    xs = range(10)
+    expected = map(function, xs)
+    actual = sorted(DynamicMap(executor, function, xs))
+    self.assertEqual(expected, actual)
+
+  def _test_basicExecutor(self):
+    from glimpse.executors.executor import BasicExecutor
+    executor = BasicExecutor(DynamicMapRequestHandler)
+    function = TestFunction()
+    xs = range(10)
+    expected = map(function, xs)
+    actual = sorted(DynamicMap(executor, function, xs))
+    self.assertEqual(expected, actual)
 
 if __name__ == '__main__':
 
