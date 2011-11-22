@@ -288,22 +288,22 @@ class Worker(object):
   CMD_KILL = "CLUSTER_WORKER_KILL"  # Send this to the command socket to shut
                                     # down the worker.
 
-  def __init__(self, context, request_receiver, result_sender, callback,
+  def __init__(self, context, request_receiver, result_sender, request_handler,
       command_receiver = None, receiver_timeout = None):
     """Handles requests that arrive on a socket, writing results to another
     socket.
     request_receiver -- (Connect) channel for receiving incoming requests
     result_sender -- (Connect) channel for sending results
-    callback -- (callable) function to convert a request to a result
+    request_handler -- (callable) function to convert a request to a result
     command_receiver -- (zmq.socket or Connect) channel for receiving kill
                         commands
     context -- (zmq.Context) context used to create sockets. set for threaded
                workers only.
     """
-    self.context, self.request_receiver, self.result_sender, self.callback, \
-        self.command_receiver, self.receiver_timeout = context, \
-        request_receiver, result_sender, callback, command_receiver, \
-        receiver_timeout
+    self.context, self.request_receiver, self.result_sender, \
+        self.request_handler, self.command_receiver, \
+        self.receiver_timeout = context, request_receiver, result_sender, \
+        request_handler, command_receiver, receiver_timeout
     self.receiver = None
 
   def Setup(self):
@@ -335,10 +335,17 @@ class Worker(object):
         raise ReceiverTimeoutException
       if self.receiver in socks:
         request = self.receiver.recv_pyobj()
+
+        try:
+          logging.info("Worker: received batch request with %d arguments" % len(request[1]))
+          logging.info("Worker: passing batch to handler %s" % (self.request_handler,))
+        except TypeError:
+          pass
+
         result = ClusterResult()
         try:
-          # Apply user callback to the request
-          result.payload = self.callback(request)
+          # Apply user request_handler to the request
+          result.payload = self.request_handler(request)
           result.status = ClusterResult.STATUS_SUCCESS
         except Exception, e:
           logging.info(("Worker: caught exception %s from request " % e) + \
@@ -364,24 +371,26 @@ class Worker(object):
       commands = command_sender.MakeSocket(context, type = zmq.PUB)
     else:
       commands = command_sender
-    time.sleep(1)  # wait for workers to connect
+    time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
+                   # all subscribers get the QUIT message.
     commands.send_pyobj(Worker.CMD_KILL)
+    logging.info("Worker: sent kill command")
 
 def LaunchStreamerDevice(context, frontend_connect, backend_connect):
   frontend = frontend_connect.MakeSocket(context, type = zmq.PULL, bind = True)
   backend = backend_connect.MakeSocket(context, type = zmq.PUSH, bind = True)
   logging.info("LaunchStreamerDevice: starting streamer on pid %d" % \
       os.getpid())
-  logging.info("LaunchStreamerDevice:   frontend:", frontend_connect.url)
-  logging.info("LaunchStreamerDevice:   backend:", backend_connect.url)
+  logging.info("LaunchStreamerDevice:   frontend: %s" % (frontend_connect,))
+  logging.info("LaunchStreamerDevice:   backend: %s" % (backend_connect,))
   zmq.device(zmq.STREAMER, frontend, backend)
 
 def LaunchForwarderDevice(context, frontend_connect, backend_connect):
-  frontend = frontend_connect.MakeSocket(context, type = zmq.SUB, bind = False,
+  frontend = frontend_connect.MakeSocket(context, type = zmq.SUB, bind = True,
       options = {zmq.SUBSCRIBE : ""})
   backend = backend_connect.MakeSocket(context, type = zmq.PUB, bind = True)
   logging.info("LaunchForwarderDevice: starting forwarder on pid %d" % \
       os.getpid())
-  logging.info("LaunchForwarderDevice:   frontend:", frontend_connect.url)
-  logging.info("LaunchForwarderDevice:   backend:", backend_connect.url)
+  logging.info("LaunchForwarderDevice:   frontend: %s" % (frontend_connect,))
+  logging.info("LaunchForwarderDevice:   backend: %s" % (backend_connect,))
   zmq.device(zmq.FORWARDER, frontend, backend)

@@ -162,9 +162,10 @@ class TestVentilatorAndSink(TestCase):
     self.assertRaises(WorkerException, func)
 
 def WorkerThreadTarget(ignore_timeout, context, request_receiver, result_sender,
-    task_callback, command_receiver = None, receiver_timeout = None):
-  worker = Worker(context, request_receiver, result_sender, task_callback,
+    request_handler, command_receiver = None, receiver_timeout = None):
+  worker = Worker(context, request_receiver, result_sender, request_handler,
       command_receiver, receiver_timeout)
+  worker.Setup()
   try:
     worker.Run()
   except ReceiverTimeoutException:
@@ -181,7 +182,7 @@ class TestWorker(TestCase):
     result_sender = Connect(url = "inproc://results")
     result_receiver = context.socket(zmq.PULL)
     result_receiver.bind("inproc://results")
-    callback = lambda x: x * 100
+    request_handler = lambda x: x * 100
     command_receiver = Connect(url = "inproc://commands")
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
@@ -189,7 +190,7 @@ class TestWorker(TestCase):
                              # errors
     ignore_timeout = False  # timeout exceptions are a problem
     args = (ignore_timeout, context, request_receiver, result_sender,
-        callback, command_receiver, receiver_timeout)
+        request_handler, command_receiver, receiver_timeout)
     worker = threading.Thread(target = WorkerThreadTarget, args = args)
     worker.daemon = True
     worker.start()
@@ -205,12 +206,12 @@ class TestWorker(TestCase):
     result_sender = Connect(url = "inproc://results")
     result_receiver = context.socket(zmq.PULL)
     result_receiver.bind("inproc://results")
-    callback = lambda x: x * 100
+    request_handler = lambda x: x * 100
     command_receiver = Connect(url = "inproc://commands")
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
     receiver_timeout = 1  # set timeout to avoid infinite wait in case of errors
-    worker = Worker(context, request_receiver, result_sender, callback,
+    worker = Worker(context, request_receiver, result_sender, request_handler,
         command_receiver, receiver_timeout)
     self.assertRaises(ReceiverTimeoutException, worker.Run)
 
@@ -222,7 +223,7 @@ class TestWorker(TestCase):
     result_sender = Connect(url = "inproc://results")
     result_receiver = context.socket(zmq.PULL)
     result_receiver.bind("inproc://results")
-    callback = lambda x: x * 100
+    request_handler = lambda x: x * 100
     command_receiver = Connect(url = "inproc://commands")
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
@@ -230,7 +231,7 @@ class TestWorker(TestCase):
                             # errors
     ignore_timeout = True  # let worker exit silently via recv() timeout
     args = (ignore_timeout, context, request_receiver, result_sender,
-        callback, command_receiver, receiver_timeout)
+        request_handler, command_receiver, receiver_timeout)
     worker = threading.Thread(target = WorkerThreadTarget, args = args)
     worker.daemon = True
     worker.start()
@@ -248,7 +249,7 @@ class TestWorker(TestCase):
       self.assertNotEqual(None, result)
       self.assertEquals(ClusterResult.STATUS_SUCCESS, result.status)
       actual.append(result.payload)
-    expected = map(callback, xs)
+    expected = map(request_handler, xs)
     self.assertEqual(expected, actual)
     worker.join(1.5)  # wait long enough for worker to timeout
     self.assertFalse(worker.is_alive())
@@ -261,7 +262,7 @@ class TestWorker(TestCase):
     result_sender = Connect(url = "inproc://results")
     result_receiver = context.socket(zmq.PULL)
     result_receiver.bind("inproc://results")
-    def callback(x):
+    def request_handler(x):
       if x:
         raise Exception
       return x
@@ -272,7 +273,7 @@ class TestWorker(TestCase):
                             # errors
     ignore_timeout = True  # let worker exit silently via recv() timeout
     args = (ignore_timeout, context, request_receiver, result_sender,
-        callback, command_receiver, receiver_timeout)
+        request_handler, command_receiver, receiver_timeout)
     worker = threading.Thread(target = WorkerThreadTarget, args = args)
     worker.daemon = True
     worker.start()
