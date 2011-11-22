@@ -115,10 +115,10 @@ if __name__ == '__main__':
       "  -e              Plot 2D datasets with repeated X values by showing error bars.\n" + \
       "  -H              Plot histogram of 1D datasets.\n" + \
       "  -i TYPE         Set input encoding type [one of: %s, default: %s].\n" % (", ".join(util.INPUT_ENCODINGS), util.ENCODING_PICKLE) + \
-      "  -l LABELS       Specify comma-separated line names. Ex: solid, '-', \n" + \
-      "                  dashed, '--'.\n" + \
+      "  -l LABELS       Specify comma-separated line names.\n"
       "  -o FNAME        Write plot to image file FNAME.\n" + \
-      "  -s STYLES       Specify comma-separated line styles.\n" + \
+      "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-', \n" + \
+      "                  dashed, '--'.\n" + \
       "  -t TITLE        Set chart title.\n" + \
       "  -x LABEL        Set label on x-axis.\n" + \
       "  -y LABEL        Set label on y-axis.\n" + \
