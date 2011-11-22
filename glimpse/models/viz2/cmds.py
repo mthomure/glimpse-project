@@ -6,11 +6,15 @@
 
 from glimpse.backends.cython_backend import CythonBackend
 from glimpse.backends.scipy_backend import ScipyBackend
+from glimpse import util
 import Image
+from layer_mapping import *
+from model import *
+import numpy as np
 import os
+from params import Viz2Params
 import re
 import sys
-from viz2 import *
 
 def MakeModel(backend = "cython", params_fname = None, **args):
   mod_name = "%sBackend" % backend.capitalize()
