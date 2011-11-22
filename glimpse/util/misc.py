@@ -8,10 +8,8 @@
 # Miscellaneous functions that do not belong in one of the other modules.
 #
 
-from __future__ import absolute_import  # use base "os", not "glimpse.util.os"
-
-from glimpse.util import array
-from glimpse.util import image
+import garray
+import gimage
 import itertools
 import math
 import numpy
@@ -60,7 +58,7 @@ def ToArray(obj):
   if isinstance(obj, numpy.ndarray):
     return obj
   if hasattr(obj, "load"):
-    return image.ImageToArray(obj)
+    return gimage.ImageToArray(obj)
   try:
     return obj.ToArray()
   except AttributeError:
@@ -71,7 +69,7 @@ def ToImage(obj):
   if hasattr(obj, "load"):
     return obj
   obj = ToArray(obj)
-  return array.ArrayToGreyscaleImage(obj)
+  return garray.ArrayToGreyscaleImage(obj)
 
 def Show(obj, fname = None):
   """Display an (array or image) object on the screen.

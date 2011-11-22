@@ -186,7 +186,7 @@ if __name__ == "__main__":
   # Initialize plotting library
   pyplot = util.InitPlot(use_file_output = True)
   from matplotlib.pyplot import *
-  from glimpse.util import plot as gplot
+  from glimpse.util import gplot
   # Run the demo
   gray()
   main(ifname, rdir)
@@ -195,4 +195,4 @@ else:
   # Initialize plotting library
   pyplot = util.InitPlot(use_file_output = False)
   from matplotlib.pyplot import *
-  from glimpse.util import plot as gplot
+  from glimpse.util import gplot

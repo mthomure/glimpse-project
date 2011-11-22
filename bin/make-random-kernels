@@ -7,7 +7,7 @@
 # terms.
 
 from glimpse.util.kernel import MakeRandomKernels
-from glimpse.util.random import HistogramSampler
+from glimpse.util.grandom import HistogramSampler
 from glimpse import util
 import math
 import numpy as np

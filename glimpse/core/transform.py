@@ -13,7 +13,7 @@ from glimpse.core import c_src
 from glimpse.util import ACTIVATION_DTYPE
 from glimpse.core import misc
 from glimpse import util
-from glimpse.util import array
+from glimpse.util import garray
 from glimpse.util import bitset
 from glimpse.util import kernel
 import Image
@@ -613,7 +613,7 @@ def ImprintS2Prototypes(img_fname, coords, options):
     x = mapper.MapS2ToC1(slice(x, x+1))
     patch = c1_scales[scale][:, y, x]
     proto[:] = patch
-    array.ScaleUnitNorm(proto)
+    garray.ScaleUnitNorm(proto)
   assert np.allclose(np.array(map(np.linalg.norm, prototypes)), 1), \
     "Internal error: S2 prototypes are not normalized"
   assert not np.isnan(prototypes).any(), \
@@ -635,7 +635,7 @@ def ImprintRandomS2Prototypes(img_fname, num_prototypes, options):
     x = random.randint(0, width - kwidth)
     # Copy C1 activity to kernel array
     proto[:] = c1[:, y : y + kwidth, x : x + kwidth]
-    array.ScaleUnitNorm(proto)
+    garray.ScaleUnitNorm(proto)
   assert np.allclose(np.array(map(np.linalg.norm, prototypes)), 1), \
     "Internal error: S2 prototypes are not normalized"
   assert not np.isnan(prototypes).any(), \

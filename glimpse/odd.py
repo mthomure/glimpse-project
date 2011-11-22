@@ -3,7 +3,6 @@
 from glimpse import core
 from glimpse.core import transform
 from glimpse import util
-#from glimpse.util import plot
 from math import exp
 import numpy as np
 import odd_core as _core
@@ -205,7 +204,7 @@ def DrawOddKernels(pos_class_weights, pos_class_name, neg_class_weights,
 
 def DrawOrientationFields(weights, options, pad = 0, annotations = None, 
     width = None, **args):
-  from glimpse.util import plot
+  from glimpse.util import gplot
   fields = np.array([ OrientationField(w, options, pad = pad, width = width) 
       for w in weights ])
   if fields.min() < 0:

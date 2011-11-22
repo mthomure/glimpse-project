@@ -8,7 +8,7 @@
 # Functions for dealing with images, and image processing
 #
 
-from glimpse.util.array import ACTIVATION_DTYPE
+from garray import ACTIVATION_DTYPE
 import numpy
 import numpy as np
 from scipy import fftpack

@@ -3,8 +3,6 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-from __future__ import absolute_import  # use standard 'random' module, not
-                                        # 'glimpse.random'.
 import os
 import random
 import subprocess

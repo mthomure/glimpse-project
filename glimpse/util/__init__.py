@@ -8,11 +8,11 @@
 # Import the most common methods into the glimpse.util namespace
 #
 
-from array import *
-from image import *
-from io import *
+from garray import *
+from gimage import *
+from gio import *
 from misc import *
-from os import *
+from gos import *
 
 
 import time
@@ -29,8 +29,8 @@ class Timer:
       print "TIME(%s): %.4f secs" % (self.name, stop - self.start)
 
 
-# This method is not in util.plot because we generally want to use it before
-# importing matplotlib (and thus before importing util.plot).
+# This method is not in util.gplot because we generally want to use it before
+# importing matplotlib (and thus before importing util.gplot).
 _MATPLOTLIB_IMPORT_FLAG = False
 def InitPlot(use_file_output = False):
   """Initialize matplotlib plotting library, optionally configuring it to

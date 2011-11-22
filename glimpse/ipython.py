@@ -32,7 +32,7 @@ def array2D(x):
 WITH_PLOT = ('DISPLAY' in os.environ)
 if WITH_PLOT:
 
-  import glimpse.util.plot as gplot
+  import glimpse.util.gplot
   from matplotlib import pyplot
 
   def hist(x, **args):

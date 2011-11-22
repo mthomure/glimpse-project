@@ -7,7 +7,7 @@ from glimpse import core
 import Image
 from glimpse import util
 from matplotlib.pylab import *
-from glimpse.util.plot import *
+from glimpse.util.gplot import *
 import os.path
 from scipy.ndimage import filters
 import operator

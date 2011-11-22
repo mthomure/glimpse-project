@@ -96,7 +96,7 @@ def PlotArray(o, fname = None, annotations = None, options = None,
     elif ndims > 3:
       o = o.reshape((-1,) + o.shape)
     pyplot = util.InitPlot(fname != None)
-    from glimpse.util import plot as gplot
+    from glimpse.util import gplot
     if annotations != None:
       annotations = annotations.reshape((-1,) + annotations.shape[-2:])
     from matplotlib import cm

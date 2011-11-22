@@ -5,7 +5,8 @@
 
 # Functions for dealing with kernel matrices of filter operations.
 
-from array import ScaleUnitNorm, ACTIVATION_DTYPE
+from garray import ScaleUnitNorm, ACTIVATION_DTYPE
+from gimage import ImageToArray
 import math
 import numpy as np
 
@@ -150,7 +151,7 @@ def DrawGaborAsLine(orient, num_orientations = 8, kwidth = 11,
   draw = ImageDraw.Draw(im)
   draw.line((x1 + hw, y1 + hw, x2 + hw, y2 + hw), fill = 255,
       width = line_width)
-  data = util.ImageToArray(im) / 255
+  data = ImageToArray(im) / 255
   data = np.rot90(data)
   return data
 

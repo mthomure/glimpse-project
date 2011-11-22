@@ -4,8 +4,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from __future__ import absolute_import  # use base "os", not "glimpse.util.os"
-
 import itertools
 import logging
 import os

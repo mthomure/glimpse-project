@@ -1,5 +1,5 @@
 from glimpse import core, util
-from glimpse.util import image
+from glimpse.util import gimage
 from glimpse.core import c_src, misc
 import numpy as np
 import math
@@ -40,7 +40,7 @@ def EmbedKernel(k, embed_width):
 
 def KernelPowerSpectrum(k, embed_width = 512):
   ek = EmbedKernel(k, embed_width)
-  freqs, sums, cnts = image.PowerSpectrum(ek)
+  freqs, sums, cnts = gimage.PowerSpectrum(ek)
   return freqs, sums
 
 def FitGaussian(y, x = None):
@@ -80,10 +80,10 @@ def ShowKernelPowerSpectrum(k, embed_width = 512, save = False, **args):
     pyplot.savefig('%df.png' % kwidth)
 
 def KernelFFT(k, embed_width = 512):
-  return image.PowerSpectrum2d(EmbedKernel(k, embed_width))
+  return gimage.PowerSpectrum2d(EmbedKernel(k, embed_width))
 
 def ShowKernelFFT(k, embed_width = 512, save = False):
-  from glimpse.util import plot as gplot
+  from glimpse.util import gplot
   from matplotlib import pyplot
   # Show the 2D FFT of the kernel
   f = KernelFFT(k, embed_width)

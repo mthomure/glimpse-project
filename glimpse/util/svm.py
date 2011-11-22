@@ -9,7 +9,7 @@
 # (SVMs).
 #
 
-from glimpse import util
+from gio import ReadLines, Load
 import numpy
 import sys
 
@@ -28,7 +28,7 @@ class SvmModel(object):
 
 class SvmScaler(object):
   def __init__(self, fname):
-    lines = util.ReadLines(fname)
+    lines = ReadLines(fname)
     self.out_low, self.out_high = map(float, lines[1].split())
     self.in_ranges = [ map(float, line.split()[1:]) for line in lines[2:] ]
   def _Scale(self, idx, value):
@@ -237,7 +237,7 @@ def FormatSvm(label, features):
 def CorpusToSvm(corpus_dir, fh):
   """Read IT activity for each image, iterating over directories in corpus_dir/{pos,neg}/*."""
   join = os.path.join
-  def f(dir): return [ util.Unpickle(join(d, 'it-activity')) for d in glob(join(dir, '*')) ]
+  def f(dir): return [ Load(join(d, 'it-activity')) for d in glob(join(dir, '*')) ]
   for v in f(join(corpus_dir, 'pos')):
     print >>fh, FormatSvm(1, v)
   for v in f(join(corpus_dir, 'neg')):
