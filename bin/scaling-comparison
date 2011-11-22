@@ -4,17 +4,41 @@
 # Gabors to a single input image vs the response of a single-scale Gabor to
 # a number of down-sampled version of an input image.
 
-import sys
-from scipy.ndimage.interpolation import zoom
-from glimpse import core, exp, util
-from glimpse.util import kernel
+from glimpse.backends.cython_backend import CythonBackend
+from glimpse.models import viz2
+from glimpse import util
+from glimpse.util import gimage, kernel
+import Image
+import math
 import numpy as np
 import os
-import math
+from scipy.ndimage.interpolation import zoom
+import sys
 
 # Mean frequency response of scaled filters
 FREQS = np.array((0.37, 0.21, 0.15, 0.12))
 PAD_KWIDTH = 41
+
+def MakeMultiScaleKernels(embed_kwidth = PAD_KWIDTH):
+  mks = kernel.MakeMultiScaleGaborKernels(kwidth = 11, num_scales = 4,
+      num_orientations = 8, num_phases = 2, shift_orientations = True,
+      scale_norm = True, embed_kwidth = embed_kwidth)
+  return mks[:, 0, 0]
+
+def MakeSingleScaleKernel():
+  return MakeMultiScaleKernels(embed_kwidth = 11)[0:1]
+
+def BuildRetinaFromFile(fname):
+  img = Image.open(ifname)
+  backend = CythonBackend()
+  img = viz2.ImageLayerFromInputArray(img, backend)
+  return backend.ContrastEnhance(img, kwidth = 15, bias = 1.0, scaling = 1)
+
+def ApplyS1Kernels(retina, s1_kernels):
+  backend = CythonBackend()
+  retina_ = retina.reshape((1,) + retina.shape)
+  ks = s1_kernels.reshape((-1, 1) + s1_kernels.shape[-2:]).copy()
+  return backend.NormRbf(retina_, ks, bias = 1.0, beta = 1.0, scaling = 1.0)
 
 class Display:
   def __init__(self, rdir = None, fname = None):
@@ -26,85 +50,64 @@ class Display:
     if self.rdir != None and self.fname != None:
       savefig(os.path.join(self.rdir, self.fname))
 
-def MakeMultiScaleKernels():
-  return kernel.MakeMultiScaleGaborKernels(11, 4, 2, 1,
-      shift_orientations = True, scale_norm = True, embed_kwidth = PAD_KWIDTH)
-
-def MakeSingleScaleKernels():
-  return kernel.MakeMultiScaleGaborKernels(11, 4, 2, 1, shift_orientations = True,
-      scale_norm = True, embed_kwidth = 11)[0]
-
-def MultiScaleFilters(retina, rdir = None, display = True):
-  options = core.MakeDefaultOptions()
-  options['s1_scaling'] = 1
-  options['s1_kwidth'] = PAD_KWIDTH
-  # Get unclipped multi-scale filters
+def ResultsForMultiScaleFilters(retina, rdir = None, display = True):
   mks = MakeMultiScaleKernels()
-  # Get response of multi-scale filters to input image
-  response_scaled_filters = np.array([ core.BuildS1FromRetina(retina, ks,
-      options)[0,0] for ks in mks ])
-  # Wrap maps to account for lost border due to convolution
-  response_sf_wrap = np.array([ exp.PadArray(r, retina.shape, math.exp(-2))
+  response_scaled_filters = np.array(ApplyS1Kernels(retina, mks))
+  # Wrap maps, accounting for lost border due to convolution
+  response_sf_wrap = np.array([ util.PadArray(r, retina.shape, math.exp(-2))
       for r in response_scaled_filters ])
 
   if display:
     with Display(rdir, "filters.png"):
-      gplot.Show3dArray(mks[:,0,0], cols = 2, colorbar = True,
+      # Filters padded to %dx%d pixels" % (PAD_KWIDTH, PAD_KWIDTH)
+      gplot.Show3dArray(mks, cols = 2, colorbar = True,
           titles = ["Kernel %d" % i for i in range(1,5)], show = False)
-#      suptitle("Filters padded to %dx%d pixels" % (PAD_KWIDTH, PAD_KWIDTH))
-
-  if display:
     with Display(rdir, "power spectrum - filters.png"):
+      # Frequency response for scaled filters
       for i in range(4):
-        exp.ShowKernelPowerSpectrum(mks[i,0,0], label = "Kernel %d" % (i+1))
+        gplot.ShowImagePowerSpectrum(mks[i], width = 512,
+            label = "Kernel %d" % (i+1))
       legend()
-#      suptitle("Frequency response for scaled filters")
-
-  if display:
     with Display(rdir, "result - scaled filters.png"):
+      # Response of scaled filters to original image
       gplot.Show3dArray(response_sf_wrap, cols = 2, normalize = False,
           colorbars = True, titles = ["Kernel %d" % i for i in range(1,5)],
           show = False)
-#      suptitle("Response of scaled filters to original image")
 
   return mks, response_scaled_filters, response_sf_wrap
 
-def MultiScaleImages(retina, rdir = None, display = True):
-  options = core.MakeDefaultOptions()
-  options['s1_scaling'] = 1
-  options = dict(options)
+def ResultsForMultiScaleImages(retina, rdir = None, display = True):
   # Make unclipped single-scale filter
-  ks = MakeSingleScaleKernels()
-  options['s1_kwidth'] = ks.shape[-1]
+  k = MakeSingleScaleKernel()
   # Down-sample the input image at multiple rates to match change in relative
   # frequencies changes in scaled filters.
   images = [ zoom(retina, x / FREQS[0], prefilter = True, mode = 'nearest')
       for x in FREQS ]
   scales = [ np.array(images[i].shape, float) / np.array(retina.shape)
       for i in range(4) ]
-  # Get response of single filter to multi-scale input image
-  response_scaled_images = [ core.BuildS1FromRetina(img, ks, options)[0,0]
-      for img in images ]
+  # Get response of single filter to multi-scale input images.
+  # Apply kernels, getting result map for first scale and orientation.
+  response_scaled_images = [ ApplyS1Kernels(img, k)[0] for img in images ]
   # Resize response maps to equivalent scales
   response_si_resize = [ zoom(r, 1 / s, mode = 'nearest')
       for r, s in zip(response_scaled_images, scales) ]
   # Pad response maps to have equal extents
-  response_si_wrap = np.array([ exp.PadArray(r, retina.shape, math.exp(-2))
+  response_si_wrap = np.array([ util.PadArray(r, retina.shape, math.exp(-2))
       for r in response_si_resize ])
 
   if display:
     with Display(rdir, "power spectrum - images.png"):
+      # Frequency content of scaled input images
       for i in range(4):
-        exp.ShowKernelPowerSpectrum(images[i], label = "Scale %d" % (i+1))
+        gplot.ShowImagePowerSpectrum(images[i], width = 512,
+            label = "Scale %d" % (i+1))
       legend()
-#      suptitle("Frequency content of scaled input images")
-
-  if display:
     with Display(rdir, "effective power spectrum - single scale kernel.png"):
+      # Frequency response for scaled filters
       # use low-frequency kernel for illustrative purposes
       kidx = 3
       mks = MakeMultiScaleKernels()
-      freqs, power = exp.KernelPowerSpectrum(mks[kidx, 0, 0])
+      freqs, power, cnts = gimage.PowerSpectrum(mks[kidx], width = 512)
       freq_scales = FREQS / FREQS[kidx]
       power_scales = np.arange(1, 5) / 4.
       for i, f, p in zip(range(4), freq_scales, power_scales):
@@ -116,38 +119,34 @@ def MultiScaleImages(retina, rdir = None, display = True):
       ax.set_yticks([])
       ax.set_xlabel("Cycles per Pixel")
       ax.set_ylabel("Power")
-#      suptitle("Frequency response for scaled filters")
-
-  if display:
     with Display(rdir, "result - scaled images.png"):
+      # Response of high-frequency filter to scaled images
       gplot.Show2dArrayList(response_si_wrap, cols = 2, normalize = False,
           colorbars = True, titles = ["Scale %d" % i for i in range(1,5)],
           show = False)
-#      suptitle("Response of high-frequency filter to scaled images")
 
   return images, response_scaled_images, response_si_resize, response_si_wrap
 
 def main(ifname, rdir):
-  core.SetUseSSE(False)
-  options = core.MakeDefaultOptions()
-  t_, retina = core.BuildRetinaFromFile(ifname, options)
-
+  retina = BuildRetinaFromFile(ifname)
   with Display(rdir, "input image.png"):
+    # Preprocessed image
     gplot.Show2dArray(retina, colorbar = True, show = False)
-#    suptitle("Preprocessed image")
 
   mks, response_scaled_filters, response_sf_wrap = \
-      MultiScaleFilters(retina, rdir)
+      ResultsForMultiScaleFilters(retina, rdir)
   images, response_scaled_images, response_si_resize, response_si_wrap = \
-      MultiScaleImages(retina, rdir)
+      ResultsForMultiScaleImages(retina, rdir)
 
-  # If mks filter size is larger than multi-image kernel, crop the response of single-scale kernel
+  # If mks filter size is larger than multi-image kernel, crop the response of
+  # single-scale kernel.
   if response_si_resize[0].shape[0] > response_scaled_filters[0].shape[0]:
     as_ = response_scaled_filters
-    bs = [ exp.UnpadArray(x, y.shape) for x, y in zip(response_si_resize, response_scaled_filters) ]
+    bs = [ util.CropArray(x, y.shape) for x, y in zip(response_si_resize,
+        response_scaled_filters) ]
   else:
-    as_ = [ exp.UnpadArray(x, y.shape) for x, y in
-                          zip(response_scaled_filters, response_si_resize) ]
+    as_ = [ util.CropArray(x, y.shape) for x, y in
+        zip(response_scaled_filters, response_si_resize) ]
     bs = response_si_resize
 
   fs = [ as_[0] ] + [ r[1:] for r in as_[1:] ]
@@ -156,7 +155,8 @@ def main(ifname, rdir):
   corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
       for f, i in zip(fs, is_) ]
 
-  print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
+  print "Correlation between responses of scaled filters vs scaled images is:" \
+      "\n%s" % corrs
 
   fs = [ as_[0] ] + [ r[:-1] for r in as_[1:] ]
   is_ = [ bs[0] ] + [ r[1:] for r in bs[1:] ]
@@ -164,12 +164,14 @@ def main(ifname, rdir):
   corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
       for f, i in zip(fs, is_) ]
 
-  print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
+  print "Correlation between responses of scaled filters vs scaled images is:" \
+      "\n%s" % corrs
 
   corrs = [ np.corrcoef(f.flat, i.flat)[0,1]
       for f, i in zip(as_, bs) ]
 
-  print "Correlation between responses of scaled filters vs scaled images is:\n%s" % corrs
+  print "Correlation between responses of scaled filters vs scaled images is:" \
+      "\n%s" % corrs
 
   # Null-hypothesis: correlation between response maps for different filter
   # frequencies. This provides a reference for the correlation of response maps

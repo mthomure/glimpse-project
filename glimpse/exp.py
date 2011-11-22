@@ -1,47 +1,24 @@
-from glimpse import core, util
 from glimpse.util import gimage
-from glimpse.core import c_src, misc
 import numpy as np
-import math
 
-def To3d(array):
-  return array.reshape((-1,) + array.shape[-2:])
+#def EmbedKernel(k, embed_width):
+  #kh, kw = k.shape[-2:]
+  ##~ assert kh % 2 == 1 and kw % 2 == 1, "Kernel width must be odd"
+  #embed = np.zeros(k.shape[:-2] + (embed_width, embed_width))
+  #khh = kh / 2
+  #khw = kw / 2
+  #ehw = embed_width / 2
+  #a = ehw - khh
+  #b = ehw + (kh - khh)
+  #c = ehw - khw
+  #d = ehw + (kw - khw)
+  #embed[a:b, c:d] = k
+  #return embed
 
-def PadArray(data, out_shape, cval):
-  """Pad the border of an array with a constant value."""
-  out_shape = np.array(out_shape)
-  in_shape = np.array(data.shape)
-  result = np.empty(out_shape)
-  result[:] = cval
-  begin = ((out_shape - in_shape) / 2.0).astype(int)
-  result[ [ slice(b, e) for b, e in zip(begin, begin + in_shape) ] ] = data
-  return result
-
-def UnpadArray(data, out_shape):
-  assert np.all(np.array(data.shape) >= np.array(out_shape))
-  out_shape = np.array(out_shape)
-  in_shape = np.array(data.shape)
-  begin = ((in_shape - out_shape) / 2.0).astype(int)
-  return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]
-
-def EmbedKernel(k, embed_width):
-  kh, kw = k.shape[-2:]
-  #~ assert kh % 2 == 1 and kw % 2 == 1, "Kernel width must be odd"
-  embed = np.zeros(k.shape[:-2] + (embed_width, embed_width))
-  khh = kh / 2
-  khw = kw / 2
-  ehw = embed_width / 2
-  a = ehw - khh
-  b = ehw + (kh - khh)
-  c = ehw - khw
-  d = ehw + (kw - khw)
-  embed[a:b, c:d] = k
-  return embed
-
-def KernelPowerSpectrum(k, embed_width = 512):
-  ek = EmbedKernel(k, embed_width)
-  freqs, sums, cnts = gimage.PowerSpectrum(ek)
-  return freqs, sums
+#def KernelPowerSpectrum(k, embed_width = 512):
+  #ek = EmbedKernel(k, embed_width)
+  #freqs, sums, cnts = gimage.PowerSpectrum(ek)
+  #return freqs, sums
 
 def FitGaussian(y, x = None):
   """Treat a list of values (y) as the probabilities of thier integer indices (x)."""
@@ -63,21 +40,21 @@ def FitPowerSpectrumToGaussian(freqs, power):
   std_freq = freqs[ round(mean + std) ] - mean_freq
   return mean_freq, std_freq
 
-def ShowKernelPowerSpectrum(k, embed_width = 512, save = False, **args):
-  from matplotlib import pyplot
-  assert len(k.shape) == 2
-  kwidth = k.shape[-1]
-  freqs, power = KernelPowerSpectrum(k, embed_width)
-  #~ pyplot.figure(2)
-  #~ pyplot.clf()
-  pyplot.plot(freqs, power, **args)
-  pyplot.yticks([])
-  pyplot.xlabel('Cycles per Pixel')
-  pyplot.ylabel('Power')
-  #~ pyplot.suptitle('Example Power Spectrum for %dx%d Kernels%s' % (kwidth,
-      #~ kwidth, title))
-  if save:
-    pyplot.savefig('%df.png' % kwidth)
+#def ShowKernelPowerSpectrum(k, embed_width = 512, save = False, **args):
+  #from matplotlib import pyplot
+  #assert len(k.shape) == 2
+  #kwidth = k.shape[-1]
+  #freqs, power = KernelPowerSpectrum(k, embed_width)
+  ##~ pyplot.figure(2)
+  ##~ pyplot.clf()
+  #pyplot.plot(freqs, power, **args)
+  #pyplot.yticks([])
+  #pyplot.xlabel('Cycles per Pixel')
+  #pyplot.ylabel('Power')
+  ##~ pyplot.suptitle('Example Power Spectrum for %dx%d Kernels%s' % (kwidth,
+      ##~ kwidth, title))
+  #if save:
+    #pyplot.savefig('%df.png' % kwidth)
 
 def KernelFFT(k, embed_width = 512):
   return gimage.PowerSpectrum2d(EmbedKernel(k, embed_width))
@@ -116,20 +93,6 @@ def KernelPowerStats(k):
   #~ Xp = X * cos(theta) + Y * sin(theta)
   #~ k0 = sin(2 * pi * Xp / lambda_ + phi)  # sine wave
   #~ return k0
-
-def MakeLanczosKernel(): #kwidth):
-  """Construct a smoothing filter based on the Lanczos window.
-  http://en.wikipedia.org/wiki/Lanczos_resampling
-  http://stackoverflow.com/questions/1854146/what-is-the-idea-behind-scaling-an-image-using-lanczos
-  """
-#  assert kwidth % 2 == 1
-#  a = kwidth / 2
-  from numpy import arange, sinc, outer
-  a = 3.0
-  X = arange(-a, a+1)
-  k1 = sinc(X) * sinc(X / float(a))
-  k2 = outer(k1, k1)
-  return k2
 
 def MakeLanczosKernel1d(factor, support):
   from numpy import mgrid, sinc
