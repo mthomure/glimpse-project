@@ -7,183 +7,174 @@
 # Create a 2-part, HMAX-like hierarchy of S+C layers.
 # This module implements the "Viz2" model used for the GCNC 2011 experiments.
 
-from glimpse.util import ACTIVATION_DTYPE
-from glimpse.util import kernel
-from glimpse.models.misc import ImageLayerFromInputArray, SampleC1Patches
-import itertools
+import copy
+import logging
+from misc import LayerSpec
 import numpy as np
+from viz2_ops import ModelOps
 
-class Viz2Model(object):
+class Layer(object):
+  IMAGE = LayerSpec(0, "image")
+  RETINA = LayerSpec(1, "retina", IMAGE)
+  S1 = LayerSpec(2, "S1", RETINA)
+  C1 = LayerSpec(3, "C1", S1)
+  S2 = LayerSpec(4, "S2", C1)
+  C2 = LayerSpec(5, "C2", S2)
+  IT = LayerSpec(6, "IT", C2)
 
-  def __init__(self, backend, params, s1_kernels = None, s2_kernels = None):
-    self.backend = backend
-    self.params = params
-    if s1_kernels == None:
-      s1_kernels = kernel.MakeMultiScaleGaborKernels(
-          kwidth = params['s1_kwidth'], num_scales = params['num_scales'],
-          num_orientations = params['s1_num_orientations'],
-          num_phases = params['s1_num_phases'], shift_orientations = True,
-          scale_norm = True)
+  __ID_TO_LAYER = (IMAGE, RETINA, S1, C1, S2, C2, IT)
+  @staticmethod
+  def FromId(id):
+    if id < 0 or id >= len(Layer.__ID_TO_LAYER):
+      raise ValueError("Unknown layer id: %s" % id)
+    return Layer.__ID_TO_LAYER[id]
+
+class LayerData(object):
+  """Container for data of layer that only generates unit activities."""
+
+  # Activity for all units in this layer. This is either a single 2-D array (in
+  # the case of IMAGE and RETINA layers), or a list of N-D arrays (in all other
+  # cases).
+  activity = None
+
+  def __init__(self, activity = None):
+    self.activity = activity
+
+  def __repr__(self):
+    return "LayerData(%r)" % (self.activity,)
+
+  def __eq__(self, other):
+    if not isinstance(other, LayerData):
+      return False
+    # Compare single-scale layers
+    if isinstance(self.activity, np.ndarray):
+      return np.all(self.activity == other.activity)
+    # Compare multi-scale layers
+    return np.all(s == o for s, o in zip(self.activity, other.activity))
+
+class State(dict):
+  """Stores data for all Viz2 model layers. All elements should be instances of
+  LayerData. Layer output is not stored directly in the state object, so that
+  it is clear when a layer has been computed. Data is indexed by layer ID."""
+
+  # The input. Should be an instance of InputSource.
+  source = None
+
+  def __init__(self, source = None):
+    self.source = source
+
+  def __str__(self):
+    return "State(source=%s, data=[%s])" % (self.source,
+        ", ".join(map(str, self.keys())))
+
+  def __repr__(self):
+    reps = {}
+    for k in self.keys():
+      if k in (Layer.IMAGE.id, Layer.RETINA.id):
+        # Data for image and retinal layers is single 2-D map.
+        reps[k] = self[k].activity.shape
+      else:
+        # Data for other layers is sequence of N-D maps.
+        reps[k] = ", ".join(str(scale.shape) for scale in self[k].activity)
+    if len(reps.keys()) > 0:
+      data = "{%s\n}" % "".join("\n  %s = %s(%s)" % \
+          (k, Layer.FromId(k).name, reps[k]) for k in reps.keys())
     else:
-      # S1 kernels should have dimensions [scale, orientation, phase, y, x].
-      expected_shape = tuple(params[k] for k in ('num_scales',
-          's1_num_orientations', 's1_num_phases', 's1_kwidth', 's1_kwidth'))
-      assert s1_kernels.shape == expected_shape, \
-          "S1 kernels have wrong shape: expected %s but got %s" % \
-          (expected_shape, s1_kernels.shape)
-      s1_kernels = backend.PrepareArray(s1_kernels)
-    if s2_kernels != None:
-      # S2 kernels should have dimensions [proto_idx, orientation, y, x].
-      ntheta = params['s1_num_orientations']
-      kwidth = params['s1_kwidth']
-      assert s2_kernels.ndim == 4 and s2_kernels.shape[0] > 0 \
-          and s2_kernels.shape[1:] == (ntheta, kwidth, kwidth), \
-          "S2 kernels have wrong shape: expected (*, %d, %d, %d) but got %s" % \
-          (ntheta, kwidth, kwidth, s2_kernels.shape)
-      s2_kernels = backend.PrepareArray(s2_kernels)
-    self.s1_kernels = s1_kernels
-    self.s2_kernels = s2_kernels
+      data = "no data"
+    return "State(source=%s, %s)" % (self.source, data)
 
-  def BuildImageFromInput(self, input_):
-    """Create the initial image layer from some input.
-    input_ -- Image or (2-D) array of input data. If array, values should lie in
-              the range [0, 1].
-    RETURNS (2-D) array containing image layer data
+  def __eq__(self, other):
+    if not (isinstance(other, State) and self.source == other.source):
+      return False
+    if set(self.keys()) != set(other.keys()):
+      return False
+    return np.all([ self[k] == other[k] for k in self ])
+
+class Model(ModelOps):
+  """The Viz2 model. This class adds support for computing an arbitrary layer
+  from a given initial model state."""
+
+  def GetLayers(self):
+    return (Layer.IMAGE, Layer.RETINA, Layer.S1, Layer.C1, Layer.S2, Layer.C2,
+        Layer.IT)
+
+  def _ComputeLayerActivity(self, layer, input_layers):
+    # Note that the input layers are indexed by ID, not layer object. This is
+    # done to allow a copied layer object to be passed to BuildLayer().
+    if layer == Layer.RETINA:
+      return LayerData(self.BuildRetinaFromImage(
+          input_layers[Layer.IMAGE.id].activity))
+    elif layer == Layer.S1:
+      return LayerData(self.BuildS1FromRetina(
+          input_layers[Layer.RETINA.id].activity))
+    elif layer == Layer.C1:
+      return LayerData(self.BuildC1FromS1(input_layers[Layer.S1.id].activity))
+    elif layer == Layer.S2:
+      return LayerData(self.BuildS2FromC1(input_layers[Layer.C1.id].activity))
+    elif layer == Layer.C2:
+      return LayerData(self.BuildC2FromS2(input_layers[Layer.S2.id].activity))
+    elif layer == Layer.IT:
+      return LayerData(self.BuildItFromC2(input_layers[Layer.C2.id].activity))
+    raise ValueError("Can't compute activity for layer: %s" % layer.name)
+
+  def _BuildLayerHelper(self, layer, state):
+    """Recursively fulfills dependencies by building parent layers."""
+    # Short-circuit computation if data exists
+    if layer.id in state and state[layer.id] != None:
+      return state
+    # Handle image layer as special case
+    if layer == Layer.IMAGE:
+      if state.source == None:
+        raise DependencyException("Can't build image layer without input "
+            "source.")
+      img = state.source.CreateImage()
+      state[Layer.IMAGE.id] = LayerData(self.BuildImageFromInput(img))
+    # Handle all layers above the image layer.
+    else:
+      # Compute any dependencies
+      for parent_layer in layer.depends:
+        self._BuildLayerHelper(parent_layer, state)
+      input_layers = dict((x.id, state[x.id]) for x in layer.depends)
+      # Compute requested layer
+      state[layer.id] = self._ComputeLayerActivity(layer, input_layers)
+
+  def BuildLayer(self, input_state, layer):
+    """Apply the model through the given layer.
+    input_state -- (State) initial data for the model (e.g., an image, or
+                   activity for an intermediate layer).
+    layer -- (Layer) identifier of output layer to compute
     """
-    return ImageLayerFromInputArray(input_, self.backend)
+    # Perform shallow copy of existing state
+    output_state = copy.copy(input_state)
+    # Recursively compute activity up through the given layer
+    self._BuildLayerHelper(layer, output_state)
+    return output_state
 
-  def BuildRetinaFromImage(self, img):
-    if not self.params['retina_enabled']:
-      return img
-    retina = self.backend.ContrastEnhance(img,
-        kwidth = self.params['retina_kwidth'],
-        bias = self.params['retina_bias'],
-        scaling = 1)
-    return retina
+class ModelTransform(object):
+  """Represents a model state transformation that computes through some model
+  layer."""
 
-  def BuildS1FromRetina(self, retina):
-    """Apply S1 processing to some existing retinal layer data.
-    retina -- (2-D array) result of retinal layer processing
-    RETURNS list of (4-D) S1 activity arrays, with one array per scale
+  def __init__(self, model, layer, save_all = True):
+    """Create a new object.
+    model -- the model to use when computing layer activity
+    layer -- highest layer in model to compute
+    save_all -- (bool) whether transform should save all computed layers in the
+                result, or just the output layer.
     """
-    # Reshape retina to be 3D array
-    retina_ = retina.reshape((1,) + retina.shape)
-    num_scales = self.params['num_scales']
-    s1_kwidth = self.params['s1_kwidth']
-    s1_num_orientations = self.params['s1_num_orientations']
-    s1_num_phases = self.params['s1_num_phases']
-    # Reshape kernel array to be 4-D: scale, index, 1, y, x
-    s1_kernels = self.s1_kernels.reshape((num_scales, -1, 1, s1_kwidth,
-        s1_kwidth))
-    s1s = []
-    for scale in range(num_scales):
-      ks = s1_kernels[scale]
-      s1_ = self.backend.NormRbf(retina_, ks, bias = self.params['s1_bias'],
-          beta = self.params['s1_beta'], scaling = self.params['s1_scaling'])
-      # Reshape S1 to be 4D array
-      s1 = s1_.reshape((s1_num_orientations, s1_num_phases) + s1_.shape[-2:])
-      # Pool over phase.
-      s1 = s1.max(1)
-      s1s.append(s1)
-    return s1s
+    self.model, self.layer, self.save_all = model, layer, save_all
 
-  def BuildC1FromS1(self, s1s):
-    num_scales = self.params['num_scales']
-    c1s = [ self.backend.LocalMax(s1, kwidth = self.params['c1_kwidth'],
-        scaling = self.params['c1_scaling']) for s1 in s1s ]
-    # DEBUG: use this to whiten over orientation only
-    #~ if self.params['c1_whiten']:
-      #~ for c1 in c1s:
-        #~ Whiten(c1)
-    # DEBUG: use this to whiten over scale AND orientation concurrently. PANN
-    # and the old Viz2 model used this.
-    if self.params['c1_whiten']:
-      c1s = np.array(c1s, ACTIVATION_DTYPE)
-      c1_shape = c1s.shape
-      c1s = c1s.reshape((-1,) + c1s.shape[-2:])
-      Whiten(c1s)
-      c1s = c1s.reshape(c1_shape)
-    return c1s
+  def __call__(self, state):
+    """Transform between model states."""
+    state = self.model.BuildLayer(state, self.layer)
+    if not self.save_all:
+      logging.info("ModelTransform: sparsifying result")
+      for layer_id in state.keys():
+        if layer_id != self.layer.id:
+          del state[layer_id]
+    return state
 
-  def BuildS2FromC1(self, c1s):
-    CheckPrototypes(self.s2_kernels)
-    num_scales = self.params['num_scales']
-    s2s = []
-    for scale in range(num_scales):
-      c1 = c1s[scale]
-      s2 = self.backend.NormRbf(c1, self.s2_kernels,
-          bias = self.params['s2_bias'], beta = self.params['s2_beta'],
-          scaling = self.params['s2_scaling'])
-      s2s.append(s2)
-    return s2s
+  def __str__(self):
+    return "ModelTransform(model=%s, layer=%s, save_all=%s)" % (self.model,
+        self.layer, self.save_all)
 
-  def BuildC2FromS2(self, s2s):
-    c2s = map(self.backend.GlobalMax, s2s)
-    return c2s
-
-  def BuildItFromC2(self, c2s):
-    it = np.array(c2s).max(0)
-    return it
-
-  def BuildLayers(self, data, input_layer, output_layer):
-    """Process the input data, building up to the given output layer.
-    data -- input array
-    input_layer -- layer ID of input array
-    output_layer -- layer ID of output array
-    """
-    start = ALL_LAYERS.index(input_layer)
-    stop = ALL_LAYERS.index(output_layer)
-    layers = ALL_LAYERS[start : stop + 1]
-    results = dict()
-    for idx in range(start, stop + 1):
-      builder = ALL_BUILDERS[idx]
-      data = builder(self, data)
-      layer_name = ALL_LAYERS[idx]
-      results[layer_name] = data
-    return results
-
-  def ImprintPrototypes(self, input_, num_prototypes, normalize = True):
-    """Compute C1 activity maps and sample patches from random locations.
-    input_ -- (Image or 2-D array) unprocessed image data
-    num_prototype -- (positive int) number of prototypes to imprint
-    normalize -- (bool) whether to scale each prototype to have unit length
-    RETURNS list of prototypes, and list of corresponding locations.
-    """
-    results = self.BuildLayers(input_, LAYER_IMAGE, LAYER_C1)
-    c1s = results[LAYER_C1]
-    proto_it = SampleC1Patches(c1s, self.params['s2_kwidth'])
-    protos = list(itertools.islice(proto_it, num_prototypes))
-    for proto, loc in protos:
-      proto /= np.linalg.norm(proto)
-    return zip(*protos)
-
-# Identifiers for layers that can be computed
-LAYER_IMAGE = 'i'
-LAYER_RETINA = 'r'
-LAYER_S1 = 's1'
-LAYER_C1 = 'c1'
-LAYER_S2 = 's2'
-LAYER_C2 = 'c2'
-LAYER_IT = 'it'
-# The set of all layers in this model, in order of processing.
-ALL_LAYERS = (LAYER_IMAGE, LAYER_RETINA, LAYER_S1, LAYER_C1, LAYER_S2, LAYER_C2,
-    LAYER_IT)
-ALL_BUILDERS = (Viz2Model.BuildImageFromInput, Viz2Model.BuildRetinaFromImage,
-    Viz2Model.BuildS1FromRetina, Viz2Model.BuildC1FromS1,
-    Viz2Model.BuildS2FromC1, Viz2Model.BuildC2FromS2, Viz2Model.BuildItFromC2)
-
-def Whiten(data):
-  data -= data.mean(0)
-  norms = np.sqrt((data**2).sum(0))
-  norms[ norms < 1 ] = 1
-  data /= norms
-  return data
-
-def CheckPrototypes(prototypes):
-  assert prototypes != None
-  if len(prototypes.shape) == 3:
-    prototypes = prototypes.reshape((1,) + prototypes.shape)
-  assert np.allclose(np.array(map(np.linalg.norm, prototypes)), 1), \
-      "Internal error: S2 prototypes are not normalized"
-  assert not np.isnan(prototypes).any(), \
-      "Internal error: found NaN in imprinted prototype."
+  __repr__ = __str__

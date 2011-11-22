@@ -4,109 +4,80 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse import util
+from glimpse.util import traits
 
-ALL_OPTIONS = [
-  ('retina_bias', "Term added to standard deviation of local window"),
-  ('retina_enabled', "Indicates whether the retinal layer is used"),
-  ('retina_kwidth', "Spatial width of input neighborhood for retinal units"),
+class KWidth(traits.BaseInt):
+  """A trait type corresponding to a kernel width (a positive, odd integer)."""
 
-  ('s1_beta', "Beta parameter of RBF for S1 cells"),
-  ('s1_bias', "Term added to the norm of the input vector"),
-  ('s1_kwidth', "Spatial width of input neighborhood for S1 units"),
-  ('s1_num_orientations', "Number of different S1 Gabor orientations"),
-  ('s1_num_phases', """Number of different phases for S1 Gabors. Using two
-                    phases corresponds to find a light bar on a dark
-                    background and vice versa"""),
-  ('s1_scaling', """Subsampling factor (e.g., setting s1_scaling=2 will result
-                 in an output array that is 1/2 the width and half the
-                 height of the input array)"""),
-  ('s1_shift_orientations', "Rotate Gabors by a small positive angle"),
+  default_value = 1
 
-  ('c1_kwidth', "Spatial width of input neighborhood for C1 units"),
-  ('c1_scaling', "Subsampling factor"),
-  ('c1_whiten', "Whether to normalize the total energy at each C1 location"),
+  info_text = 'a positive odd integer'
 
-  ('s2_beta', "Beta parameter of RBF for S1 cells"),
-  ('s2_bias', "Additive term combined with input window norm"),
-  ('s2_kwidth', "Spatial width of input neighborhood for S2 units"),
-  ('s2_scaling', "Subsampling factor"),
+  def validate(self, object, name, value):
+    value = super(KWidth, self).validate(object, name, value)
+    if value > 1 and value % 2 == 1:
+      return value
+    self.error(object, name, value)
 
-  ('c2_kwidth', "Spatial width of input neighborhood for C2 units"),
-  ('c2_scaling', "Subsampling factor"),
+class Params(traits.HasStrictTraits):
 
-  ('num_scales', "Number of different scale bands"),
-]
+  retina_bias = traits.Range(low = 0., value = 1., label = "Retina Bias",
+      desc = "term added to standard deviation of local window")
+  retina_enabled = traits.Bool(True, label = "Retina Enabled",
+      desc = "indicates whether the retinal layer is used")
+  retina_kwidth = KWidth(15, label = "Retina Kernel Width",
+      desc = "spatial width of input neighborhood for retinal units")
 
-class Viz2Params(object):
+  s1_bias = traits.Range(low = 0., value = 1., label = "S1 Bias",
+      desc = "beta parameter of RBF for S1 cells")
+  s1_beta = traits.Range(low = 0., value = 1., exclude_low = True, label = "S1 Beta",
+      desc = "term added to the norm of the input vector")
+  s1_kwidth = KWidth(11, label = "S1 Kernel Width",
+      desc = "spatial width of input neighborhood for S1 units")
+  s1_num_orientations = traits.Range(low = 1, value = 8,
+      label = "Number of Orientations",
+      desc = "number of different S1 Gabor orientations")
+  s1_num_phases = traits.Range(low = 1, value = 2, label = "Number of Phases",
+      desc = "number of different phases for S1 Gabors. Using two phases "
+          "corresponds to find a light bar on a dark background and vice versa")
+  s1_scaling = traits.Range(low = 1, value = 2, label = "S1 Scaling",
+      desc = "subsampling factor (e.g., setting this parameter to 2 will "
+      "result in an output array that is half the width -- and half the height "
+      "-- of the input array)")
+  s1_shift_orientations = traits.Bool(True, label = "Shift Orientations",
+      desc = "rotate Gabors by a small positive angle")
 
-  def __init__(self, **args):
-    self._params = MakeDefaultParamDict()
-    for name, value in args.items():
-      self[name] = value
+  c1_kwidth = KWidth(5, label = "C1 Kernel Width",
+      desc = "spatial width of input neighborhood for C1 units")
+  c1_scaling = traits.Range(low = 1, value = 2, label = "C1 Scaling",
+      desc = "subsampling factor")
+  c1_whiten = traits.Bool(True, label = "C1 Whiten",
+      desc = "whether to normalize the total energy at each C1 location")
 
-  def __repr__(self):
-    return str(self._params)
+  s2_beta = traits.Range(low = 0., value = 5., exclude_low = True, label = "S2 Beta",
+      desc = "beta parameter of RBF for S1 cells")
+  # Default value is configured to match distribution of C1 norm under
+  # whitening.
+  s2_bias = traits.Range(low = 0., value = 0.1, label = "S2 Bias",
+      desc = "additive term combined with input window norm")
+  s2_kwidth = KWidth(7, label = "S2 Kernel Width",
+      desc = "spatial width of input neighborhood for S2 units")
+  s2_scaling = traits.Range(low = 1, value = 2, label = "S2 Scaling",
+      desc = "subsampling factor")
 
-  def __eq__(self, params):
-    return params != None and self._params == params._params
+  c2_kwidth = KWidth(3, label = "C2 Kernel Width",
+      desc = "spatial width of input neighborhood for C2 units")
+  c2_scaling = traits.Range(low = 1, value = 2, label = "C2 Scaling",
+      desc = "subsampling factor")
 
-  def __getitem__(self, name):
-    if name not in self._params:
-      raise ValueError("Unknown Viz2 param: %s" % name)
-    return self._params[name]
+  num_scales = traits.Range(low = 1, value = 4, label = "Number of Scales",
+      desc = "number of different scale bands")
 
-  def __setitem__(self, name, value):
-    assert name in self._params
-    self._params[name] = value
-
-  def __getstate__(self):
-    return self._params
-
-  def __setstate__(self, state):
-    self._params = MakeDefaultParamDict()
-    for name, value in state.items():
-      self[name] = value
-
-  def LoadFromFile(self, fname):
-    """Loads option data either from a python file (if fname ends in ".py"), or
-    a pickled Viz2Params file.
-      fname -- name of file from which to load options"""
-    values = util.LoadByFileName(fname)
-    if isinstance(values, Viz2Params):
-      values = values._params
-    elif not isinstance(values, dict):
-      raise ValueError("Unknown data in file %s" % fname)
-    for name, value in values.items():
-      self[name] = value
-
-def MakeDefaultParamDict():
-  """Create a default set of parameters."""
-  return dict(
-    retina_bias = 1.0,
-    retina_enabled = True,
-    retina_kwidth = 15,
-
-    s1_bias = 1.0,
-    s1_beta = 1.0,
-    s1_kwidth = 11,
-    s1_num_orientations = 8,
-    s1_num_phases = 2,
-    s1_scaling = 2,
-    s1_shift_orientations = True,
-
-    c1_kwidth = 5,
-    c1_scaling = 2,
-    c1_whiten = True,
-
-    s2_beta = 5.0,
-    s2_bias = 0.1,  # Configured to match distribution of C1 norm under
-                    # whitening.
-    s2_kwidth = 7,
-    s2_scaling = 2,
-
-    c2_kwidth = 3,
-    c2_scaling = 2,
-
-    num_scales = 4,
-  )
+  def __str__(self):
+    # Get list of all traits.
+    traits = self.traits().keys()
+    # Remove special entries from the HasTraits object.
+    traits = filter((lambda t: not t.startswith("trait_")), traits)
+    # Format set of traits as a string.
+    return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
+        getattr(self, tn)) for tn in traits)

@@ -11,6 +11,60 @@ import Image
 import numpy as np
 import random
 
+class LayerSpec(object):
+  """Describes a single layer in a model."""
+
+  # A unique (within a given model) identifier for the layer.
+  id = 0
+
+  # A user-friendly name for the layer.
+  name = ""
+
+  # Parents whose data is required to compute this layer.
+  depends = []
+
+  def __init__(self, id = 0, name = None, *depends):
+    self.id, self.name, self.depends = id, name, depends
+
+  def __str__(self):
+    return self.name
+
+  def __repr__(self):
+    return "LayerSpec(name=%s, depends=[%s])" % (self.name,
+        ", ".join(map(str, self.depends)))
+
+  def __eq__(self, other):
+    # XXX this is only useful for comparing layers for a single model (since it
+    # only uses the id attribute).
+    return isinstance(other, LayerSpec) and self.id == other.id
+
+class InputSource(object):
+  """Describes the input to a hierarchical model. Examples include the path to a
+  single image, or the path and frame of a video."""
+
+  # Path to an image file.
+  image_path = None
+
+  def __init__(self, image_path = None):
+    self.image_path = image_path
+
+  def CreateImage(self):
+    """Create a new PIL.Image object for this input source."""
+    return Image.open(self.image_path)
+
+  def __str__(self):
+    return self.image_path
+
+  def __repr__(self):
+    return "InputSource(image_path=%s)" % self.image_path
+
+  def __eq__(self, other):
+    return isinstance(other, InputSource) and \
+        self.image_path == other.image_path
+
+  def __ne__(self, other):
+    return not (self == other)
+
 def ImageLayerFromInputArray(input_, backend):
   """Create the initial image layer from some input.
   input_ -- Image or (2-D) array of input data. If array, values should lie in
