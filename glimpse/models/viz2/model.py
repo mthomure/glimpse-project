@@ -9,7 +9,8 @@
 
 import copy
 import logging
-from glimpse.models.misc import LayerSpec
+from glimpse.models.misc import LayerSpec, SampleC1Patches
+import itertools
 import numpy as np
 from ops import ModelOps
 
@@ -22,12 +23,24 @@ class Layer(object):
   C2 = LayerSpec(5, "C2", S2)
   IT = LayerSpec(6, "IT", C2)
 
-  __ID_TO_LAYER = (IMAGE, RETINA, S1, C1, S2, C2, IT)
+  __LAYERS = (IMAGE, RETINA, S1, C1, S2, C2, IT)
   @staticmethod
   def FromId(id):
-    if id < 0 or id >= len(Layer.__ID_TO_LAYER):
+    if id < 0 or id >= len(Layer.__LAYERS):
       raise ValueError("Unknown layer id: %s" % id)
-    return Layer.__ID_TO_LAYER[id]
+    return Layer.__LAYERS[id]
+
+  @staticmethod
+  def FromName(name):
+    names = name.lower()
+    for layer in Layer.__LAYERS:
+      if layer.name.lower() == name:
+        return layer
+    raise ValueError("Unknown layer name: %s" % name)
+
+  @staticmethod
+  def Layers():
+    return Layer.__LAYERS
 
 class LayerData(object):
   """Container for data of layer that only generates unit activities."""
@@ -149,6 +162,30 @@ class Model(ModelOps):
     # Recursively compute activity up through the given layer
     self._BuildLayerHelper(layer, output_state)
     return output_state
+
+#### EXECUTOR FUNCTIONS ####
+
+class C1PatchSampler(object):
+  """Represents a model state transformation through C1, which then extracts
+  patches from randomly-sampled locations and scales."""
+
+  def __init__(self, model, num_patches, normalize = False):
+    """Create new object.
+    model -- (Model) Viz2 model instantiation to use when computing C1 activity
+    num_patches -- (int) number of patches to extract
+    """
+    self.model, self.num_patches, self.normalize = model, num_patches, normalize
+
+  def __call__(self, state):
+    """Transform between model states."""
+    state = self.model.BuildLayer(state, Layer.C1)
+    c1s = state[Layer.C1.id].activity
+    proto_it = SampleC1Patches(c1s, kwidth = self.model._params.s2_kwidth)
+    protos = list(itertools.islice(proto_it, self.num_patches))
+    if self.normalize:
+      for proto, location in protos:
+        proto /= np.linalg.norm(proto)
+    return protos
 
 class ModelTransform(object):
   """Represents a model state transformation that computes through some model
