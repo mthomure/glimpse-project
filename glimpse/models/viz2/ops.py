@@ -30,6 +30,7 @@ class ModelOps(object):
         kwidth = p.s1_kwidth, num_scales = p.num_scales,
         num_orientations = p.s1_num_orientations, num_phases = p.s1_num_phases,
         shift_orientations = True, scale_norm = True)
+    return self._s1_kernels
 
   @s1_kernels.setter
   def s1_kernels(self, kernels):
