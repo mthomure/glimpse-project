@@ -21,6 +21,7 @@ def _SinkTarget(out_queue, result_receiver, command_receiver = None,
   output to shared queue.
   context -- (zmq.Context, optional) this is set for threaded sinks only
   """
+  # TODO: figure out how to pass a WorkerException back to the main process.
   logging.info("SinkTarget: starting up on pid %d" % os.getpid())
   if context == None:
     context = zmq.Context()
@@ -36,7 +37,7 @@ def _SinkTarget(out_queue, result_receiver, command_receiver = None,
   idx = 0
   # Walk the iterator returned by sink.Receive()
   for result in results:
-    logging.info("SinkTarget: got #%d result: %r" % (idx, result))
+    logging.info("SinkTarget: got #%d result" % idx)
     out_queue.put(result)
     idx += 1
   #~ map(out_queue.put, results)

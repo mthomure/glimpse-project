@@ -126,5 +126,5 @@ def DynamicMapRequestHandler(request):
   logging.info("DynamicMapRequestHandler [%d arguments]" % len(arguments))
   logging.info("  function: %r" % function)
   logging.info("  arguments: %r" % (arguments,))
-  logging.info("  results: %r" % (results,))
+  #~ logging.info("  results: %r" % (results,))
   return results

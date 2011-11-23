@@ -225,7 +225,7 @@ class BasicSink(object):
         raise ReceiverTimeoutException
       if self._receiver_socket in socks:
         result = self._receiver_socket.recv_pyobj()
-        logging.info("BasicSink: received object: %s" % result)
+        #~ logging.info("BasicSink: received object: %s" % result)
         yield result
         idx += 1
       if self._command_socket in socks:
