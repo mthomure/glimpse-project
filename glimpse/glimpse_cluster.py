@@ -29,7 +29,7 @@ def TransformImages(config, *fnames):
   output_states = cluster.Map(xform, input_states)
 
 def Methods():
-  return map(eval, ("LaunchBrokers", "RunClusterWorker", "KillWorkers"))
+  return map(eval, ("LaunchBrokers", "LaunchWorker", "KillWorkers"))
 
 def main():
   try:
