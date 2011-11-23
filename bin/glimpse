@@ -14,26 +14,40 @@ from glimpse import util
 DEFAULT_MODEL = "viz2"
 
 try:
-  opts, args = util.GetOptions("m:")
+  opts, args = util.GetOptions("c:m:pv")
   model_name = DEFAULT_MODEL
+  mapper = None
+  preload_image = False
   for opt, arg in opts:
-    if opt == '-m':
+    if opt == '-c':
+      # Use a clustered executor
+      from glimpse.executors.simple_cluster import ClusterMap
+      mapper = ClusterMap(arg)
+    elif opt == '-m':
+      # Set the model class
       arg = arg.lower()
       if arg == "default":
         model_name = DEFAULT_MODEL
       else:
         model_name = arg
-  mname = "%s_cmds" % model_name
-  models = __import__("glimpse.models", globals(), locals(),
-      [mname], 0)
+    elif opt == '-v':
+      import logging
+      logging.getLogger().setLevel(logging.INFO)
+  if mapper == None:
+    from glimpse.executors.multicore_executor import MulticoreMap
+    mapper = MulticoreMap()
+  models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
+      ['cmds'], 0)
   try:
-    model = getattr(models, mname)
+    model = getattr(models, 'cmds')
   except AttributeError:
     raise util.UsageException("Unknown model (-m): %s" % model_name)
 except util.UsageException, e:
   util.Usage("[options]\n"
-    "  -m MOD   Use model named MOD",
-    e
+      "  -c FILE  Use a cluster to evaluate images, configured in FILE.\n"
+      "  -m MOD   Use model named MOD\n"
+      "  -v       Enable verbose logging",
+      e
   )
 
-model.Main(args)
+model.Main(mapper, args)
