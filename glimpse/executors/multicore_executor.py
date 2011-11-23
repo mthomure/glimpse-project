@@ -165,3 +165,36 @@ class MulticoreExecutor(object):
 
   def IsEmpty(self):
     return self.task_count == 0
+
+from executor import DynamicMap, DynamicMapRequestHandler
+
+class MulticoreMap(object):
+  """A simplified interface for mapping a function over a set of values, using a
+  pool of worker processes."""
+
+  def __init__(self, num_processes = None):
+    # Don't bother using multicore executor for single-core machines.
+    if multiprocessing.cpu_count() == 1:
+      self.executor = None
+    else:
+      self.executor = MulticoreExecutor(DynamicMapRequestHandler, num_processes)
+
+  def Map(self, function, values, stream = False):
+    """
+    stream -- (bool) advanced behavior. return an iterator over the results,
+              instead of a list. This is useful for large datasets that do not
+              fit entirely in memory.
+    """
+    if self.executor == None:
+      return map(function, values)
+    # Create an iterator, that when evaluated will get the results from the
+    # cluster sink.
+    result_iterator = DynamicMap(self.executor, function, values)
+    if stream:
+      return result_iterator
+    # Evaluate the iterator, consuming results messages from the executor's
+    # output queue.
+    results = list(result_iterator)
+    # Return the list of in-memory results (not the iterator), since this is
+    # supposed to be a simplified interface.
+    return results
