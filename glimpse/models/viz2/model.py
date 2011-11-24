@@ -9,7 +9,7 @@
 
 import copy
 import logging
-from glimpse.models.misc import LayerSpec, SampleC1Patches
+from glimpse.models.misc import LayerSpec, SampleC1Patches, InputSource
 import itertools
 import numpy as np
 from ops import ModelOps
@@ -110,6 +110,14 @@ class Model(ModelOps):
   def GetLayers(self):
     return (Layer.IMAGE, Layer.RETINA, Layer.S1, Layer.C1, Layer.S2, Layer.C2,
         Layer.IT)
+
+  def MakeStateFromFilename(self, filename):
+    return State(InputSource(filename))
+
+  def MakeStateFromImage(self, image):
+    state = State()
+    state[Layer.IMAGE.id] = LayerData(self.BuildImageFromInput(image))
+    return state
 
   def _ComputeLayerActivity(self, layer, input_layers):
     # Note that the input layers are indexed by ID, not layer object. This is
