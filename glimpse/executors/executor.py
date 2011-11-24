@@ -104,7 +104,9 @@ def DynamicMap(executor, function, arguments, group_size = None):
       logging.info("DynamicMap: executor (%s) chose group size of %d elements" \
           % (executor, group_size))
 
-      assert group_size > 0
+      assert num_arguments == 0 or group_size > 0  # group size should be non-
+                                                   # zero if we have one or more
+                                                   # elements
     else:
       group_size = 1  # by default, make singleton requests
   # chunk states into groups
