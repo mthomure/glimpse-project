@@ -1,5 +1,5 @@
 from glimpse import util
-from glimpse.executors import multicore_executor
+import multiprocessing
 from glimpse.models import viz2
 from glimpse import backends
 import os
@@ -13,14 +13,14 @@ class ModelWrapper(object):
       # Create a default glimpse model.
       model = viz2.Model(backends.CythonBackend(), viz2.Params())
     self.model = model
-    self.mapper = multicore_executor.MulticoreMap()
+    self.pool = multiprocessing.Pool()
     self.model_transform = viz2.ModelTransform(model, viz2.Layer.C1,
         save_all = False)  # keep only the C1 layer data
 
   def ComputeC1Activity(self, input_states):
     """Compute the C1 layer activity for a set of images."""
     # Map the model transform (i.e., computing C1 data) over the states.
-    output_states = self.mapper.Map(self.model_transform, input_states)
+    output_states = self.pool.map(self.model_transform, input_states)
     # given output state s:
     #  c1 data is in a = s[ Layer.C1.id ].activity
     #  activity vector is given by util.ArrayListToVector(a)
@@ -45,11 +45,17 @@ def BuildSvmFeatureTransformer(c1_activity_list):
   """Construct a new SVM feature transformer."""
   return SvmFeatureTransformer()
 
+# XXX Enabling this flag (i.e., passing "-b 1" to LIBSVM) seems to cause a
+# significant change in SVM performance. The reason for this is unclear.
+COMPUTE_CONFIDENCE = False
+
 def TrainSvm(pos_features, neg_features):
   classes = [1] * len(pos_features) + [-1] * len(neg_features)
   features = pos_features + neg_features
   features = map(list, features)
-  options = '-q -b 1'  # don't write to stdout
+  options = '-q'  # don't write to stdout
+  if COMPUTE_CONFIDENCE:
+    options += ' -b 1'
   return svmutil.svm_train(classes, features, options)
 
 def TestSvm(model, pos_features, neg_features):
@@ -57,7 +63,10 @@ def TestSvm(model, pos_features, neg_features):
   features = pos_features + neg_features
   features = map(list, features)
   # Sadly, we can't make it shut up -- i.e., it writes to stdout.
-  options = '-b 1'
+  if COMPUTE_CONFIDENCE:
+    options = '-b 1'
+  else:
+    options = ''
   predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
       features, model, options)
   decision_values = [ dv[0] for dv in decision_values ]
