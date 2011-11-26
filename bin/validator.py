@@ -16,20 +16,22 @@ def main(xform_dir, pos_image_dir, neg_image_dir):
       'feature-transformer'))
   pos_features = map(feature_transformer.ComputeSvmFeatures,
       pos_c1_activity)
-  del pos_fnames, pos_c1_activity
+  del pos_c1_activity
   # Compute SVM feature vectors for negative images.
   neg_fnames = GetDirContents(neg_image_dir)
   neg_states = map(model.FilenameToState, neg_fnames)
   neg_c1_activity = model.ComputeC1Activity(neg_states)
   neg_features = map(feature_transformer.ComputeSvmFeatures,
       neg_c1_activity)
-  del neg_fnames, neg_c1_activity
+  del neg_c1_activity
   # Load and apply the SVM classifier to feature vectors.
   model = svmutil.svm_load_model(os.path.join(xform_dir, 'svm-model'))
   predicted_labels, decision_values = TestSvm(model, pos_features,
       neg_features)
-  for pl, dv in zip(predicted_labels, decision_values):
-    print pl, dv
+  print "FILE PREDICTED-LABEL CONFIDENCE"
+  for f, pl, dv in zip(pos_fnames + neg_fnames, predicted_labels,
+      decision_values):
+    print f, pl, dv
 
 if __name__ == '__main__':
   if len(sys.argv) < 4:
