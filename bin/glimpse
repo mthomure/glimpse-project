@@ -16,13 +16,16 @@ DEFAULT_MODEL = "viz2"
 try:
   opts, args = util.GetOptions("c:m:pv")
   model_name = DEFAULT_MODEL
-  mapper = None
+  pool = None
   preload_image = False
+  from glimpse import pools
+  pool = pools.MulticorePool()
   for opt, arg in opts:
     if opt == '-c':
-      # Use a clustered executor
-      from glimpse.executors.simple_cluster import ClusterMap
-      mapper = ClusterMap(arg)
+      # Use a cluster of worker nodes
+      from glimpse.pools.cluster import ClusterConfig, ClusterPool
+      config = ClusterConfig(arg)
+      pool = ClusterPool(config)
     elif opt == '-m':
       # Set the model class
       arg = arg.lower()
@@ -33,9 +36,6 @@ try:
     elif opt == '-v':
       import logging
       logging.getLogger().setLevel(logging.INFO)
-  if mapper == None:
-    from glimpse.executors.multicore_executor import MulticoreMap
-    mapper = MulticoreMap()
   models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
       ['cmds'], 0)
   try:
@@ -50,4 +50,4 @@ except util.UsageException, e:
       e
   )
 
-model.Main(mapper, args)
+model.Main(pool, args)

@@ -1,6 +1,10 @@
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
 
-from glimpse.executors.cluster_executor import ClusterExecutor
-from glimpse.executors.executor import StaticMap
+from manager import ClusterManager
 from glimpse.util.zmq_cluster import Connect, Worker
 import logging
 import threading
@@ -17,7 +21,7 @@ def WorkerProcessTarget(request_receiver, result_sender, callback,
   worker.Setup()
   worker.Run()
 
-class TestClusterExecutor_Multicore(unittest.TestCase):
+class TestClusterManager_Multicore(unittest.TestCase):
 
   def test_quitsOnCommand(self):
     use_threading = False
@@ -25,16 +29,16 @@ class TestClusterExecutor_Multicore(unittest.TestCase):
     context = zmq.Context()
     # bind the command_sender socket
     command_sender = Connect(url = "ipc://commands.ipc", bind = True)
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("ipc://requests.ipc", bind = True)
     result_receiver = Connect("ipc://results.ipc", bind = True)
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -48,9 +52,9 @@ class TestClusterExecutor_Multicore(unittest.TestCase):
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
   # test that basic Put()/Get() call pair works
   def test_putGet(self):
@@ -59,16 +63,16 @@ class TestClusterExecutor_Multicore(unittest.TestCase):
     context = zmq.Context()
     # bind the command_sender socket
     command_sender = Connect(url = "ipc://commands.ipc", bind = True)
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("ipc://requests.ipc", bind = True)
     result_receiver = Connect("ipc://results.ipc", bind = True)
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -78,33 +82,33 @@ class TestClusterExecutor_Multicore(unittest.TestCase):
         request_receiver, result_sender, callback, command_receiver))
     worker.daemon = True
     worker.start()
-    executor.Put(2)
-    self.assertEqual(200, executor.Get())
+    manager.Put(2)
+    self.assertEqual(200, manager.Get())
     # tear down the worker
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
-  # test that map works
+  # test that PutMany()/GetMany() works
   def test_map(self):
     use_threading = True
     callback = lambda x: x * 100
     context = zmq.Context()
     # bind the command_sender socket
     command_sender = Connect(url = "ipc://commands.ipc", bind = True)
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("ipc://requests.ipc", bind = True)
     result_receiver = Connect("ipc://results.ipc", bind = True)
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -115,16 +119,18 @@ class TestClusterExecutor_Multicore(unittest.TestCase):
     worker.daemon = True
     worker.start()
     xs = range(10)
-    expected = map(callback, xs)
-    actual = sorted(StaticMap(executor, xs))
-    self.assertEqual(expected, actual)
+    put_size = manager.PutMany(xs)
+    self.assertEqual(len(xs), put_size)
+    expected_ys = map(callback, xs)
+    actual_ys = sorted(manager.GetMany(len(xs)))
+    self.assertEqual(expected_ys, actual_ys)
     # tear down the worker
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
 def WorkerThreadTarget(context, request_receiver, result_sender, callback,
     command_receiver):
@@ -133,7 +139,7 @@ def WorkerThreadTarget(context, request_receiver, result_sender, callback,
   worker.Setup()
   worker.Run()
 
-class TestClusterExecutor_Threaded(unittest.TestCase):
+class TestClusterManager_Threaded(unittest.TestCase):
 
   def test_quitsOnCommand(self):
     use_threading = True
@@ -142,16 +148,16 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
     # bind the command_sender socket
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("inproc://requests", bind = True)
     result_receiver = Connect("inproc://results", bind = True)
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -165,9 +171,9 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
   # test that basic Put()/Get() call pair works
   def test_putGet(self):
@@ -177,16 +183,16 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
     # bind the command_sender socket
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("inproc://requests", bind = True)
     result_receiver = Connect("inproc://results", bind = True)
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -196,17 +202,17 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
         request_receiver, result_sender, callback, command_receiver))
     worker.daemon = True
     worker.start()
-    executor.Put(2)
-    self.assertEqual(200, executor.Get())
+    manager.Put(2)
+    self.assertEqual(200, manager.Get())
     # tear down the worker
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
-  # test that map works
+  # test that PutMany()/GetMany() works
   def test_map(self):
     use_threading = True
     callback = lambda x: x * 100
@@ -214,16 +220,16 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
     # bind the command_sender socket
     command_sender = context.socket(zmq.PUB)
     command_sender.bind("inproc://commands")
-    # launch the cluster executor
+    # launch the cluster manager
     #   request_sender and result_receiver bind
     #   command_receiver connects
     request_sender = Connect("inproc://requests", bind = True)
     result_receiver = Connect("inproc://results", bind = True)
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
-    executor = ClusterExecutor(context, request_sender, result_receiver,
+    manager = ClusterManager(context, request_sender, result_receiver,
         command_sender, command_receiver, use_threading = use_threading)
-    executor.Setup()
+    manager.Setup()
     time.sleep(1)
     # launch the worker
     #   all sockets connect
@@ -234,16 +240,18 @@ class TestClusterExecutor_Threaded(unittest.TestCase):
     worker.daemon = True
     worker.start()
     xs = range(10)
-    expected = map(callback, xs)
-    actual = sorted(StaticMap(executor, xs))
-    self.assertEqual(expected, actual)
+    put_size = manager.PutMany(xs)
+    self.assertEqual(len(xs), put_size)
+    expected_ys = map(callback, xs)
+    actual_ys = sorted(manager.GetMany(len(xs)))
+    self.assertEqual(expected_ys, actual_ys)
     # tear down the worker
     Worker.SendKillCommand(context, command_sender)
     worker.join(100)
     self.assertFalse(worker.is_alive())
-    # tear down the cluster executor
-    executor.Shutdown()
-    self.assertFalse(executor.sink.is_alive())
+    # tear down the cluster manager
+    manager.Shutdown()
+    self.assertFalse(manager.sink.is_alive())
 
 if __name__ == '__main__':
 
@@ -252,7 +260,7 @@ if __name__ == '__main__':
 
   # Uncomment the following to run a subset of tests.
   #~ suite = unittest.TestLoader().loadTestsFromTestCase(
-      #~ TestClusterExecutor_Multicore)
+      #~ TestClusterManager_Multicore)
   #~ unittest.TextTestRunner(verbosity=2).run(suite)
 
   unittest.main()

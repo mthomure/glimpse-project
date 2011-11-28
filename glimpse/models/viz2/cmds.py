@@ -7,17 +7,18 @@
 from glimpse import backends
 from glimpse.models import viz2
 from glimpse import util
+import itertools
 
-def Main(mapper, args):
+def Main(pool, args):
   try:
     if len(args) < 1:
       raise util.UsageException()
     cmd = args[0].lower()
     args = args[1:]
     if cmd == "imprint":
-      Imprint(mapper, args)
+      Imprint(pool, args)
     elif cmd == "transform":
-      Transform(mapper, args)
+      Transform(pool, args)
     else:
       raise util.UsageException("Unknown command: %s" % cmd)
   except util.UsageException, e:
@@ -30,7 +31,7 @@ def MakeInputStates(model, image_files, read_image_data):
         for state in input_states ]
   return input_states
 
-def Transform(mapper, args):
+def Transform(pool, args):
   try:
     output_layer = viz2.Layer.C1
     save_all = False
@@ -52,19 +53,19 @@ def Transform(mapper, args):
     transform = viz2.ModelTransform(model, output_layer, save_all)
     input_states = MakeInputStates(model, args, read_image_data)
     # Map the transform over the image filenames.
-    output_states = mapper.Map(transform, input_states, stream = True)
+    output_states = pool.imap_unordered(transform, input_states)
     map(util.Store, output_states)  # write state to stdout
   except util.UsageException, e:
     util.Usage("[options] IMAGE ... > RESULT-STREAM.dat\n"
         "  -l LAYR  Transform image through LAYR (r, s1, c1, s2, c2, it)"
         " (default: %s)\n" % output_layer + \
-        "  -r       Read image data from disk before passing to mapper (only \n"
-        "           useful for cluster mapper)\n"
+        "  -r       Read image data from disk before passing to map (only\n"
+        "           useful for cluster pool)\n"
         "  -s       Save activity for all model layers, instead of just the \n"
         "           output layer"
         , e)
 
-def Imprint(mapper, args):
+def Imprint(pool, args):
   try:
     save_locations = False
     normalize = True
@@ -86,17 +87,19 @@ def Imprint(mapper, args):
     sampler = viz2.C1PatchSampler(model, num_prototypes, normalize)
     input_states = MakeInputStates(model, args, read_image_data)
     # Map the sampler over the image filenames.
-    proto_it = mapper.Map(sampler, input_states, stream = True)
+    protos_per_image = pool.imap_unordered(sampler, input_states)
+    # We get a list of prototypes for each image. Chain them together.
+    protos = itertools.chain(*protos_per_image)
     if save_locations:
-      map(util.Store, proto_it)  # write patch activity and location to stdout
+      map(util.Store, protos)  # write patch activity and location to stdout
     else:
-      for proto, location in proto_it:
+      for proto, location in protos:
         util.Store(proto)  # write only patch activity, using stdout
   except util.UsageException, e:
     util.Usage("[options] IMAGE ... > RESULT-STREAM.dat\n"
         "  -l       Save location of C1 patches, along with model activity\n"
         "  -n NUM   Imprint NUM prototypes (default: %d)\n" % num_prototypes + \
-        "  -r       Read image data from disk before passing to mapper (only \n"
-        "           useful for cluster mapper)\n"
+        "  -r       Read image data from disk before passing to map (only \n"
+        "           useful for cluster pool)\n"
         "  -N       Disable normalization of C1 patches"
         , e)

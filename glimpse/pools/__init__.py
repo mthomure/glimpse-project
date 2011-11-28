@@ -3,3 +3,5 @@
 #
 # Please see the file COPYING in this distribution for usage
 # terms.
+
+from misc import MulticorePool, SinglecorePool
