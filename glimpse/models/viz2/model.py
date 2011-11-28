@@ -32,7 +32,7 @@ class Layer(object):
 
   @staticmethod
   def FromName(name):
-    names = name.lower()
+    name = name.lower()
     for layer in Layer.__LAYERS:
       if layer.name.lower() == name:
         return layer
