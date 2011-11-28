@@ -36,13 +36,16 @@ def Transform(pool, args):
     output_layer = viz2.Layer.C1
     save_all = False
     read_image_data = False
-    opts, args = util.GetOptions("l:rs", args = args)
+    opts, args = util.GetOptions("l:p:rs", args = args)
+    s2_prototypes = None
     for opt, arg in opts:
       if opt == '-l':
         try:
           output_layer = viz2.Layer.FromName(arg)
         except ValueError:
           raise util.UsageException("Unknown model layer: %s" % arg)
+      elif opt == '-p':
+        s2_prototypes = util.Load(arg)
       elif opt == '-r':
         read_image_data = True
       elif opt == '-s':
@@ -50,6 +53,7 @@ def Transform(pool, args):
     if len(args) < 1:
       raise util.UsageException()
     model = viz2.Model(backends.CythonBackend(), viz2.Params())
+    model.s2_kernels = s2_prototypes
     transform = viz2.ModelTransform(model, output_layer, save_all)
     input_states = MakeInputStates(model, args, read_image_data)
     # Map the transform over the image filenames.
@@ -59,6 +63,7 @@ def Transform(pool, args):
     util.Usage("[options] IMAGE ... > RESULT-STREAM.dat\n"
         "  -l LAYR  Transform image through LAYR (r, s1, c1, s2, c2, it)"
         " (default: %s)\n" % output_layer + \
+        "  -p FILE  Read S2 prototypes from FILE\n"
         "  -r       Read image data from disk before passing to map (only\n"
         "           useful for cluster pool)\n"
         "  -s       Save activity for all model layers, instead of just the \n"
