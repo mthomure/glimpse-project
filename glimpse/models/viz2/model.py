@@ -171,25 +171,28 @@ class Model(ModelOps):
     self._BuildLayerHelper(layer, output_state)
     return output_state
 
-#### EXECUTOR FUNCTIONS ####
+#### FUNCTION OBJECTS ####
 
 class C1PatchSampler(object):
   """Represents a model state transformation through C1, which then extracts
   patches from randomly-sampled locations and scales."""
 
-  def __init__(self, model, num_patches, normalize = False):
+  def __init__(self, model, samples_per_image, normalize = False):
     """Create new object.
     model -- (Model) Viz2 model instantiation to use when computing C1 activity
-    num_patches -- (int) number of patches to extract
+    samples_per_image -- (int) number of patches to extract from each image
     """
-    self.model, self.num_patches, self.normalize = model, num_patches, normalize
+    self.model, self.samples_per_image, self.normalize = model, \
+        samples_per_image, normalize
 
   def __call__(self, state):
-    """Transform between model states."""
+    """Transform an input model state to an output state.
+    RETURN list of (prototype, sample location) pairs
+    """
     state = self.model.BuildLayer(state, Layer.C1)
     c1s = state[Layer.C1.id].activity
     proto_it = SampleC1Patches(c1s, kwidth = self.model._params.s2_kwidth)
-    protos = list(itertools.islice(proto_it, self.num_patches))
+    protos = list(itertools.islice(proto_it, self.samples_per_image))
     if self.normalize:
       for proto, location in protos:
         proto /= np.linalg.norm(proto)
