@@ -25,11 +25,9 @@ def Main(pool, args):
     util.Usage("[imprint|transform]", e)
 
 def MakeInputStates(model, image_files, read_image_data):
-  input_states = map(viz2.State, map(viz2.InputSource, image_files))
   if read_image_data:
-    input_states = [ model.BuildLayer(state, viz2.Layer.IMAGE)
-        for state in input_states ]
-  return input_states
+    return [ model.MakeStateFromImage(Image.open(f)) for f in image_files ]
+  return map(model.MakeStateFromFilename, image_files)
 
 def Transform(pool, args):
   try:
