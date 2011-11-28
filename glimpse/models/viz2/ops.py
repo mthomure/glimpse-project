@@ -34,6 +34,9 @@ class ModelOps(object):
 
   @s1_kernels.setter
   def s1_kernels(self, kernels):
+    if kernels == None:
+      self._s1_kernels = None
+      return
     p = self._params
     expected_shape = (p.num_scales, p.s1_num_orientations, p.s1_num_phases,
         p.s1_kwidth, p.s1_kwidth)
@@ -49,6 +52,9 @@ class ModelOps(object):
 
   @s2_kernels.setter
   def s2_kernels(self, kernels):
+    if kernels == None:
+      self._s2_kernels = None
+      return
     p = self._params
     expected_shape = p.s1_num_orientations, p.s2_kwidth, p.s2_kwidth
     if kernels.shape[1:] != expected_shape:
