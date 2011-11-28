@@ -111,6 +111,7 @@ class Model(ModelOps):
     return (Layer.IMAGE, Layer.RETINA, Layer.S1, Layer.C1, Layer.S2, Layer.C2,
         Layer.IT)
 
+  # TODO consider making these static methods
   def MakeStateFromFilename(self, filename):
     return State(InputSource(filename))
 
@@ -170,6 +171,15 @@ class Model(ModelOps):
     # Recursively compute activity up through the given layer
     self._BuildLayerHelper(layer, output_state)
     return output_state
+
+  # Links to model-specific implementations of common functions and classes.
+  def C1PatchSampler(self, *args, **kwargs):
+    return C1PatchSampler(self, *args, **kwargs)
+
+  def ModelTransform(self, *args, **kwargs):
+    return ModelTransform(self, *args, **kwargs)
+
+  Layer = Layer
 
 #### FUNCTION OBJECTS ####
 
