@@ -59,32 +59,6 @@ if profiler:
 
 #### Do Not Edit Below This Line ####
 
-ext = Extension(
-  "glimpse.core.c_src",
-  [
-    "glimpse/core/c_src.pyx",
-    "glimpse/core/c_src/array.cpp",
-    "glimpse/core/c_src/bitset_array.cpp",
-    "glimpse/core/c_src/retinal_layer.cpp",
-    "glimpse/core/c_src/simple_layer.cpp",
-    "glimpse/core/c_src/complex_layer.cpp",
-    "glimpse/core/c_src/util.cpp",
-  ],
-  depends = [
-    "glimpse/core/c_src/array.h",
-    "glimpse/core/c_src/bitset_array.h",
-    "glimpse/core/c_src/retinal_layer.h",
-    "glimpse/core/c_src/simple_layer.h",
-    "glimpse/core/c_src/complex_layer.h",
-    "glimpse/core/c_src/util.h",
-  ],
-  language = "c++",
-  extra_compile_args = extra_compile_args,
-  extra_link_args = extra_link_args,
-  define_macros = define_macros,
-  undef_macros = undef_macros,
-)
-
 cython_backend_ext = Extension(
   "glimpse.backends.cython_backend.filter",
   [
@@ -115,7 +89,7 @@ setup(
   author_email = "thomure@cs.pdx.edu",
   cmdclass = {'build_ext': build_ext},
 
-  ext_modules = [ ext, cython_backend_ext ],
-  packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend', 'glimpse.core', 'glimpse.models', 'glimpse.util' ],
+  ext_modules = [ cython_backend_ext ],
+  packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend', 'glimpse.models', 'glimpse.util' ],
   include_dirs = [ numpy.get_include() ],
 )
