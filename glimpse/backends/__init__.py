@@ -6,3 +6,7 @@
 
 from cython_backend import CythonBackend
 from scipy_backend import ScipyBackend
+
+def ChooseBackend():
+  """Return an instance for the best available backend."""
+  return CythonBackend()
