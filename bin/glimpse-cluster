@@ -6,6 +6,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.glimpse_cluster import main
+from glimpse.pools.cluster.main import main
 
 main()
