@@ -63,12 +63,13 @@ def PruneArray(data, kernel_shape, scaling):
 
 class ScipyBackend(object):
 
-  def ContrastEnhance(self, data, kwidth, bias, scaling):
+  def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):
     """Apply local contrast stretch to an array.
     data -- (2-D) array of input data
     kwidth -- (int) kernel width
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     assert data.ndim == 2
     kshape = (kwidth, kwidth)
@@ -81,11 +82,12 @@ class ScipyBackend(object):
     result = (data - mu) / sigma
     return PruneArray(result, kshape, scaling)
 
-  def DotProduct(self, data, kernels, scaling):
+  def DotProduct(self, data, kernels, scaling, out = None):
     """Convolve an array with a set of kernels.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     assert data.ndim == 3
     assert kernels.ndim == 4
@@ -95,7 +97,7 @@ class ScipyBackend(object):
     output_bands = PruneArray(output_bands, kernels.shape, scaling)
     return output_bands
 
-  def NormDotProduct(self, data, kernels, bias, scaling):
+  def NormDotProduct(self, data, kernels, bias, scaling, out = None):
     """Convolve an array with a set of kernels, normalizing the response by the
     vector length of the input neighborhood.
     data -- (3-D) array of input data
@@ -103,6 +105,7 @@ class ScipyBackend(object):
               have unit vector length
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     assert data.ndim == 3
     assert kernels.ndim == 4
@@ -121,14 +124,18 @@ class ScipyBackend(object):
     for k, o in zip(kernels, output_bands):
       Op(k, o)
     output_bands = PruneArray(output_bands, kernels.shape, scaling)
+    if out != None:
+      out[:] = output_bands.flat
+      return out
     return output_bands
 
-  def Rbf(self, data, kernels, beta, scaling):
+  def Rbf(self, data, kernels, beta, scaling, out = None):
     """Compare kernels to input data using the RBF activation function.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     assert data.ndim == 3
     assert kernels.ndim == 4
@@ -149,9 +156,12 @@ class ScipyBackend(object):
     for k, o in zip(kernels, output_bands):
       Op(k, o)
     output_bands = PruneArray(output_bands, kernels.shape, scaling)
+    if out != None:
+      out[:] = output_bands.flat
+      return out
     return output_bands
 
-  def NormRbf(self, data, kernels, bias, beta, scaling):
+  def NormRbf(self, data, kernels, bias, beta, scaling, out = None):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
     data -- (3-D) array of input data
@@ -160,16 +170,21 @@ class ScipyBackend(object):
     bias -- (float) additive term in denominator
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     nd = self.NormDotProduct(data, kernels, bias, scaling)
     y = np.exp(-2 * beta * (1 - nd))
+    if out != None:
+      out[:] = y.flat
+      return out
     return y
 
-  def LocalMax(self, data, kwidth, scaling):
+  def LocalMax(self, data, kwidth, scaling, out = None):
     """Convolve maps with local 2-D max filter.
     data -- (3-D) array of input data
     kwidth -- (positive int) kernel width
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
@@ -177,15 +192,20 @@ class ScipyBackend(object):
     output = np.empty_like(data)
     for d, o in zip(data, output):
       maximum_filter(d, kshape, output = o)
-    return PruneArray(output, kshape, scaling)
+    output_bands = PruneArray(output, kshape, scaling)
+    if out != None:
+      out[:] = output_bands.flat
+      return out
+    return output_bands
 
-  def GlobalMax(self, data):
+  def GlobalMax(self, data, out = None):
     """Find the per-band maxima.
     data -- (3-D) array of input data
+    out -- (2-D) array in which to store result
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
-    return data.reshape(data.shape[0], -1).max(1)
+    return data.reshape(data.shape[0], -1).max(1, out)
 
   def OutputMapShapeForInput(self, kheight, kwidth, scaling, iheight, iwidth):
     """Given an input map with the given dimensions, compute the shape of the
