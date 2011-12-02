@@ -15,128 +15,113 @@ import numpy as np
 from ops import ModelOps
 
 class Layer(object):
-  IMAGE = LayerSpec(0, "image")
-  RETINA = LayerSpec(1, "retina", IMAGE)
-  S1 = LayerSpec(2, "S1", RETINA)
-  C1 = LayerSpec(3, "C1", S1)
-  S2 = LayerSpec(4, "S2", C1)
-  C2 = LayerSpec(5, "C2", S2)
-  IT = LayerSpec(6, "IT", C2)
 
-  __LAYERS = (IMAGE, RETINA, S1, C1, S2, C2, IT)
+  SOURCE = LayerSpec("s", "source")
+  IMAGE = LayerSpec("i", "image", SOURCE)
+  RETINA = LayerSpec("r", "retina", IMAGE)
+  S1 = LayerSpec("s1", "S1", RETINA)
+  C1 = LayerSpec("c1", "C1", S1)
+  S2 = LayerSpec("s2", "S2", C1)
+  C2 = LayerSpec("c2", "C2", S2)
+  IT = LayerSpec("it", "IT", C2)
+
+  __LAYERS = { SOURCE.id : SOURCE, IMAGE.id : IMAGE, RETINA.id : RETINA,
+      S1.id : S1, C1.id : C1, S2.id : S2, C2.id : C2, IT.id : IT }
+
   @staticmethod
   def FromId(id):
-    if id < 0 or id >= len(Layer.__LAYERS):
-      raise ValueError("Unknown layer id: %s" % id)
-    return Layer.__LAYERS[id]
+    layer = Layer.__LAYERS.get(id, None)
+    if layer == None:
+      raise ValueError("Unknown layer id: %r" % id)
+    return layer
 
   @staticmethod
   def FromName(name):
-    name = name.lower()
-    for layer in Layer.__LAYERS:
-      if layer.name.lower() == name:
+    # Here we perform a linear search, rather than use a dictionary, since we
+    # want a case-insensitive comparison. This should be fine, since this method
+    # is not called often.
+    name_ = name.lower()
+    for layer in Layer.AllLayers():
+      if layer.name.lower() == name_:
         return layer
     raise ValueError("Unknown layer name: %s" % name)
 
   @staticmethod
-  def Layers():
-    return Layer.__LAYERS
-
-class LayerData(object):
-  """Container for data of layer that only generates unit activities."""
-
-  # Activity for all units in this layer. This is either a single 2-D array (in
-  # the case of IMAGE and RETINA layers), or a list of N-D arrays (in all other
-  # cases).
-  activity = None
-
-  def __init__(self, activity = None):
-    self.activity = activity
-
-  def __repr__(self):
-    return "LayerData(%r)" % (self.activity,)
-
-  def __eq__(self, other):
-    if not isinstance(other, LayerData):
-      return False
-    # Compare single-scale layers
-    if isinstance(self.activity, np.ndarray):
-      return np.all(self.activity == other.activity)
-    # Compare multi-scale layers
-    return np.all(s == o for s, o in zip(self.activity, other.activity))
+  def AllLayers():
+    """Return the unordered set of all layers."""
+    return Layer.__LAYERS.values()
 
 class State(dict):
-  """Stores data for all Viz2 model layers. All elements should be instances of
-  LayerData. Layer output is not stored directly in the state object, so that
-  it is clear when a layer has been computed. Data is indexed by layer ID."""
-
-  # The input. Should be an instance of InputSource.
-  source = None
-
-  def __init__(self, source = None):
-    self.source = source
+  """A container for the model state. The main purpose of extending the
+  dictionary (instead of just storing states as dictionary objects) is to
+  indicate with which model a given state is associated. Similarly, each model
+  has a seperate State object, so it is always clear which model generated a
+  given state object."""
 
   def __str__(self):
-    return "State(source=%s, data=[%s])" % (self.source,
+    return "%s(%s)" % (util.TypeName(self),
         ", ".join(map(str, self.keys())))
 
   def __repr__(self):
-    reps = {}
-    for k in self.keys():
-      if k in (Layer.IMAGE.id, Layer.RETINA.id):
-        # Data for image and retinal layers is single 2-D map.
-        reps[k] = self[k].activity.shape
-      else:
-        # Data for other layers is sequence of N-D maps.
-        reps[k] = ", ".join(str(scale.shape) for scale in self[k].activity)
+    reps = dict((k, repr(v)) for k, v in self.items())
     if len(reps.keys()) > 0:
-      data = "{%s\n}" % "".join("\n  %s = %s(%s)" % \
-          (k, Layer.FromId(k).name, reps[k]) for k in reps.keys())
+      data = "%s\n" % "".join("\n  %s = %s" % \
+          (Layer.FromId(k).name, reps[k]) for k in reps.keys())
     else:
-      data = "no data"
-    return "State(source=%s, %s)" % (self.source, data)
+      data = ""
+    return "%s(%s)" % (util.TypeName(self), data)
 
   def __eq__(self, other):
-    if not (isinstance(other, State) and self.source == other.source):
+    if not isinstance(other, type(self)):
       return False
     if set(self.keys()) != set(other.keys()):
       return False
-    return np.all([ self[k] == other[k] for k in self ])
+    for k in self:
+      a, b = self[k], other[k]
+      if isinstance(a, np.ndarray):
+        # Compare single-scale layers
+        return np.all(a, b)
+      # Compare multi-scale layers
+      return np.all(a_ == b_ for a_, b_ in zip(a, b))
 
 class Model(ModelOps):
   """The Viz2 model. This class adds support for computing an arbitrary layer
   from a given initial model state."""
 
-  def GetLayers(self):
-    return (Layer.IMAGE, Layer.RETINA, Layer.S1, Layer.C1, Layer.S2, Layer.C2,
-        Layer.IT)
-
-  # TODO consider making these static methods
   def MakeStateFromFilename(self, filename):
-    return State(InputSource(filename))
+    """Create a model state with a single SOURCE layer.
+    filename -- (str) path to an image file
+    RETURN (State) the new model state
+    """
+    state = self.State()
+    state[self.Layer.SOURCE.id] = InputSource(filename)
+    return state
 
   def MakeStateFromImage(self, image):
-    state = State()
-    state[Layer.IMAGE.id] = LayerData(self.BuildImageFromInput(image))
+    """Create a model state with a single IMAGE layer.
+    image -- Image or (2-D) array of input data. If array, values should lie in
+             the range [0, 1].
+    RETURN (State) the new model state
+    """
+    state = self.State()
+    state[self.Layer.IMAGE.id] = self.BuildImageFromInput(image)
     return state
 
   def _ComputeLayerActivity(self, layer, input_layers):
     # Note that the input layers are indexed by ID, not layer object. This is
     # done to allow a copied layer object to be passed to BuildLayer().
     if layer == Layer.RETINA:
-      return LayerData(self.BuildRetinaFromImage(
-          input_layers[Layer.IMAGE.id].activity))
+      return self.BuildRetinaFromImage(input_layers[Layer.IMAGE.id])
     elif layer == Layer.S1:
-      return LayerData(self.BuildS1FromRetina(
-          input_layers[Layer.RETINA.id].activity))
+      return self.BuildS1FromRetina(input_layers[Layer.RETINA.id])
     elif layer == Layer.C1:
-      return LayerData(self.BuildC1FromS1(input_layers[Layer.S1.id].activity))
+      return self.BuildC1FromS1(input_layers[Layer.S1.id])
     elif layer == Layer.S2:
-      return LayerData(self.BuildS2FromC1(input_layers[Layer.C1.id].activity))
+      return self.BuildS2FromC1(input_layers[Layer.C1.id])
     elif layer == Layer.C2:
-      return LayerData(self.BuildC2FromS2(input_layers[Layer.S2.id].activity))
+      return self.BuildC2FromS2(input_layers[Layer.S2.id])
     elif layer == Layer.IT:
-      return LayerData(self.BuildItFromC2(input_layers[Layer.C2.id].activity))
+      return self.BuildItFromC2(input_layers[Layer.C2.id])
     raise ValueError("Can't compute activity for layer: %s" % layer.name)
 
   def _BuildLayerHelper(self, layer, state):
@@ -146,11 +131,11 @@ class Model(ModelOps):
       return state
     # Handle image layer as special case
     if layer == Layer.IMAGE:
-      if state.source == None:
+      if Layer.SOURCE.id not in state:
         raise DependencyException("Can't build image layer without input "
             "source.")
-      img = state.source.CreateImage()
-      state[Layer.IMAGE.id] = LayerData(self.BuildImageFromInput(img))
+      img = state[Layer.SOURCE.id].CreateImage()
+      state[Layer.IMAGE.id] = self.BuildImageFromInput(img)
     # Handle all layers above the image layer.
     else:
       # Compute any dependencies
@@ -200,7 +185,7 @@ class C1PatchSampler(object):
     RETURN list of (prototype, sample location) pairs
     """
     state = self.model.BuildLayer(state, Layer.C1)
-    c1s = state[Layer.C1.id].activity
+    c1s = state[Layer.C1.id]
     proto_it = SampleC1Patches(c1s, kwidth = self.model._params.s2_kwidth)
     protos = list(itertools.islice(proto_it, self.samples_per_image))
     if self.normalize:
