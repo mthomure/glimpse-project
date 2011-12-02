@@ -14,7 +14,8 @@ import random
 class LayerSpec(object):
   """Describes a single layer in a model."""
 
-  # A unique (within a given model) identifier for the layer.
+  # A unique (within a given model) identifier for the layer. Not necessarily
+  # numeric.
   id = 0
 
   # A user-friendly name for the layer.
@@ -23,14 +24,14 @@ class LayerSpec(object):
   # Parents whose data is required to compute this layer.
   depends = []
 
-  def __init__(self, id = 0, name = None, *depends):
+  def __init__(self, id, name = None, *depends):
     self.id, self.name, self.depends = id, name, depends
 
   def __str__(self):
     return self.name
 
   def __repr__(self):
-    return "LayerSpec(name=%s, depends=[%s])" % (self.name,
+    return "LayerSpec(id=%s, name=%s, depends=[%s])" % (self.id, self.name,
         ", ".join(map(str, self.depends)))
 
   def __eq__(self, other):
@@ -98,3 +99,44 @@ def SampleC1Patches(c1s, kwidth):
     x = random.randint(0, width - kwidth)
     patch = c1[ :, y : y + kwidth, x : x + kwidth ]
     yield patch.copy(), (scale, y, x)
+
+class DependencyError(Exception):
+  """Indicates that a dependency required to build a node in the network is
+  unavailable."""
+
+class AbstractNetwork(object):
+
+  def BuildSingleNode(self, output_id, state):
+    """Constructs a given node from one or more pre-computed input nodes.
+    output_id -- unique (at least in this network) identifier for output node
+    input_values -- (dict) set of node data for inputs (will not be modified)
+    RETURN scalar output value for node
+    """
+    raise NotImplemented
+
+  def GetDependencies(self, output_id):
+    """Encodes the dependency structure for each node in the network, providing
+    identifiers for the set of inputs required to build a given output node.
+    output_id -- unique identifier for output node
+    RETURN (list) identifiers of required input nodes
+    """
+    raise NotImplemented
+
+  def BuildNode(self, output_id, state):
+    """Construct the given output value, recursively building required
+    dependencies. A node is considered to be "built" if the node's key is set in
+    the state dictionary, even if the corresponding value is None.
+    output_id -- unique identifier for the node to compute
+    state -- (dict) current state of the network, which may be used to store the
+             updated network state.
+    RETURN (dict) the final state of the network, which is guaranteed to
+           contain a value for the output node.
+    """
+    # Short-circuit computation if data exists
+    if output_id not in state:
+      # Compute any dependencies
+      for node in self.GetDependencies(output_id):
+        state = self.BuildNode(node, state)
+      # Compute the output node
+      state[output_id] = self.BuildSingleNode(output_id, state)
+    return state

@@ -9,7 +9,9 @@
 
 import copy
 import logging
-from glimpse.models.misc import LayerSpec, SampleC1Patches, InputSource
+from glimpse.models.misc import LayerSpec, InputSource, SampleC1Patches, \
+    DependencyError, AbstractNetwork
+from glimpse import util
 import itertools
 import numpy as np
 from ops import ModelOps
@@ -84,9 +86,84 @@ class State(dict):
       # Compare multi-scale layers
       return np.all(a_ == b_ for a_, b_ in zip(a, b))
 
-class Model(ModelOps):
+class Model(ModelOps, AbstractNetwork):
   """The Viz2 model. This class adds support for computing an arbitrary layer
   from a given initial model state."""
+
+  # The datatype associated with network states for this model.
+  State = State
+
+  # The datatype associated with layer descriptors for this model.
+  Layer = Layer
+
+  def BuildSingleNode(self, output_id, state):
+    L = self.Layer
+    if output_id == L.SOURCE.id:
+      raise DependencyError
+    elif output_id == L.IMAGE.id:
+      return self.BuildImageFromInput(state[L.SOURCE.id].CreateImage())
+    elif output_id == L.RETINA.id:
+      return self.BuildRetinaFromImage(state[L.IMAGE.id])
+    elif output_id == L.S1.id:
+      return self.BuildS1FromRetina(state[L.RETINA.id])
+    elif output_id == L.C1.id:
+      return self.BuildC1FromS1(state[L.S1.id])
+    elif output_id == L.S2.id:
+      return self.BuildS2FromC1(state[L.C1.id])
+    elif output_id == L.C2.id:
+      return self.BuildC2FromS2(state[L.S2.id])
+    elif output_id == L.IT.id:
+      return self.BuildItFromC2(state[L.C2.id])
+    raise ValueError("Unknown layer ID: %r" % output_id)
+
+  def GetDependencies(self, output_id):
+    return [ l.id for l in self.Layer.FromId(output_id).depends ]
+
+  def BuildLayer(self, output_layer, state, save_all = True):
+    """Apply the model through the given layer. This is just a helper for
+    AbstractNetwork.BuildNode().
+    output_layer -- (Layer or id) output layer to compute
+    state -- (State) initial model state from which to compute the output layer
+    save_all -- (bool) whether the resulting state should contain values for all
+                computed layers in the network, or just the output layer.
+    """
+    state = copy.copy(state)  # get a shallow copy of the model state
+    if isinstance(output_layer, LayerSpec):
+      output_layer = output_layer.id
+    state = self.BuildNode(output_layer, state)
+    if not save_all:
+      logging.info("BuildLayer: sparsifying result")
+      state_ = State()
+      # Keep output layer data
+      state_[output_layer] = state[output_layer]
+      # Keep source information
+      if self.Layer.SOURCE.id in state:
+        state_[self.Layer.SOURCE.id] = state[self.Layer.SOURCE.id]
+      state = state_
+    return state
+
+  def BuildLayerCallback(self, output_layer, save_all = True):
+    if isinstance(output_layer, LayerSpec):
+      output_layer = output_layer.id
+    return LayerBuilder(self, output_layer, save_all)
+
+  def SampleC1Patches(self, num_patches, state, normalize = False):
+    """Compute C1 activity and sample a patches from random locations and
+    scales.
+    num_patches -- (int) number of patches to extract
+    normalize -- (bool) whether to normalize each C1 patch
+    """
+    state = self.BuildLayer(self.Layer.C1, state)
+    c1s = state[self.Layer.C1.id]
+    patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
+    patches = list(itertools.islice(patch_it, num_patches))
+    if normalize:
+      for patch, location in patches:
+        patch /= np.linalg.norm(patch)
+    return patches
+
+  def SampleC1PatchesCallback(self, num_patches, normalize = False):
+    return C1PatchSampler(self, num_patches, normalize)
 
   def MakeStateFromFilename(self, filename):
     """Create a model state with a single SOURCE layer.
@@ -107,117 +184,53 @@ class Model(ModelOps):
     state[self.Layer.IMAGE.id] = self.BuildImageFromInput(image)
     return state
 
-  def _ComputeLayerActivity(self, layer, input_layers):
-    # Note that the input layers are indexed by ID, not layer object. This is
-    # done to allow a copied layer object to be passed to BuildLayer().
-    if layer == Layer.RETINA:
-      return self.BuildRetinaFromImage(input_layers[Layer.IMAGE.id])
-    elif layer == Layer.S1:
-      return self.BuildS1FromRetina(input_layers[Layer.RETINA.id])
-    elif layer == Layer.C1:
-      return self.BuildC1FromS1(input_layers[Layer.S1.id])
-    elif layer == Layer.S2:
-      return self.BuildS2FromC1(input_layers[Layer.C1.id])
-    elif layer == Layer.C2:
-      return self.BuildC2FromS2(input_layers[Layer.S2.id])
-    elif layer == Layer.IT:
-      return self.BuildItFromC2(input_layers[Layer.C2.id])
-    raise ValueError("Can't compute activity for layer: %s" % layer.name)
+# Add (circular) Model reference to State class.
+State.Model = Model
 
-  def _BuildLayerHelper(self, layer, state):
-    """Recursively fulfills dependencies by building parent layers."""
-    # Short-circuit computation if data exists
-    if layer.id in state and state[layer.id] != None:
-      return state
-    # Handle image layer as special case
-    if layer == Layer.IMAGE:
-      if Layer.SOURCE.id not in state:
-        raise DependencyException("Can't build image layer without input "
-            "source.")
-      img = state[Layer.SOURCE.id].CreateImage()
-      state[Layer.IMAGE.id] = self.BuildImageFromInput(img)
-    # Handle all layers above the image layer.
-    else:
-      # Compute any dependencies
-      for parent_layer in layer.depends:
-        self._BuildLayerHelper(parent_layer, state)
-      input_layers = dict((x.id, state[x.id]) for x in layer.depends)
-      # Compute requested layer
-      state[layer.id] = self._ComputeLayerActivity(layer, input_layers)
+class LayerBuilder(object):
+  """Represents a serializable function that computes a network state
+  transformation, computing the value of some network layer and any required
+  dependencies."""
 
-  def BuildLayer(self, input_state, layer):
-    """Apply the model through the given layer.
-    input_state -- (State) initial data for the model (e.g., an image, or
-                   activity for an intermediate layer).
-    layer -- (Layer) identifier of output layer to compute
-    """
-    # Perform shallow copy of existing state
-    output_state = copy.copy(input_state)
-    # Recursively compute activity up through the given layer
-    self._BuildLayerHelper(layer, output_state)
-    return output_state
-
-  # Links to model-specific implementations of common functions and classes.
-  def C1PatchSampler(self, *args, **kwargs):
-    return C1PatchSampler(self, *args, **kwargs)
-
-  def ModelTransform(self, *args, **kwargs):
-    return ModelTransform(self, *args, **kwargs)
-
-  Layer = Layer
-
-#### FUNCTION OBJECTS ####
-
-class C1PatchSampler(object):
-  """Represents a model state transformation through C1, which then extracts
-  patches from randomly-sampled locations and scales."""
-
-  def __init__(self, model, samples_per_image, normalize = False):
-    """Create new object.
-    model -- (Model) Viz2 model instantiation to use when computing C1 activity
-    samples_per_image -- (int) number of patches to extract from each image
-    """
-    self.model, self.samples_per_image, self.normalize = model, \
-        samples_per_image, normalize
-
-  def __call__(self, state):
-    """Transform an input model state to an output state.
-    RETURN list of (prototype, sample location) pairs
-    """
-    state = self.model.BuildLayer(state, Layer.C1)
-    c1s = state[Layer.C1.id]
-    proto_it = SampleC1Patches(c1s, kwidth = self.model._params.s2_kwidth)
-    protos = list(itertools.islice(proto_it, self.samples_per_image))
-    if self.normalize:
-      for proto, location in protos:
-        proto /= np.linalg.norm(proto)
-    return protos
-
-class ModelTransform(object):
-  """Represents a model state transformation that computes through some model
-  layer."""
-
-  def __init__(self, model, layer, save_all = True):
+  def __init__(self, model, output_layer_id, save_all = True):
     """Create a new object.
-    model -- the model to use when computing layer activity
-    layer -- highest layer in model to compute
-    save_all -- (bool) whether transform should save all computed layers in the
-                result, or just the output layer.
+    model -- (Model) the model to use when computing layer activity
+    output_layer_id -- (scalar) highest layer in model to compute
+    save_all -- (bool) whether the resulting state should contain values for all
+                computed layers in the network, or just the output layer.
     """
-    self.model, self.layer, self.save_all = model, layer, save_all
+    self.model, self.output_layer_id, self.save_all = model, output_layer_id, \
+        save_all
 
   def __call__(self, state):
-    """Transform between model states."""
-    state = self.model.BuildLayer(state, self.layer)
-    if not self.save_all:
-      logging.info("ModelTransform: sparsifying result")
-      for layer_id in state.keys():
-        if layer_id != self.layer.id:
-          del state[layer_id]
-    return state
+    """Transform between network states."""
+    return self.model.BuildLayer(self.output_layer_id, state, self.save_all)
 
   def __str__(self):
-    return "ModelTransform(model=%s, layer=%s, save_all=%s)" % (self.model,
-        self.layer, self.save_all)
+    return "%s(model=%s, output_layer=%s, save_all=%s)" % (util.TypeName(self),
+        type(self.model), self.output_layer, self.save_all)
 
-  __repr__ = __str__
+  def __repr__(self):
+    return "%s(model=%s, output_layer=%s, save_all=%s)" % (util.TypeName(self),
+        self.model, self.output_layer, self.save_all)
+
+class C1PatchSampler(object):
+  """Represents a serializable function that computes a network state
+  transformation for feedforward S->C layer networks. This function computes C1
+  activity and then extracts patches from randomly-sampled locations and
+  scales."""
+
+  def __init__(self, model, num_patches, normalize = False):
+    """Create new object.
+    model -- (Model) Viz2 model instantiation to use when computing C1 activity
+    num_patches -- (int) number of patches to extract
+    normalize -- (bool) whether to normalize each C1 patch
+    """
+    self.model, self.num_patches, self.normalize = model, num_patches, normalize
+
+  def __call__(self, state):
+    """Transform an input model state to a set of C1 patches.
+    state -- (State) input model state
+    RETURN list of (patch, sample location) pairs
+    """
+    return self.model.SampleC1Patches(self.num_patches, state, self.normalize)

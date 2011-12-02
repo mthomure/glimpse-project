@@ -30,8 +30,8 @@ class Params(traits.HasStrictTraits):
 
   s1_bias = traits.Range(low = 0., value = 1., label = "S1 Bias",
       desc = "beta parameter of RBF for S1 cells")
-  s1_beta = traits.Range(low = 0., value = 1., exclude_low = True, label = "S1 Beta",
-      desc = "term added to the norm of the input vector")
+  s1_beta = traits.Range(low = 0., value = 1., exclude_low = True,
+      label = "S1 Beta", desc = "term added to the norm of the input vector")
   s1_kwidth = KWidth(11, label = "S1 Kernel Width",
       desc = "spatial width of input neighborhood for S1 units")
   s1_num_orientations = traits.Range(low = 1, value = 8,
@@ -54,8 +54,8 @@ class Params(traits.HasStrictTraits):
   c1_whiten = traits.Bool(True, label = "C1 Whiten",
       desc = "whether to normalize the total energy at each C1 location")
 
-  s2_beta = traits.Range(low = 0., value = 5., exclude_low = True, label = "S2 Beta",
-      desc = "beta parameter of RBF for S1 cells")
+  s2_beta = traits.Range(low = 0., value = 5., exclude_low = True,
+      label = "S2 Beta", desc = "beta parameter of RBF for S1 cells")
   # Default value is configured to match distribution of C1 norm under
   # whitening.
   s2_bias = traits.Range(low = 0., value = 0.1, label = "S2 Bias",
@@ -81,3 +81,5 @@ class Params(traits.HasStrictTraits):
     # Format set of traits as a string.
     return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
         getattr(self, tn)) for tn in traits)
+
+  __repr__ = __str__

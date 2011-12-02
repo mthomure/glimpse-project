@@ -5,27 +5,58 @@
 # terms.
 
 import copy
+from glimpse import backends
 from glimpse.models.misc import ImageLayerFromInputArray, SampleC1Patches
 from glimpse.util import kernel
 from glimpse.util import ACTIVATION_DTYPE
 import numpy as np
+from params import Params
 
 class ModelOps(object):
-  """Base class for the Viz2 model. This class implements all single-layer
-  transformations."""
+  """Base class for a Glimpse model based on PANN. This class implements all
+  single-layer transformations."""
 
-  def __init__(self, backend, params):
-    self._backend = copy.copy(backend)
-    self._params = copy.copy(params)
+  # The parameters type associated with this model.
+  Params = Params
+
+  def __init__(self, backend = None, params = None):
+    """Create new object.
+    backend -- (implements IBackend) implementation of backend operations, such
+               as dot-products
+    params -- (Params) model configuration, such as S-unit kernel widths
+    """
+    if backend == None:
+      backend = backends.ChooseBackend()
+    else:
+      backend = copy.copy(backend)
+    if params == None:
+      params = self.Params()
+    else:
+      if not isinstance(params, self.Params):
+        raise ValueError("Params object has wrong type: expected %s, got %s" % \
+            (self.Params, type(params)))
+      params = copy.copy(params)
+    self.backend = backend
+    self.params = params
     self._s1_kernels = None
     self._s2_kernels = None
+
+  @property
+  def s1_kernel_shape(self):
+    """Get the expected shape of the S1 kernels array (i.e., includes band
+    structure).
+    RETURN (tuple) expected shape
+    """
+    p = self.params
+    return p.num_scales, p.s1_num_orientations, p.s1_num_phases, p.s1_kwidth, \
+        p.s1_kwidth
 
   @property
   def s1_kernels(self):
     """Get the S1 kernels array, generating it if unset."""
     # if kernels array is empty, then generate it using current model parameters
     if self._s1_kernels == None:
-      p = self._params
+      p = self.params
       self._s1_kernels = kernel.MakeMultiScaleGaborKernels(
         kwidth = p.s1_kwidth, num_scales = p.num_scales,
         num_orientations = p.s1_num_orientations, num_phases = p.s1_num_phases,
@@ -37,14 +68,20 @@ class ModelOps(object):
     if kernels == None:
       self._s1_kernels = None
       return
-    p = self._params
-    expected_shape = (p.num_scales, p.s1_num_orientations, p.s1_num_phases,
-        p.s1_kwidth, p.s1_kwidth)
-    if kernels.shape != expected_shape:
+    if kernels.shape != self.s1_kernel_shape:
       raise ValueError("S1 kernels have wrong shape: expected %s, got %s" % \
-          (expected_shape, kernels.shape))
+          (self.s1_kernel_shape, kernels.shape))
     else:
       self._s1_kernels = kernels.astype(ACTIVATION_DTYPE)
+
+  @property
+  def s2_kernel_shape(self):
+    """Get the expected shape of a single S2 kernel (i.e., this does not include
+    band structure).
+    RETURN (tuple) expected shape
+    """
+    p = self.params
+    return p.s1_num_orientations, p.s2_kwidth, p.s2_kwidth
 
   @property
   def s2_kernels(self):
@@ -55,14 +92,17 @@ class ModelOps(object):
     if kernels == None:
       self._s2_kernels = None
       return
-    p = self._params
-    expected_shape = p.s1_num_orientations, p.s2_kwidth, p.s2_kwidth
-    if kernels.shape[1:] != expected_shape:
+    # Check kernel shape
+    if kernels.shape[1:] != self.s2_kernel_shape:
       raise ValueError("S2 kernels have wrong shape: expected "
-          " (*, %s, %s, %s), got %s" % (expected_shape + \
+          " (*, %s, %s, %s), got %s" % (self.s2_kernel_shape + \
           [kernels.shape]))
-    else:
-      self._s2_kernels = kernels.astype(ACTIVATION_DTYPE)
+    # Check kernel values
+    if not np.allclose(np.array(map(np.linalg.norm, kernels)), 1):
+      raise ValueError("S2 kernels are not normalized")
+    if np.isnan(kernels).any():
+      raise ValueError("S2 kernels contain NaN")
+    self._s2_kernels = kernels.astype(ACTIVATION_DTYPE)
 
   def BuildImageFromInput(self, input_):
     """Create the initial image layer from some input.
@@ -70,13 +110,13 @@ class ModelOps(object):
               the range [0, 1].
     RETURNS (2-D) array containing image layer data
     """
-    return ImageLayerFromInputArray(input_, self._backend)
+    return ImageLayerFromInputArray(input_, self.backend)
 
   def BuildRetinaFromImage(self, img):
-    p = self._params
+    p = self.params
     if not p.retina_enabled:
       return img
-    retina = self._backend.ContrastEnhance(img, kwidth = p.retina_kwidth,
+    retina = self.backend.ContrastEnhance(img, kwidth = p.retina_kwidth,
         bias = p.retina_bias, scaling = 1)
     return retina
 
@@ -86,27 +126,22 @@ class ModelOps(object):
     RETURNS list of (4-D) S1 activity arrays, with one array per scale
     """
     # Reshape retina to be 3D array
-    p = self._params
+    p = self.params
     retina_ = retina.reshape((1,) + retina.shape)
     # Reshape kernel array to be 4-D: scale, index, 1, y, x
-    s1_kernels = self.s1_kernels.reshape((p.num_scales, -1, 1, p.s1_kwidth,
-        p.s1_kwidth))
-    s1s = []
-    for scale in range(p.num_scales):
-      ks = s1_kernels[scale]
-      s1_ = self._backend.NormRbf(retina_, ks, bias = p.s1_bias,
-          beta = p.s1_beta, scaling = p.s1_scaling)
-      # Reshape S1 to be 4D array
-      s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
-          s1_.shape[-2:])
-      # Pool over phase.
-      s1 = s1.max(1)
-      s1s.append(s1)
-    return s1s
+    s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
+    s1_ = self.backend.NormRbf(retina_, s1_kernels, bias = p.s1_bias,
+        beta = p.s1_beta, scaling = p.s1_scaling)
+    # Reshape S1 to be 5D array
+    s1 = s1_.reshape((p.num_scales, p.s1_num_orientations, p.s1_num_phases) + \
+        s1_.shape[-2:])
+    # Pool over phase.
+    s1 = s1.max(2)
+    return s1
 
   def BuildC1FromS1(self, s1s):
-    p = self._params
-    c1s = [ self._backend.LocalMax(s1, kwidth = p.c1_kwidth,
+    p = self.params
+    c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
         scaling = p.c1_scaling) for s1 in s1s ]
     if p.c1_whiten:
       #~ # DEBUG: use this to whiten over orientation only
@@ -124,44 +159,28 @@ class ModelOps(object):
     if self.s2_kernels == None:
       raise Exception("Need S2 kernels to compute S2 layer activity, but none "
           "were specified.")
-    CheckPrototypes(self.s2_kernels)
-    p = self._params
-    s2s = []
+    p = self.params
+    # Get the shape of each S2 map
+    s2_shape = self.backend.OutputMapShapeForInput(p.s2_kwidth, p.s2_kwidth,
+        p.s2_scaling, c1s.shape[-2], c1s.shape[-1])
+    # Get the shape of the full S2 activity array
+    s2_shape = (p.num_scales, len(self.s2_kernels)) + s2_shape
+    s2s = np.empty(s2_shape, ACTIVATION_DTYPE)
     for scale in range(p.num_scales):
       c1 = c1s[scale]
-      s2 = self._backend.NormRbf(c1, self.s2_kernels, bias = p.s2_bias,
-          beta = p.s2_beta, scaling = p.s2_scaling)
-      s2s.append(s2)
+      s2 = s2s[scale]
+      self.backend.NormRbf(c1, self.s2_kernels, bias = p.s2_bias,
+          beta = p.s2_beta, scaling = p.s2_scaling, out = s2)
     return s2s
 
   def BuildC2FromS2(self, s2s):
-    c2s = map(self._backend.GlobalMax, s2s)
+    c2s = map(self.backend.GlobalMax, s2s)
+    c2s = np.array(c2s, ACTIVATION_DTYPE)
     return c2s
 
   def BuildItFromC2(self, c2s):
     it = np.array(c2s).max(0)
     return it
-
-  def ImprintPrototypes(self, c1s, num_prototypes):
-    """Compute C1 activity maps and sample patches from random locations.
-    input_ -- (Image or 2-D array) unprocessed image data
-    num_prototype -- (positive int) number of prototypes to imprint
-    RETURNS list of prototypes, and list of corresponding locations.
-    """
-    proto_it = SampleC1Patches(c1s, kwidth = self._params.s2_kwidth)
-    protos = list(itertools.islice(proto_it, num_prototypes))
-    for proto, loc in protos:
-      proto /= np.linalg.norm(proto)
-    return zip(*protos)
-
-def CheckPrototypes(prototypes):
-  assert prototypes != None
-  if len(prototypes.shape) == 3:
-    prototypes = prototypes.reshape((1,) + prototypes.shape)
-  assert np.allclose(np.array(map(np.linalg.norm, prototypes)), 1), \
-      "Internal error: S2 prototypes are not normalized"
-  assert not np.isnan(prototypes).any(), \
-      "Internal error: found NaN in imprinted prototype."
 
 def Whiten(data):
   data -= data.mean(0)
