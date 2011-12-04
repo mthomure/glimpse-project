@@ -5,13 +5,27 @@
 # terms.
 
 from manager import ClusterManager
-from glimpse.util.zmq_cluster import Connect, Worker
+from glimpse.util.zmq_cluster import Connect, BasicWorker
 import logging
 import threading
 import multiprocessing
 import time
 import unittest
 import zmq
+
+RECEIVER_TIMEOUT = None
+
+class Worker(BasicWorker):
+
+  def __init__(self, context, request_receiver, result_sender, request_handler,
+      command_receiver = None, receiver_timeout = None):
+    super(Worker, self).__init__(context, request_receiver, result_sender,
+        command_receiver, receiver_timeout)
+    self.request_handler = request_handler
+
+  def HandleRequest(self, request):
+    result = self.request_handler(request)
+    return result
 
 def WorkerProcessTarget(request_receiver, result_sender, callback,
     command_receiver):
@@ -37,7 +51,8 @@ class TestClusterManager_Multicore(unittest.TestCase):
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker
@@ -71,7 +86,8 @@ class TestClusterManager_Multicore(unittest.TestCase):
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker
@@ -107,7 +123,8 @@ class TestClusterManager_Multicore(unittest.TestCase):
     command_receiver = Connect("ipc://commands.ipc",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker
@@ -156,7 +173,8 @@ class TestClusterManager_Threaded(unittest.TestCase):
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker
@@ -191,7 +209,8 @@ class TestClusterManager_Threaded(unittest.TestCase):
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker
@@ -228,7 +247,8 @@ class TestClusterManager_Threaded(unittest.TestCase):
     command_receiver = Connect("inproc://commands",
         options = {zmq.SUBSCRIBE : ""})  # subscribe to all command messages
     manager = ClusterManager(context, request_sender, result_receiver,
-        command_sender, command_receiver, use_threading = use_threading)
+        command_sender, command_receiver, use_threading = use_threading,
+        receiver_timeout = RECEIVER_TIMEOUT)
     manager.Setup()
     time.sleep(1)
     # launch the worker

@@ -6,15 +6,16 @@
 
 # A command-line interface for managing a cluster of Glimpse workers.
 
-from glimpse.pools.cluster import LaunchBrokers, LaunchWorker, \
-    KillWorkers, ClusterConfig, ConfigException
+from .misc import LaunchBrokers, LaunchWorker, KillWorkers, PingWorkers
+from .config import ClusterConfig, ConfigException
+#~ from glimpse.pools.cluster import LaunchBrokers, LaunchWorker, \
+    #~ KillWorkers, PingWorkers, ClusterConfig, ConfigException
 from glimpse import util
 import sys
 
-def Methods():
-  return map(eval, ("LaunchBrokers", "LaunchWorker", "KillWorkers"))
-
 def main():
+  methods = map(eval, ("LaunchBrokers", "LaunchWorker", "KillWorkers",
+      "PingWorkers"))
   try:
     config_files = tuple()
     opts, args = util.GetOptions("c:v")
@@ -34,11 +35,11 @@ def main():
   except ConfigException, e:
     sys.exit("Configuration error: %s" % e)
   except util.UsageException, e:
-    methods = [ "  %s -- %s" % (m.func_name, m.__doc__.splitlines()[0])
-        for m in Methods() ]
+    method_info = [ "  %s -- %s" % (m.func_name, m.__doc__.splitlines()[0])
+        for m in methods ]
     util.Usage("[options] CMD [ARGS]\n"
         "  -c FILE   Read socket configuration from FILE\n"
-        "CMDs include:\n" + "\n".join(methods),
+        "CMDs include:\n" + "\n".join(method_info),
         e)
 
 if __name__ == "__main__":

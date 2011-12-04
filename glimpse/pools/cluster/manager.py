@@ -5,7 +5,7 @@
 # terms.
 
 from glimpse.util import zmq_cluster
-from glimpse.util.zmq_cluster import Connect, ReceiverTimeoutException, Worker
+from glimpse.util.zmq_cluster import Connect, ReceiverTimeoutException
 import itertools
 import logging
 import multiprocessing
@@ -15,16 +15,18 @@ import time
 import zmq
 
 def _SinkTarget(out_queue, result_receiver, command_receiver = None,
-    result_modifier = None, context = None):
+    result_modifier = None, context = None, receiver_timeout = None):
   """Waits for worker results, applies a function to each result, and posts the
   output to shared queue.
   context -- (zmq.Context, optional) this is set for threaded sinks only
+  receiver_timeout -- (int) time to wait for a result before quiting
   """
   # TODO: figure out how to pass a WorkerException back to the main process.
   logging.info("SinkTarget: starting up on pid %d" % os.getpid())
   if context == None:
     context = zmq.Context()
-  sink = zmq_cluster.Sink(context, result_receiver, command_receiver)
+  sink = zmq_cluster.Sink(context, result_receiver,
+      command_receiver = command_receiver, receiver_timeout = receiver_timeout)
   sink.Setup()
   logging.info("SinkTarget: about to receive")
   # Get an iterator over results. this will terminate when sink gets QUIT
@@ -54,7 +56,8 @@ class ClusterManager(object):
   SENTINEL = "DONE"
 
   def __init__(self, context, request_sender, result_receiver, command_sender,
-      command_receiver, result_modifier = None, use_threading = False):
+      command_receiver, result_modifier = None, use_threading = False,
+      receiver_timeout = None):
     """Create a new object.
     context -- (zmq.Context)
     request_sender -- (zmq.socket or Connect) channel for sending requests to
@@ -76,6 +79,7 @@ class ClusterManager(object):
                        modifier function is called.
     use_threading -- (bool) whether sink messages should be handled on a
                      seperate thread, rather than a sub-process.
+    receiver_timeout -- (int) time to wait for a result before quiting
     """
     self.request_sender = request_sender
     self.result_receiver = result_receiver
@@ -84,6 +88,7 @@ class ClusterManager(object):
     self.result_modifier = result_modifier
     self.context = context
     self.use_threading = use_threading
+    self.receiver_timeout = receiver_timeout
     self.in_queue = multiprocessing.Queue()
     self.out_queue = multiprocessing.Queue()
     self.ventilator = None
@@ -96,12 +101,14 @@ class ClusterManager(object):
     self.ventilator.Setup()
     args = (self.out_queue, self.result_receiver, self.command_receiver,
         self.result_modifier)
+    kwargs = {"receiver_timeout" : self.receiver_timeout}
     if self.use_threading:
       logging.info("ClusterManager: starting sink as thread")
       # Share context with threaded sink (required to avoid "connection denied"
       # errors).
+      kwargs["context"] = self.context
       self.sink = threading.Thread(target = _SinkTarget, args = args,
-          kwargs = {"context" : self.context}, name = "SinkThread")
+          kwargs = kwargs, name = "SinkThread")
     else:
       logging.info("ClusterManager: starting sink as process")
       # Do not share context with sub-process sink (this would be an error).

@@ -6,6 +6,18 @@
 
 import multiprocessing
 
+class IPool(object):
+  """The interface of a worker pool interface."""
+
+  def map(self, func, iterable, chunksize = None):
+    raise NotImplemented
+
+  def imap(self, func, iterable, chunksize = 1):
+    raise NotImplemented
+
+  def imap_unordered(self, func, iterable, chunksize = 1):
+    raise NotImplemented
+
 class SinglecorePool(object):
 
   def map(self, func, iterable, chunksize = None):
@@ -18,7 +30,8 @@ class SinglecorePool(object):
     return map(func, iterable)
 
 class MulticorePool(object):
-  """Thin wrapper around multiprocessing.Pool that supports serialization."""
+  """Thin wrapper around multiprocessing.Pool that supports serialization. If
+  serialization is not required, it is easier to use the base class directly."""
 
   def __init__(self, *args):
     """Create new object. See multiprocessing.Pool() for explanation of
@@ -39,3 +52,9 @@ class MulticorePool(object):
 
   def imap_unordered(self, func, iterable, chunksize = 1):
     return self.pool.imap_unordered(func, iterable, chunksize)
+
+def MakePool():
+  """Return an instance for the best available worker pool.
+  RETURN a serializable worker pool
+  """
+  return MulticorePool()

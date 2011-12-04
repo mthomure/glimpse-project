@@ -20,43 +20,55 @@ class ClusterConfig(object):
   [DEFAULT]
 
   # Default socket used to send and receive task requests.
-  request_url = ...
+  request_url = String
 
   # Whether to bind (rather than connect) the request socket.
   request_bind = Boolean, default False
 
   # Default socket used to send and receive task results.
-  request_url = ...
+  result_url = String
 
   # Whether to bind the result socket.
   result_bind = Boolean, default False
 
   # Default socket used to send and receive commands.
-  command_url = ...
+  command_url = String
 
   # Whether to bind the command socket.
   command_bind = Boolean, default False
 
+  # Default socket used to send and receive command responses.
+  command_response_url = String
+
+  # Whether to bind the command-response socket.
+  command_response_bind = Boolean, default False
+
   [READER]
 
   # Socket used by worker to receive requests.
-  request_url = ...
+  request_url = String
 
   # Whether to bind (rather than connect) the request socket. See the zmq
   # library for details.
   request_bind = Boolean, default False
 
   # Socket used by sink to receive results.
-  request_url = ...
+  request_url = String
 
   # Whether to bind the result socket.
   result_bind = Boolean, default False
 
   # Socket used by sink and by workers to receive commands.
-  command_url = ...
+  command_url = String
 
-  # Whether to bind the sink/worker command socket.
+  # Whether to bind the incoming sink/worker command socket.
   command_bind = Boolean, default False
+
+  # Socket used by sink and workers to send command responses.
+  command_response_url = String
+
+  # Whether to bind the outgoing sink/worker command-response socket.
+  command_response_bind = Boolean, default False
 
   [WRITER]
 
@@ -68,16 +80,22 @@ class ClusterConfig(object):
   request_bind = Boolean, default False
 
   # Socket used by worker to send results.
-  result_url = ...
+  result_url = String
 
   # Whether to bind the worker's result socket.
   result_bind = Boolean, default False
 
   # Outgoing socket used to send commands to sink and workers.
-  command_url = ...
+  command_url = String
 
   # Whether to bind the outgoing command socket.
   command_bind = Boolean, default False
+
+  # Incoming socket used to receive command responses from sink and workers.
+  command_response_url = String
+
+  # Whether to bind the incoming command socket.
+  command_response_bind = Boolean, default False
 
   [BROKER]
 
@@ -98,6 +116,12 @@ class ClusterConfig(object):
 
   # Socket used to send commands to workers and sink.
   command_backend_url = String
+
+  # Socket used to receive command responses from sink and workers.
+  command_response_frontend_url = String
+
+  # Socket used to send command responses to user.
+  command_response_backend_url = String
   """
 
   def __init__(self, *config_files):
@@ -109,9 +133,11 @@ class ClusterConfig(object):
     self.config.set('DEFAULT', 'request_url', '')
     self.config.set('DEFAULT', 'result_url', '')
     self.config.set('DEFAULT', 'command_url', '')
+    self.config.set('DEFAULT', 'command_response_url', '')
     self.config.set('DEFAULT', 'request_bind', 'False')
     self.config.set('DEFAULT', 'result_bind', 'False')
     self.config.set('DEFAULT', 'command_bind', 'False')
+    self.config.set('DEFAULT', 'command_response_bind', 'False')
     self.config.add_section('READER')
     self.config.add_section('WRITER')
     # Read the specified config files
@@ -131,8 +157,9 @@ class ClusterConfig(object):
     return Connect(url = self.config.get(section, '%s_url' % name),
         bind = bool(self.config.getboolean(section, '%s_bind' % name)))
 
-  def HasCommandChannel(self):
-    return self.config.get('WRITER', 'command_url') != ""
+  def HasCommandChannels(self):
+    return self.config.get('WRITER', 'command_url') != "" and \
+        self.config.get('WRITER', 'command_response_url') != ""
 
   @property
   def request_sender(self):
@@ -161,6 +188,18 @@ class ClusterConfig(object):
     if self.config.get('READER', 'command_url') == "":
       return None
     return self._getConnect('READER', 'command')
+
+  @property
+  def command_response_sender(self):
+    if self.config.get('WRITER', 'command_response_url') == "":
+      return None
+    return self._getConnect('WRITER', 'command_response')
+
+  @property
+  def command_response_receiver(self):
+    if self.config.get('READER', 'command_response_url') == "":
+      return None
+    return self._getConnect('READER', 'command_response')
 
   def _getBrokerConnect(self, name):
     if not self.config.has_section('BROKER'):
@@ -191,3 +230,11 @@ class ClusterConfig(object):
   @property
   def command_backend(self):
     return self._getBrokerConnect('command_backend')
+
+  @property
+  def command_response_frontend(self):
+    return self._getBrokerConnect('command_response_frontend')
+
+  @property
+  def command_response_backend(self):
+    return self._getBrokerConnect('command_response_backend')

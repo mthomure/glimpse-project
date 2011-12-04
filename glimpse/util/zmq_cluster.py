@@ -162,17 +162,18 @@ class BasicSink(object):
                                   # the sink.
 
   def __init__(self, context, result_receiver, command_receiver = None,
-      receive_timeout = None):
+      receiver_timeout = None):
     """Create a new Sink object.
     result_receiver -- (zmq.socket or Connect) channel on which to receive
                        results
     command_receiver -- (zmq.socket or Connect, optional) channel on which to
                         receive quit command
+    receiver_timeout -- (int) time to wait for a result before quiting
     """
     self.context = context
     self.result_receiver = result_receiver
     self.command_receiver = command_receiver
-    self.receive_timeout = receive_timeout
+    self.receiver_timeout = receiver_timeout
     self._ready = False
 
   def Setup(self):
@@ -214,7 +215,7 @@ class BasicSink(object):
       self.Setup()
     idx = 0
     if timeout == None:
-      timeout = self.receive_timeout
+      timeout = self.receiver_timeout
     while True:
       if num_results != None and idx >= num_results:
         break
@@ -281,36 +282,34 @@ class Sink(BasicSink):
       yield result.payload
     raise StopIteration
 
-class Worker(object):
-
-  # TODO: figure out how to make cluster worker run multiple threads/procs?
+class BasicWorker(object):
 
   CMD_KILL = "CLUSTER_WORKER_KILL"  # Send this to the command socket to shut
                                     # down the worker.
 
-  def __init__(self, context, request_receiver, result_sender, request_handler,
+  def __init__(self, context, request_receiver, result_sender,
       command_receiver = None, receiver_timeout = None):
     """Handles requests that arrive on a socket, writing results to another
     socket.
+    context -- (zmq.Context) context used to create sockets
     request_receiver -- (Connect) channel for receiving incoming requests
     result_sender -- (Connect) channel for sending results
-    request_handler -- (callable) function to convert a request to a result
-    command_receiver -- (zmq.socket or Connect) channel for receiving kill
-                        commands
-    context -- (zmq.Context) context used to create sockets. set for threaded
-               workers only.
+    command_receiver -- (zmq.socket or Connect) channel for receiving commands
+    receiver_timeout -- (int) how long to wait for a request or command before
+                        quiting. If not set, wait indefinitely.
     """
     self.context, self.request_receiver, self.result_sender, \
-        self.request_handler, self.command_receiver, \
-        self.receiver_timeout = context, request_receiver, result_sender, \
-        request_handler, command_receiver, receiver_timeout
+        self.command_receiver, self.receiver_timeout = context, \
+        request_receiver, result_sender, command_receiver, \
+        receiver_timeout
     self.receiver = None
 
   def Setup(self):
-    logging.info("Worker: starting worker on pid %s" % os.getpid())
-    logging.info("Worker:   receiver: %s" % self.request_receiver)
-    logging.info("Worker:   command: %s" % self.command_receiver)
-    logging.info("Worker:   sender: %s" % self.result_sender)
+    logging.info("BasicWorker: starting worker on pid %s at %s" % (os.getpid(),
+        time.asctime()))
+    logging.info("BasicWorker:   receiver: %s" % self.request_receiver)
+    logging.info("BasicWorker:   command: %s" % self.command_receiver)
+    logging.info("BasicWorker:   sender: %s" % self.result_sender)
     # Set up the sockets
     self.receiver = self.request_receiver.MakeSocket(self.context,
         type = zmq.PULL)
@@ -323,7 +322,7 @@ class Worker(object):
       self.poller.register(self.cmd_subscriber, zmq.POLLIN)
     else:
       self.cmd_subscriber = None
-    logging.info("Worker: bound at pid %d" % os.getpid())
+    logging.info("BasicWorker: bound at pid %d" % os.getpid())
 
   def Run(self):
     if self.receiver == None:
@@ -337,44 +336,54 @@ class Worker(object):
         request = self.receiver.recv_pyobj()
 
         try:
-          logging.info("Worker: received batch request with %d arguments" % len(request[1]))
-          logging.info("Worker: passing batch to handler %s" % (self.request_handler,))
+          logging.info("BasicWorker: received batch request with %d arguments" \
+              % len(request[1]))
         except TypeError:
           pass
 
         result = ClusterResult()
         try:
           # Apply user request_handler to the request
-          result.payload = self.request_handler(request)
+          result.payload = self.HandleRequest(request)
           result.status = ClusterResult.STATUS_SUCCESS
         except Exception, e:
-          logging.info(("Worker: caught exception %s from request " % e) + \
-              "processor")
+          logging.info(("BasicWorker: caught exception %s from " % e) + \
+              "request processor")
           result.exception = e
           result.status = ClusterResult.STATUS_FAIL
         self.sender.send_pyobj(result)
       if self.cmd_subscriber in socks:
         cmd = self.cmd_subscriber.recv_pyobj()
-        logging.info("Worker: got cmd %s on pid %d" % (cmd, os.getpid()))
-        if cmd == Worker.CMD_KILL:
-          logging.info("Worker: quiting on pid %d" % os.getpid())
+        logging.info("BasicWorker: got cmd %s on pid %d" % (cmd, os.getpid()))
+        if self.HandleCommand(cmd):
+          logging.info("BasicWorker: quiting on pid %d" % os.getpid())
           break
+
+  def HandleRequest(self, request):
+    return request
+
+  def HandleCommand(self, command):
+    finish = False
+    if command == BasicWorker.CMD_KILL:
+      logging.info("BasicWorker: received kill command")
+      finish = True
+    return finish
 
   @staticmethod
   def SendKillCommand(context, command_sender):
     """Send a kill command to all workers on a given channel.
     command_sender -- (zmq.socket or Connect)
     """
-    logging.info("Worker: sending kill command")
-    logging.info("Worker:   command: %s" % command_sender)
+    logging.info("BasicWorker: sending kill command")
+    logging.info("BasicWorker:   command: %s" % command_sender)
     if isinstance(command_sender, Connect):
       commands = command_sender.MakeSocket(context, type = zmq.PUB)
     else:
       commands = command_sender
     time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
                    # all subscribers get the QUIT message.
-    commands.send_pyobj(Worker.CMD_KILL)
-    logging.info("Worker: sent kill command")
+    commands.send_pyobj(BasicWorker.CMD_KILL)
+    logging.info("BasicWorker: sent kill command")
 
 def LaunchStreamerDevice(context, frontend_connect, backend_connect):
   frontend = frontend_connect.MakeSocket(context, type = zmq.PULL, bind = True)

@@ -5,8 +5,11 @@
 # terms.
 
 from glimpse import util
+from glimpse.pools import MakePool
 import itertools
+import logging
 from manager import ClusterManager
+from glimpse.util.zmq_cluster import BasicWorker
 import zmq
 
 class ClusterPool(object):
@@ -56,3 +59,21 @@ class ClusterPool(object):
     result_groups = self.manager.GetMany(num_requests)
     # unchunk result groups
     return util.UngroupIterator(result_groups)
+
+class PoolWorker(BasicWorker):
+
+  def __init__(self, context, config, receiver_timeout = None, pool = None):
+    super(PoolWorker, self).__init__(context, config.request_receiver,
+      config.result_sender, command_receiver = config.command_receiver,
+      receiver_timeout = receiver_timeout)
+    if pool == None:
+      pool = MakePool()
+    self.pool = pool
+
+  def HandleRequest(self, dynamic_batch_request):
+    """Convert a dynamic batch request to a batch result."""
+    function, batch_request = dynamic_batch_request
+    logging.info("PoolWorker: mapping function across "
+        "%d elements" % len(batch_request))
+    result_list = self.pool.map(function, batch_request)
+    return result_list  # return batch result

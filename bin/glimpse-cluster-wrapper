@@ -1,0 +1,46 @@
+#!/bin/bash
+
+set -e
+
+GLIMPSE_HOME=$(dirname $0)/..
+HOST=$(hostname)
+
+cd $GLIMPSE_HOME
+JOBDIR=run/glimpse-cluster/${HOST}
+
+function Run {
+  # Log the process ID of the script.
+  echo $$ > $JOBDIR/worker.pid
+  # Log the process group ID if possible.
+  if [[ -d /proc ]]; then
+    # Get current script's PGID
+    echo $(ps -p $BASHPID h -o pgid) > $JOBDIR/worker.pgid
+    # Kill the command with
+    #   pkill -g $(cat $JOBDIR/worker.pgid)
+    # Note: this does not work on OSX.
+  fi
+
+  # Decrease our priority.
+  renice 10 $$
+
+  # Run the worker, relaunching if it dies with an error.
+  while ! bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker; do
+    echo "GLIMPSE-CLUSTER-WRAPPER: restarting"
+  done 1>$JOBDIR/worker.log 2>$JOBDIR/worker.err
+}
+
+if [[ "$#" < 1 ]]; then
+  echo "usage: $0 START|KILL" 1>&2
+  exit -1
+fi
+
+CMD=$1
+
+if [[ "$CMD" == "START" ]]; then
+  Run 1>$JOBDIR/worker-launcher.log 2>$JOBDIR/worker-launcher.err
+elif [[ "$CMD" == "KILL" ]]; then
+  pkill -g $(cat $JOBDIR/worker.pgid)
+else
+  echo "Unknown command: $CMD" 1>&2
+  exit -1
+fi
