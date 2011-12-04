@@ -91,7 +91,7 @@ setup(
 
   ext_modules = [ cython_backend_ext ],
   packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend',
-      'glimpse.models', 'glimpse.models.viz2', 'glimpse.pools',
-      'glimpse.pools.cluster', 'glimpse.util' ],
+      'glimpse.models', 'glimpse.models.viz2', 'glimpse.models.mutch_and_lowe',
+      'glimpse.pools', 'glimpse.pools.cluster', 'glimpse.util' ],
   include_dirs = [ numpy.get_include() ],
 )
