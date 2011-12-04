@@ -26,7 +26,7 @@ class ModelOps(object):
     params -- (Params) model configuration, such as S-unit kernel widths
     """
     if backend == None:
-      backend = backends.ChooseBackend()
+      backend = backends.MakeBackend()
     else:
       backend = copy.copy(backend)
     if params == None:

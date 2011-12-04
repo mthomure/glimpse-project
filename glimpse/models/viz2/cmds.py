@@ -7,7 +7,9 @@
 from glimpse import backends
 from model import Model
 from glimpse import util
+import Image
 import itertools
+import numpy as np
 import sys
 
 def Transform(model_class, pool, args):
@@ -86,6 +88,8 @@ def Imprint(model_class, pool, args):
         save_locations = True
       if opt == '-n':
         num_prototypes = int(arg)
+        if num_prototypes <= 0:
+          raise util.UsageException("Number of prototypes must be positive")
       elif opt == '-N':
         normalize = False
       elif opt == '-o':
@@ -102,29 +106,27 @@ def Imprint(model_class, pool, args):
         "  -N       Disable normalization of C1 patches\n"
         "  -o FILE  Read model options from FILE\n"
         "  -r       Read image data from disk before passing to map (only \n"
-        "           useful for cluster pool)\n"
+        "           useful for cluster pool)"
         , e)
   if params == None:
     params = model_class.Params()
   if edit_params:
     params.configure_traits()
   model = model_class(backends.CythonBackend(), params)
-  sampler = model.SampleC1PatchesCallback(num_prototypes, normalize)
   # Construct the input states.
   if read_image_data:
     input_states = [ model.MakeStateFromImage(Image.open(f))
         for f in image_files ]
   else:
     input_states = map(model.MakeStateFromFilename, image_files)
-  # Map the sampler over the image filenames.
-  protos_per_image = pool.imap_unordered(sampler, input_states)
-  # We get a list of prototypes for each image. Chain them together.
-  protos = itertools.chain(*protos_per_image)
+  prototypes, locations = model.ImprintS2Prototypes(num_prototypes,
+      input_states, normalize = normalize, pool = pool)
   if save_locations:
-    map(util.Store, protos)  # write patch activity and location to stdout
+    # write patch activity and location to stdout
+    util.Store((prototypes, locations))
   else:
-    for proto, location in protos:
-      util.Store(proto)  # write only patch activity, using stdout
+    # write only patch activity, using stdout
+    util.Store(prototypes)
 
 def EditParams(model_class, pool, args):
   """Configure a set of model parameters using a GUI."""

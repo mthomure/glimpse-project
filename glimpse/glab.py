@@ -44,7 +44,7 @@ SetCorpus("indir/corpus")
 
 from glimpse import backends
 from glimpse.models import viz2
-from glimpse import util
+from glimpse import pools, util
 import itertools
 import numpy as np
 import operator
@@ -59,53 +59,18 @@ def ChainLists(*iterables):
   """Concatenate several sequences to form a single list."""
   return list(itertools.chain(*iterables))
 
-#~ class SinglecorePool(object):
-#~
-  #~ def map(self, func, iterable, chunksize = None):
-    #~ return map(func, iterable)
-#~
-  #~ def imap(self, func, iterable, chunksize = 1):
-    #~ return map(func, iterable)
-#~
-  #~ def imap_unordered(self, func, iterable, chunksize = 1):
-    #~ return map(func, iterable)
-#~
-#~ class MulticorePool(object):
-  #~ """Thin wrapper around multiprocessing.Pool that supports serialization."""
-#~
-  #~ def __init__(self, *args):
-    #~ """Create new object. See multiprocessing.Pool() for explanation of
-    #~ arguments."""
-    #~ # Save the initialization arguments, so we can serialize and then
-    #~ # reconstruct this object later.
-    #~ self._init_args = args
-    #~ import multiprocessing
-    #~ self.pool = multiprocessing.Pool(*args)
-#~
-  #~ def __reduce__(self):
-    #~ return (MulticorePool, self._init_args)
-#~
-  #~ def map(self, func, iterable, chunksize = None):
-    #~ return self.pool.map(func, iterable, chunksize)
-#~
-  #~ def imap(self, func, iterable, chunksize = 1):
-    #~ return self.pool.imap(func, iterable, chunksize)
-#~
-  #~ def imap_unordered(self, func, iterable, chunksize = 1):
-    #~ return self.pool.imap_unordered(func, iterable, chunksize)
-
 class Experiment(object):
 
   def __init__(self, model = None, pool = None, layer = None):
     """Create a new experiment.
     model -- the Glimpse model to use for processing images
-    pool -- a serializable worker pool (default is a MulticorePool)
+    pool -- a serializable worker pool
     layer -- (LayerSpec or str) the layer activity to use for features vectors
     """
     if model == None:
       model = Model()
     if pool == None:
-      pool = MulticorePool()
+      pool = pools.MakePool()
     if layer == None:
       layer = model.Layer.IT
     elif isinstance(layer, str):
@@ -153,25 +118,13 @@ class Experiment(object):
       sys.exit("Please specify the training corpus before calling "
           "ImprintS2Prototypes().")
     image_files = ChainLists(*self.train_images)
-    patches_per_image, extra = divmod(num_prototypes, len(image_files))
-    if extra > 0:
-      patches_per_image += 1
-    sampler = self.model.C1PatchSampler(patches_per_image, normalize = True)
     # Represent each image file as an empty model state.
     input_states = map(self.model.MakeStateFromFilename, image_files)
-    # Compute C1 activity, and sample patches.
-    values_per_image = self.pool.imap_unordered(sampler, input_states)
-    # Concatenate values from each image.
-    all_values = list(itertools.chain(*values_per_image))
-    # Ignore the imprint locations.
-    all_prototypes = map(operator.itemgetter(0), all_values)
-    # We may have sampled too many C1 patches, so truncate the list.
-    all_prototypes = all_prototypes[:num_prototypes]
-    # Convert to numpy array.
-    all_prototypes = np.array(all_prototypes, util.ACTIVATION_DTYPE)
+    prototypes, _ = self.model.ImprintS2Prototypes(num_prototypes,
+        input_states, normalize = True, pool = self.pool)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
-    self.model.s2_kernels = all_prototypes
+    self.model.s2_kernels = prototypes
 
   def ComputeFeatures(self, input_states):
     """Return the activity of the model's output layer for a set of images.

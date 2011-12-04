@@ -11,7 +11,7 @@ import copy
 import logging
 from glimpse.models.misc import LayerSpec, InputSource, SampleC1Patches, \
     DependencyError, AbstractNetwork
-from glimpse import util
+from glimpse import pools, util
 import itertools
 import numpy as np
 from ops import ModelOps
@@ -183,6 +183,43 @@ class Model(ModelOps, AbstractNetwork):
     state = self.State()
     state[self.Layer.IMAGE.id] = self.BuildImageFromInput(image)
     return state
+
+  def ImprintS2Prototypes(self, num_prototypes, input_states, normalize = True,
+      pool = None):
+    """Imprint a set of S2 prototypes from a set of images.
+    num_prototypes -- (int) total number of prototypes to generate
+    input_states -- (State list) initial network states from which to compute C1
+    normalize -- (bool) whether each prototype is scaled to have unit norm
+    pool -- (IPool) worker pool used to evaluate the model
+    RETURN a numpy array of prototypes, and a list of prototype locations
+    """
+    if pool == None:
+      pool = pools.MakePool()
+    if num_prototypes < len(input_states):
+      input_states = input_states[:num_prototypes]
+      patches_per_image = 1
+    else:
+      patches_per_image, extra = divmod(num_prototypes, len(input_states))
+      if extra > 0:
+        patches_per_image += 1
+    sampler = self.SampleC1PatchesCallback(patches_per_image,
+        normalize = normalize)
+    # Compute C1 activity, and sample patches.
+    values_per_image = pool.imap_unordered(sampler, input_states)
+    # We now have a iterator over (prototype,location) pairs for each image.
+    # Chain them together into a single iterator.
+    all_values = itertools.chain(*values_per_image)
+    # Evaluate the iterator, and store the result as a list. Note that we must
+    # evaluate before concatenating (below) to ensure we don't leave requests
+    # sitting on the worker pool.
+    all_values = list(all_values)
+    # If the number of requested prototypes is not an even multiple of the
+    # number of images, we have imprinted too many prototypes. Crop them.
+    all_values = all_values[:num_prototypes]
+    prototypes, locations = zip(*all_values)
+    # Convert to numpy array.
+    prototypes = np.array(prototypes, util.ACTIVATION_DTYPE)
+    return prototypes, locations
 
 # Add (circular) Model reference to State class.
 State.Model = Model
