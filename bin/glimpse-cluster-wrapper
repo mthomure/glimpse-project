@@ -30,16 +30,29 @@ function Run {
 }
 
 if [[ "$#" < 1 ]]; then
-  echo "usage: $0 START|KILL" 1>&2
+  echo "usage: $0 START|KILL|STATUS" 1>&2
   exit -1
 fi
 
 CMD=$1
 
-if [[ "$CMD" == "START" ]]; then
-  Run 1>$JOBDIR/worker-launcher.log 2>$JOBDIR/worker-launcher.err
+if [[ "$CMD" == "START-INNER" ]]; then
+  Run
+elif [[ "$CMD" == "START" ]]; then
+  $BASH_SOURCE START-INNER 1>$JOBDIR/worker-launcher.log 2>$JOBDIR/worker-launcher.err &
 elif [[ "$CMD" == "KILL" ]]; then
   pkill -g $(cat $JOBDIR/worker.pgid)
+elif [[ "$CMD" == "STATUS" ]]; then
+  if [ -f $JOBDIR/worker.pid ]; then
+    PID=$(cat $JOBDIR/worker.pid)
+    T=$(ps --pid $PID | wc -l)
+    if [[ "$T" == 2 ]]; then
+      echo "RUNNING"
+      exit 0
+    fi
+  fi
+  echo "NOT-RUNNING"
+  exit 0
 else
   echo "Unknown command: $CMD" 1>&2
   exit -1
