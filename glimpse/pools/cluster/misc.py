@@ -54,10 +54,11 @@ class EventLogger(object):
   RESPONSE_PING = "COMMAND_RESPONSE_PING"
 
   def __init__(self, context, sender):
+    self.start_time = time.strftime("%Y-%m-%d %H:%M:%S")
     self.publisher = sender.MakeSocket(context, type = zmq.PUB)
 
   def Prefix(self):
-    return socket.gethostname(), os.getpid()
+    return socket.gethostname(), os.getpid(), self.start_time
 
   def LogStart(self):
     bitwidth = 8 * struct.calcsize("P")
@@ -167,5 +168,14 @@ def KillWorkers(config):
   if not config.HasCommandChannels():
     raise ConfigException("No URL found for sending command messages. Update "
         "your cluster configuration.")
-  PoolWorker.SendKillCommand(zmq.Context(), config.command_sender)
+  Worker.SendKillCommand(zmq.Context(), config.command_sender)
+  time.sleep(1)  # wait for ZMQ to flush message queues
+
+def RestartWorkers(config):
+  """Send KILL-ERROR to any workers running on cluster, causing a restart."""
+  if not config.HasCommandChannels():
+    raise ConfigException("No URL found for sending command messages. Update "
+        "your cluster configuration.")
+  Worker.SendKillCommand(zmq.Context(), config.command_sender,
+      Worker.CMD_KILL_ERROR)
   time.sleep(1)  # wait for ZMQ to flush message queues
