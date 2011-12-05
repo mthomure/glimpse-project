@@ -62,7 +62,12 @@ class EventLogger(object):
 
   def LogStart(self):
     bitwidth = 8 * struct.calcsize("P")
-    payload = self.Prefix(), os.uname(), sys.version_info, bitwidth
+    version = sys.version_info
+    if isinstance(version, tuple):  # old style of version_info
+      version = version[:3]
+    else:  # new style
+      version = version.major, version.minor, version.micro
+    payload = self.Prefix(), os.uname(), version, bitwidth
     self.publisher.send_pyobj((self.RESPONSE_START, payload))
 
   def LogStop(self, exit_status):
