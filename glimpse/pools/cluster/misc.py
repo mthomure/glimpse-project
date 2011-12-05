@@ -131,11 +131,16 @@ class Worker(PoolWorker):
     time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
                    # all subscribers get the QUIT message.
     commands.send_pyobj(Worker.CMD_PING)
-    time.sleep(1)  # Wait for all workers to respond.
-    while poller.poll(timeout = 0):  # loop as long as there are event messages
-      type_, payload = responses.recv_pyobj()
-      if type_ == EventLogger.RESPONSE_PING:
-        yield payload
+    #~ time.sleep(1)  # Wait for all workers to respond.
+    wait_time = 3  # wait for three seconds
+    poll_timeout = 1  # poll for one second
+    start_time = time.time()
+    while time.time() - start_time < wait_time:
+      # Wait for input, with timeout given in milliseconds
+      if poller.poll(timeout = poll_timeout / 1000):
+        type_, payload = responses.recv_pyobj()
+        if type_ == EventLogger.RESPONSE_PING:
+          yield payload
     raise StopIteration
 
 def LaunchWorker(config, num_processes = None):
