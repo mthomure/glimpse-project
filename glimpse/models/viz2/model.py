@@ -15,6 +15,7 @@ from glimpse import pools, util
 import itertools
 import numpy as np
 from ops import ModelOps
+import random
 
 class Layer(object):
 
@@ -59,19 +60,6 @@ class State(dict):
   indicate with which model a given state is associated. Similarly, each model
   has a seperate State object, so it is always clear which model generated a
   given state object."""
-
-  def __str__(self):
-    return "%s(%s)" % (util.TypeName(self),
-        ", ".join(map(str, self.keys())))
-
-  def __repr__(self):
-    reps = dict((k, repr(v)) for k, v in self.items())
-    if len(reps.keys()) > 0:
-      data = "%s\n" % "".join("\n  %s = %s" % \
-          (Layer.FromId(k).name, reps[k]) for k in reps.keys())
-    else:
-      data = ""
-    return "%s(%s)" % (util.TypeName(self), data)
 
   def __eq__(self, other):
     if not isinstance(other, type(self)):
@@ -196,6 +184,8 @@ class Model(ModelOps, AbstractNetwork):
     if pool == None:
       pool = pools.MakePool()
     if num_prototypes < len(input_states):
+      # Take a random subset of images.
+      random.shuffle(input_states)
       input_states = input_states[:num_prototypes]
       patches_per_image = 1
     else:
