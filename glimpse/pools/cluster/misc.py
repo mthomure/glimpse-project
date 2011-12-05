@@ -139,13 +139,18 @@ class Worker(PoolWorker):
     #~ time.sleep(1)  # Wait for all workers to respond.
     wait_time = 3  # wait for three seconds
     poll_timeout = 1  # poll for one second
-    start_time = time.time()
-    while time.time() - start_time < wait_time:
+    wait_start_time = time.time()
+    while time.time() - wait_start_time < wait_time:
       # Wait for input, with timeout given in milliseconds
       if poller.poll(timeout = poll_timeout / 1000):
         type_, payload = responses.recv_pyobj()
         if type_ == EventLogger.RESPONSE_PING:
-          yield payload
+          prefix, elapsed_time, num_requests = payload
+          name, pid, start_time = prefix
+          if num_requests > 0:
+            elapsed_time /= num_requests
+          elapsed_time = "%.2f" % elapsed_time
+          yield name, pid, start_time, elapsed_time, num_requests
     raise StopIteration
 
 def LaunchWorker(config, num_processes = None):
