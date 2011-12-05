@@ -56,6 +56,8 @@ class EventLogger(object):
   def __init__(self, context, sender):
     self.start_time = time.strftime("%Y-%m-%d %H:%M:%S")
     self.publisher = sender.MakeSocket(context, type = zmq.PUB)
+    self.elapsed_time = 0  # total time spent processing requests
+    self.num_requests = 0  # number of requests processed
 
   def Prefix(self):
     return socket.getfqdn(), os.getpid(), self.start_time
@@ -75,7 +77,7 @@ class EventLogger(object):
     self.publisher.send_pyobj((self.RESPONSE_STOP, payload))
 
   def ReplyPing(self):
-    payload = self.Prefix()
+    payload = self.Prefix(), self.elapsed_time, self.num_requests
     self.publisher.send_pyobj((self.RESPONSE_PING, payload))
 
 class Worker(PoolWorker):
@@ -93,6 +95,13 @@ class Worker(PoolWorker):
 
   def Setup(self):
     super(Worker, self).Setup()
+
+  def HandleRequest(self, request):
+    start_time = time.time()
+    result = super(Worker, self).HandleRequest(request)
+    self.event_logger.elapsed_time += time.time() - start_time
+    self.event_logger.num_requests += 1
+    return result
 
   def HandleCommand(self, command):
     if command == Worker.CMD_KILL_ERROR:
@@ -112,12 +121,15 @@ class Worker(PoolWorker):
     self.event_logger.LogStop(self.exit_status)
 
   @staticmethod
-  def PingWorkers(command_sender, command_response_receiver):
+  def PingWorkers(command_sender, command_response_receiver, wait_time = None):
     """Determine the set of active workers.
     command_sender -- (zmq.socket or Connect)
     command_response_receiver -- (zmq.socket or Connect)
+    wait_time -- (int) how long to wait for replies (in seconds)
     RETURN (iterator) node information for responding workers
     """
+    if wait_time == None:
+      wait_time = 3  # wait for three seconds by default
     logging.info("PoolWorker: sending ping command")
     logging.info("PoolWorker:   command: %s" % command_sender)
     logging.info("PoolWorker:   responses: %s" % command_response_receiver)
@@ -136,13 +148,11 @@ class Worker(PoolWorker):
     time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
                    # all subscribers get the QUIT message.
     commands.send_pyobj(Worker.CMD_PING)
-    #~ time.sleep(1)  # Wait for all workers to respond.
-    wait_time = 3  # wait for three seconds
-    poll_timeout = 1  # poll for one second
+    poll_timeout = 1000  # poll for one second
     wait_start_time = time.time()
     while time.time() - wait_start_time < wait_time:
       # Wait for input, with timeout given in milliseconds
-      if poller.poll(timeout = poll_timeout / 1000):
+      if poller.poll(timeout = poll_timeout):
         type_, payload = responses.recv_pyobj()
         if type_ == EventLogger.RESPONSE_PING:
           prefix, elapsed_time, num_requests = payload
@@ -169,13 +179,13 @@ def LaunchWorker(config, num_processes = None):
   worker.Run()  # run the request/reply loop until termination
   sys.exit(worker.exit_status)
 
-def PingWorkers(config):
+def PingWorkers(config, wait_time = None):
   """Determine the set of active workers."""
   if not config.HasCommandChannels():
     raise ConfigException("No URL found for sending command messages. Update "
         "your cluster configuration.")
   for node in Worker.PingWorkers(config.command_sender,
-      config.command_response_receiver):
+      config.command_response_receiver, wait_time):
     print " ".join(map(str, node))
 
 def KillWorkers(config):
