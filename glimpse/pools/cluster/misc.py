@@ -57,7 +57,7 @@ class EventLogger(object):
     self.publisher = sender.MakeSocket(context, type = zmq.PUB)
 
   def Prefix(self):
-    return socket.gethostname(), os.getpid()
+    return socket.getfqdn(), os.getpid()
 
   def LogStart(self):
     bitwidth = 8 * struct.calcsize("P")
