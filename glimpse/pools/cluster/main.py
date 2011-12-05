@@ -6,16 +6,15 @@
 
 # A command-line interface for managing a cluster of Glimpse workers.
 
-from .misc import LaunchBrokers, LaunchWorker, KillWorkers, PingWorkers
+from .misc import LaunchBrokers, LaunchWorker, KillWorkers, PingWorkers, \
+    RestartWorkers
 from .config import ClusterConfig, ConfigException
-#~ from glimpse.pools.cluster import LaunchBrokers, LaunchWorker, \
-    #~ KillWorkers, PingWorkers, ClusterConfig, ConfigException
 from glimpse import util
 import sys
 
 def main():
   methods = map(eval, ("LaunchBrokers", "LaunchWorker", "KillWorkers",
-      "PingWorkers"))
+      "RestartWorkers", "PingWorkers"))
   try:
     config_files = tuple()
     opts, args = util.GetOptions("c:v")

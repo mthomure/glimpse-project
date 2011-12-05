@@ -370,19 +370,20 @@ class BasicWorker(object):
     return finish
 
   @staticmethod
-  def SendKillCommand(context, command_sender):
+  def SendKillCommand(context, command_sender, command = None):
     """Send a kill command to all workers on a given channel.
     command_sender -- (zmq.socket or Connect)
+    command -- message to send to workers. defaults to CMD_KILL.
     """
+    if command == None:
+      command = BasicWorker.CMD_KILL
     logging.info("BasicWorker: sending kill command")
     logging.info("BasicWorker:   command: %s" % command_sender)
     if isinstance(command_sender, Connect):
-      commands = command_sender.MakeSocket(context, type = zmq.PUB)
-    else:
-      commands = command_sender
+      command_sender = command_sender.MakeSocket(context, type = zmq.PUB)
     time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
                    # all subscribers get the QUIT message.
-    commands.send_pyobj(BasicWorker.CMD_KILL)
+    command_sender.send_pyobj(command)
     logging.info("BasicWorker: sent kill command")
 
 def LaunchStreamerDevice(context, frontend_connect, backend_connect):
