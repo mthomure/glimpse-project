@@ -120,7 +120,6 @@ class Model(ModelOps, AbstractNetwork):
       output_layer = output_layer.id
     state = self.BuildNode(output_layer, state)
     if not save_all:
-      logging.info("BuildLayer: sparsifying result")
       state_ = State()
       # Keep output layer data
       state_[output_layer] = state[output_layer]
