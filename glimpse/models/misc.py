@@ -47,6 +47,8 @@ class InputSource(object):
   image_path = None
 
   def __init__(self, image_path = None):
+    if image_path != None and not isinstance(image_path, basestring):
+      raise ValueError("Image path must be a string")
     self.image_path = image_path
 
   def CreateImage(self):
