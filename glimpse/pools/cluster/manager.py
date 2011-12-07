@@ -31,14 +31,14 @@ def _SinkTarget(out_queue, result_receiver, command_receiver = None,
   logging.info("SinkTarget: about to receive")
   # Get an iterator over results. this will terminate when sink gets QUIT
   # command.
-  results = sink.Receive()
+  results = sink.Receive(metadata = True)
   if result_modifier != None:
     results = itertools.imap(result_modifier, results)
   logging.info("SinkTarget: writing to queue")
   idx = 0
   # Walk the iterator returned by sink.Receive()
   for result in results:
-    logging.info("SinkTarget: got #%d result" % idx)
+    #~ logging.info("SinkTarget: got #%d result" % idx)
     out_queue.put(result)
     idx += 1
   #~ map(out_queue.put, results)
@@ -134,16 +134,16 @@ class ClusterManager(object):
         logging.warn("ClusterManager: Sink did not respond to quit command")
       logging.info("ClusterManager: sink exited successfully")
 
-  def Put(self, request):
+  def Put(self, request, metadata = None):
     """Submit a task to the cluster, whose result can be obtained by calling
     Get(). Each request submitted via Put() is guaranteed to produce exactly one
     result."""
     if self.ventilator == None:
       self.Setup()
-    self.ventilator.Send([request])
+    self.ventilator.Send([request], metadata = metadata)
     self.task_count += 1
 
-  def PutMany(self, requests):
+  def PutMany(self, requests, metadata = None):
     """Submit a batch of multiple requests. This method may have better
     performance in most cases, as compared to submitting multiple individual
     requests.
@@ -151,17 +151,19 @@ class ClusterManager(object):
     if self.ventilator == None:
       self.Setup()
     logging.info("ClusterManager: submitting multiple requests")
-    num_requests = self.ventilator.Send(requests)
+    num_requests = self.ventilator.Send(requests, metadata = metadata)
     self.task_count += num_requests
     return num_requests
 
-  def Get(self):
+  def Get(self, metadata = False):
     """Retrieve the result for a request submitted via Put()."""
-    result = self.out_queue.get()
+    result, request_metadata, result_metadata = self.out_queue.get()
     self.task_count -= 1
+    if metadata:
+      return result, request_metadata
     return result
 
-  def GetMany(self, num_results):
+  def GetMany(self, num_results, metadata = False):
     """Retrieve a batch of results. As with PutMany(), this method may have
     better performance as compared to repeatedly calling Get().
     RETURN iterator over results. This iterator should be exhausted before any
@@ -169,7 +171,7 @@ class ClusterManager(object):
     # Return an iterator over the corresponding number of elements in the sink.
     logging.info("ClusterManager: returning iterator over %d results" % \
         num_results)
-    return ( self.Get() for _ in range(num_results) )
+    return ( self.Get(metadata = metadata) for _ in range(num_results) )
 
   def IsEmpty(self):
     """Determine if any results are available via Get()."""
