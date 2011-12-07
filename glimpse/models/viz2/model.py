@@ -233,12 +233,13 @@ class LayerBuilder(object):
     return self.model.BuildLayer(self.output_layer_id, state, self.save_all)
 
   def __str__(self):
-    return "%s(model=%s, output_layer=%s, save_all=%s)" % (util.TypeName(self),
-        type(self.model), self.output_layer, self.save_all)
+    return "%s(model=%s, output_layer_id=%s, save_all=%s)" % \
+        (util.TypeName(self), type(self.model), self.output_layer_id,
+        self.save_all)
 
   def __repr__(self):
-    return "%s(model=%s, output_layer=%s, save_all=%s)" % (util.TypeName(self),
-        self.model, self.output_layer, self.save_all)
+    return "%s(model=%s, output_layer_id=%s, save_all=%s)" % \
+        (util.TypeName(self), self.model, self.output_layer_id, self.save_all)
 
 class C1PatchSampler(object):
   """Represents a serializable function that computes a network state
