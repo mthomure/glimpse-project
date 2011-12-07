@@ -129,7 +129,7 @@ class Worker(PoolWorker):
     RETURN (iterator) node information for responding workers
     """
     if wait_time == None:
-      wait_time = 3  # wait for three seconds by default
+      wait_time = 1  # wait for one second by default
     logging.info("PoolWorker: sending ping command")
     logging.info("PoolWorker:   command: %s" % command_sender)
     logging.info("PoolWorker:   responses: %s" % command_response_receiver)
@@ -181,6 +181,8 @@ def LaunchWorker(config, num_processes = None):
 
 def PingWorkers(config, wait_time = None):
   """Determine the set of active workers."""
+  if wait_time:
+    wait_time = int(wait_time)
   if not config.HasCommandChannels():
     raise ConfigException("No URL found for sending command messages. Update "
         "your cluster configuration.")
