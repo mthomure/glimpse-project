@@ -91,10 +91,10 @@ class Experiment(object):
     self.train_images = None
     self.test_images = None
     self.train_test_split = None
-    self.pos_features = None
-    self.neg_features = None
-    self.train_error = None
-    self.test_error = None
+    self.train_features = None
+    self.test_features = None
+    self.train_accuracy = None
+    self.test_accuracy = None
     self.prototype_construction_time = None
     self.svm_train_time = None
     self.svm_test_time = None
@@ -118,8 +118,8 @@ class Experiment(object):
   model: %(model)s
   layer: %(layer)s
   prototype_source: %(prototype_source)s
-  train_error: %(train_error)s
-  test_error: %(test_error)s""" % values
+  train_accuracy: %(train_accuracy)s
+  test_accuracy: %(test_accuracy)s""" % values
 
   __repr__ = __str__
 
@@ -195,7 +195,6 @@ class Experiment(object):
     if classes == None:
       classes = os.listdir(corpus_dir)
     self.classes = classes
-    #~ corpus_dir = os.path.abspath(corpus_dir)
     self.corpus = corpus_dir
     self.train_test_split = 'automatic'
     images_per_class = self._ReadCorpusDir(corpus_dir, classes)
@@ -214,25 +213,40 @@ class Experiment(object):
     if classes == None:
       classes = os.listdir(train_dir)
     self.classes = classes
-    #~ train_dir = os.path.abspath(train_dir)
-    #~ test_dir = os.path.abspath(test_dir)
     self.corpus = (train_dir, test_dir)
     self.train_test_split = 'manual'
     self.train_images = self._ReadCorpusDir(train_dir, classes)
     self.test_images = self._ReadCorpusDir(test_dir, classes)
 
-  def _ComputeLibSvmFeatures(self, pos_images, neg_images):
+  def _ComputeLibSvmFeatures(self, *image_lists):
     """Internal helper function for TrainSvm() and TestSvm()."""
-    # Compute features for images in the positive class.
-    input_states = map(self.model.MakeStateFromFilename, pos_images)
-    self.pos_features = self.ComputeFeatures(input_states)
-    # Compute features for images in the positive class.
-    input_states = map(self.model.MakeStateFromFilename, neg_images)
-    self.neg_features = self.ComputeFeatures(input_states)
-    classes = [1] * len(self.pos_features) + [-1] * len(self.neg_features)
-    features = self.pos_features + self.neg_features
-    # Convert feature vectors from np.array to list objects
-    features = map(list, features)
+    if len(image_lists) == 2:
+      labels = [1, -1]
+    else:
+      labels = range(1, len(image_lists) + 1)
+    list_sizes = map(len, image_lists)
+    classes = [ [label] * size for label, size in zip(labels, list_sizes) ]
+    if self.ordered:
+      # Compute features for all training images.
+      input_states = map(self.model.MakeStateFromFilename,
+          ChainLists(*image_lists))
+      all_features = self.ComputeFeatures(input_states)
+      features = []
+      idx = 0
+      for size in list_sizes:
+        next_idx = idx + size
+        class_features = all_features[idx : next_idx]
+        class_features = np.array(class_features, util.ACTIVATION_DTYPE)
+        features.append(class_features)
+        idx = next_idx
+    else:
+      # Compute features for each class independently
+      features = []
+      for images in image_lists:
+        input_states = map(self.model.MakeStateFromFilename, images)
+        class_features = self.ComputeFeatures(input_states)
+        class_features = np.array(class_features, util.ACTIVATION_DTYPE)
+        features.append(class_features)
     return classes, features
 
   def TrainSvm(self):
@@ -241,6 +255,11 @@ class Experiment(object):
       sys.exit("Please specify the training corpus before calling TrainSvm().")
     start_time = time.time()
     classes, features = self._ComputeLibSvmFeatures(*self.train_images)
+    self.train_features = features
+    classes = ChainLists(*classes)
+    features = ChainLists(*features)
+    # Convert feature vectors from np.array to list objects
+    features = map(list, features)
     options = '-q'  # don't write to stdout
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -249,9 +268,9 @@ class Experiment(object):
     options = ''  # can't disable writing to stdout
     predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
         features, self.classifier, options)
-    self.train_error = 1. - float(acc[0]) / 100.
+    self.train_accuracy = float(acc[0]) / 100.
     self.svm_train_time = time.time() - start_time
-    return self.train_error
+    return self.train_accuracy
 
   def TestSvm(self):
     """Apply the classifier to a set of test images.
@@ -263,6 +282,11 @@ class Experiment(object):
       sys.exit("Please specify the testing corpus before calling TestSvm().")
     start_time = time.time()
     classes, features = self._ComputeLibSvmFeatures(*self.test_images)
+    self.test_features = features
+    classes = ChainLists(*classes)
+    features = ChainLists(*features)
+    # Convert feature vectors from np.array to list objects
+    features = map(list, features)
     options = ''  # can't disable writing to stdout
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -270,9 +294,9 @@ class Experiment(object):
     predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
         features, self.classifier, options)
     # Ignore mean-squared error and correlation coefficient
-    self.test_error = 1. - float(acc[0]) / 100.
+    self.test_accuracy = float(acc[0]) / 100.
     self.svm_test_time = time.time() - start_time
-    return self.test_error
+    return self.test_accuracy
 
   def Store(self, root_path):
     """Save the experiment to disk."""
@@ -310,7 +334,7 @@ __MODEL_CLASS = viz2.Model
 __EXP = None
 __VERBOSE = False
 
-def UseCluster(config_file):
+def UseCluster(config_file, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.
   config_file -- (str) path to the cluster configuration file
   """
@@ -318,7 +342,7 @@ def UseCluster(config_file):
   from glimpse.pools.cluster import ClusterConfig, ClusterPool
   config = ClusterConfig(config_file)
   del __POOL
-  __POOL = ClusterPool(config)
+  __POOL = ClusterPool(config, chunksize = chunksize)
 
 def SetModelClass(model_class):
   """Set the model type.
