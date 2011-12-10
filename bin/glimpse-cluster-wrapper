@@ -2,21 +2,33 @@
 
 set -e
 
+if [[ "$#" < 1 ]]; then
+  echo "usage: $0 START|KILL|STATUS [RUN-NUM]" 1>&2
+  exit -1
+fi
+
+CMD=$1
+NUM=1
+if [[ "$#" > 1 ]]; then
+  NUM=$2
+fi
+
 GLIMPSE_HOME=$(dirname $0)/..
-HOST=$(hostname)
+HOST=$(hostname -f)
 
 cd $GLIMPSE_HOME
-JOBDIR=run/glimpse-cluster/${HOST}
+JOBDIR=run/glimpse-cluster/${HOST}/workers
+mkdir -p $JOBDIR
 
 function Run {
   # Log the process ID of the script.
-  echo $$ > $JOBDIR/worker.pid
+  echo $$ > $JOBDIR/$NUM.pid
   # Log the process group ID if possible.
   if [[ -d /proc ]]; then
     # Get current script's PGID
-    echo $(ps -p $BASHPID h -o pgid) > $JOBDIR/worker.pgid
+    echo $(ps -p $BASHPID h -o pgid) > $JOBDIR/$NUM.pgid
     # Kill the command with
-    #   pkill -g $(cat $JOBDIR/worker.pgid)
+    #   pkill -g $(cat $JOBDIR/$NUM.pgid)
     # Note: this does not work on OSX.
   fi
 
@@ -24,27 +36,20 @@ function Run {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  while ! bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker; do
-    echo "GLIMPSE-CLUSTER-WRAPPER: restarting"
-  done 1>$JOBDIR/worker.log 2>$JOBDIR/worker.err
+  CMD="bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker"
+  until $CMD; do
+    echo "GLIMPSE-CLUSTER-WRAPPER: 'glimpse-cluster' exited with status $?, restarting.." 1>&2
+    sleep 1
+  done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
 }
 
-if [[ "$#" < 1 ]]; then
-  echo "usage: $0 START|KILL|STATUS" 1>&2
-  exit -1
-fi
+function Kill {
+  pkill -g $(cat $JOBDIR/$NUM.pgid)
+}
 
-CMD=$1
-
-if [[ "$CMD" == "START-INNER" ]]; then
-  Run
-elif [[ "$CMD" == "START" ]]; then
-  $BASH_SOURCE START-INNER 1>$JOBDIR/worker-launcher.log 2>$JOBDIR/worker-launcher.err &
-elif [[ "$CMD" == "KILL" ]]; then
-  pkill -g $(cat $JOBDIR/worker.pgid)
-elif [[ "$CMD" == "STATUS" ]]; then
-  if [ -f $JOBDIR/worker.pid ]; then
-    PID=$(cat $JOBDIR/worker.pid)
+function Status {
+  if [ -f $JOBDIR/$NUM.pid ]; then
+    PID=$(cat $JOBDIR/$NUM.pid)
     T=$(ps --pid $PID | wc -l)
     if [[ "$T" == 2 ]]; then
       echo "RUNNING"
@@ -53,6 +58,16 @@ elif [[ "$CMD" == "STATUS" ]]; then
   fi
   echo "NOT-RUNNING"
   exit 0
+}
+
+if [[ "$CMD" == "START-INNER" ]]; then
+  Run
+elif [[ "$CMD" == "START" ]]; then
+  $BASH_SOURCE START-INNER $NUM 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
+elif [[ "$CMD" == "KILL" ]]; then
+  Kill
+elif [[ "$CMD" == "STATUS" ]]; then
+  Status
 else
   echo "Unknown command: $CMD" 1>&2
   exit -1
