@@ -61,28 +61,89 @@ def ChainLists(*iterables):
   """Concatenate several sequences to form a single list."""
   return list(itertools.chain(*iterables))
 
+class RangeFeatureScaler(object):
+  """Scales features to lie in a fixed interval."""
+
+  def __init__(self, min = -1, max = 1):
+    """Create new object.
+    min -- (float) minimum value in output range
+    max -- (float) maximum value in output range
+    """
+    self.omin, self.omax = min, max
+
+  def Learn(self, features):
+    """Determine the parameters required to scale each feature (independently)
+    to the range [-1, 1].
+    features -- (list of list)
+    """
+    self.imin, self.imax = np.min(features, 0), np.max(features, 0)
+
+  def Apply(self, features):
+    """Scale the features in-place. The range of output values will be
+    (approximately) [-vmin, vmax], assuming the feature vectors passed here were
+    drawn from the same distribution as those used to learn the scaling
+    parameters.
+    features -- (list of ndarray)
+    """
+    for f in features:
+      f -= self.imin  # map to [0, imax - imin]
+      f /= (self.imax - self.imin)  # map to [0, 1]
+      f *= (self.omax - self.omin)  # map to [0, omax - omin]
+      f += self.omin  # map to [omin, omax]
+    return features
+
+class SpheringFeatureScaler(object):
+  """Scales features to have fixed mean and standard deviation."""
+
+  def __init__(self, mean = 0, std = 1):
+    """Create new object.
+    mean -- (float) mean of output feature values
+    std -- (float) standard deviation of feature values
+    """
+    self.omean, self.ostd = mean, std
+
+  def Learn(self, features):
+    """Determine the parameters required to scale each feature (independently)
+    to the range [-1, 1].
+    features -- (list of list)
+    """
+    self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
+
+  def Apply(self, features):
+    """Scale the features. The range of output values will be (approximately)
+    [-vmin, vmax], assuming the feature vectors passed here were drawn from the
+    same distribution as those used to learn the scaling parameters.
+    features -- (list of ndarray)
+    RETURN (ndarray) scaled features
+    """
+    features = np.array(features)  # copy feature values
+    features -= self.imean  # map to mean zero
+    features /= self.istd  # map to unit variance
+    features *= self.ostd  # map to output standard deviation
+    features += self.omean  # map to output mean
+    return features
+
 class Experiment(object):
 
-  def __init__(self, model, layer, pool = None, ordered = True):
+  def __init__(self, model, layer, pool, ordered, scaler):
     """Create a new experiment.
     model -- the Glimpse model to use for processing images
     layer -- (LayerSpec or str) the layer activity to use for features vectors
     pool -- a serializable worker pool
     ordered -- (bool) whether the order of SVM feature vectors must be preserved
                within each class
+    scaler -- feature scaling algorithm
     """
-    if model == None:
-      model = Model()
-    if layer == None:
-      layer = model.Layer.IT
-    elif isinstance(layer, str):
-      layer = model.Layer.FromName(layer)
-    if pool == None:
-      pool = pools.MakePool()
+    # Default arguments should be chosen in SetExperiment()
+    assert model != None
+    assert layer != None
+    assert pool != None
+    assert scaler != None
     self.model = model
     self.pool = pool
     self.layer = layer
     self.ordered = ordered
+    self.scaler = scaler
     # Initialize attributes used by an experiment
     self.classes = []
     self.classifier = None
@@ -258,6 +319,9 @@ class Experiment(object):
     self.train_features = features
     classes = ChainLists(*classes)
     features = ChainLists(*features)
+    # Sphere each feature independently
+    self.scaler.Learn(features)
+    features = self.scaler.Apply(features)
     # Convert feature vectors from np.array to list objects
     features = map(list, features)
     options = '-q'  # don't write to stdout
@@ -283,8 +347,9 @@ class Experiment(object):
     start_time = time.time()
     classes, features = self._ComputeLibSvmFeatures(*self.test_images)
     self.test_features = features
-    classes = ChainLists(*classes)
-    features = ChainLists(*features)
+    classes = ChainLists(*classes)  # combine class indicators into single list
+    features = ChainLists(*features)  # combine features into single list
+    features = self.scaler.Apply(features)  # scale features
     # Convert feature vectors from np.array to list objects
     features = map(list, features)
     options = ''  # can't disable writing to stdout
@@ -370,12 +435,13 @@ def GetExperiment():
     SetExperiment()
   return __EXP
 
-def SetExperiment(model = None, layer = None, ordered = True):
+def SetExperiment(model = None, layer = None, ordered = True, scaler = None):
   """Create a new experiment.
   model -- the Glimpse model to use for processing images
   layer -- (LayerSpec or str) the layer activity to use for features vectors
   ordered -- (bool) whether the order of SVM feature vectors must be preserved
              within each class
+  scaler -- feature scaling algorithm
   """
   global __EXP, __POOL
   if __POOL == None:
@@ -386,7 +452,10 @@ def SetExperiment(model = None, layer = None, ordered = True):
     layer = model.Layer.IT
   elif isinstance(layer, str):
     layer = model.Layer.FromName(layer)
-  __EXP = Experiment(model, layer, pool = __POOL, ordered = ordered)
+  if scaler == None:
+    scaler = SpheringFeatureScaler()
+  __EXP = Experiment(model, layer, pool = __POOL, ordered = ordered,
+      scaler = scaler)
 
 def ImprintS2Prototypes(num_prototypes):
   """Imprint a set of S2 prototypes from a set of training images.
