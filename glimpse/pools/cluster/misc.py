@@ -111,7 +111,7 @@ class Worker(PoolWorker):
       self.event_logger.ReplyPing()
       finish = False
     else:
-      finish = super(Worker, self).CommandCallback(command)
+      finish = super(Worker, self).HandleCommand(command)
     logging.info("Worker: got command %r, finish=%s" % (command, finish))
     return finish
 
