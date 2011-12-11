@@ -12,7 +12,7 @@ NUM=1
 if [[ "$#" > 1 ]]; then
   NUM=$2
 fi
-
+NUM_PROCS=2  # number of processes to run per worker
 GLIMPSE_HOME=$(dirname $0)/..
 HOST=$(hostname -f)
 
@@ -36,7 +36,7 @@ function Run {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  CMD="bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker"
+  CMD="bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker $NUM_PROCS"
   until $CMD; do
     echo "GLIMPSE-CLUSTER-WRAPPER: 'glimpse-cluster' exited with status $?, restarting.." 1>&2
     sleep 1
