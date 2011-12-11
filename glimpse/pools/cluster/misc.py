@@ -206,3 +206,19 @@ def RestartWorkers(config):
   Worker.SendKillCommand(zmq.Context(), config.command_sender,
       Worker.CMD_KILL_ERROR)
   time.sleep(1)  # wait for ZMQ to flush message queues
+
+def FlushSocket(socket):
+  while True:
+    try:
+      socket.recv(zmq.NOBLOCK)
+    except zmq.ZMQError, e:
+      if e.errno == zmq.EAGAIN:
+        break
+      else:
+        raise
+
+def FlushCluster(config):
+  """Consume any queued messages waiting on the cluster."""
+  ctx = zmq.Context()
+  FlushSocket(config.request_receiver.MakeSocket(ctx, type = zmq.PULL))
+  FlushSocket(config.result_receiver.MakeSocket(ctx, type = zmq.PULL))
