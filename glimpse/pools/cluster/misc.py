@@ -220,5 +220,8 @@ def FlushSocket(socket):
 def FlushCluster(config):
   """Consume any queued messages waiting on the cluster."""
   ctx = zmq.Context()
-  FlushSocket(config.request_receiver.MakeSocket(ctx, type = zmq.PULL))
-  FlushSocket(config.result_receiver.MakeSocket(ctx, type = zmq.PULL))
+  request_socket = config.request_receiver.MakeSocket(ctx, type = zmq.PULL)
+  result_socket = config.result_receiver.MakeSocket(ctx, type = zmq.PULL)
+  time.sleep(1)  # wait for connections
+  FlushSocket(request_socket)
+  FlushSocket(result_socket)
