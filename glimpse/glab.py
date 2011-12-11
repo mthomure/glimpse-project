@@ -54,12 +54,37 @@ import time
 
 __all__ = ( 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
     'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeRandomPrototypes', 'SetCorpus', 'SetTrainTestSplit', 'TrainSvm',
+    'MakeRandomS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'TrainSvm',
     'TestSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
 def ChainLists(*iterables):
   """Concatenate several sequences to form a single list."""
   return list(itertools.chain(*iterables))
+
+def ChainArrays(*arrays):
+  """Concatenate several numpy arrays."""
+  return np.vstack(arrays)
+
+def SplitList(data, *sizes):
+  """Break a list into sublists.
+  data -- (list) input data
+  sizes -- (int list) size of each chunk. if sum of sizes is less than entire
+           size of input array, the remaining elements are returned as an extra
+           sublist in the result.
+  RETURN (list of lists) sublists of requested size
+  """
+  assert(all([ s >= 0 for s in sizes ]))
+  if len(sizes) == 0:
+    return data
+  if sum(sizes) < len(data):
+    sizes = list(sizes)
+    sizes.append(len(data) - sum(sizes))
+  out = list()
+  last = 0
+  for s in sizes:
+    out.append(data[last : last+s])
+    last += s
+  return out
 
 class RangeFeatureScaler(object):
   """Scales features to lie in a fixed interval."""
@@ -84,7 +109,9 @@ class RangeFeatureScaler(object):
     drawn from the same distribution as those used to learn the scaling
     parameters.
     features -- (list of ndarray)
+    RETURN (np.ndarray) new array of scaled feature values
     """
+    features = np.array(features)  # copy feature values
     for f in features:
       f -= self.imin  # map to [0, imax - imin]
       f /= (self.imax - self.imin)  # map to [0, 1]
@@ -114,7 +141,7 @@ class SpheringFeatureScaler(object):
     [-vmin, vmax], assuming the feature vectors passed here were drawn from the
     same distribution as those used to learn the scaling parameters.
     features -- (list of ndarray)
-    RETURN (ndarray) scaled features
+    RETURN (ndarray) new array with scaled features
     """
     features = np.array(features)  # copy feature values
     features -= self.imean  # map to mean zero
@@ -125,13 +152,11 @@ class SpheringFeatureScaler(object):
 
 class Experiment(object):
 
-  def __init__(self, model, layer, pool, ordered, scaler):
+  def __init__(self, model, layer, pool, scaler):
     """Create a new experiment.
     model -- the Glimpse model to use for processing images
     layer -- (LayerSpec or str) the layer activity to use for features vectors
     pool -- a serializable worker pool
-    ordered -- (bool) whether the order of SVM feature vectors must be preserved
-               within each class
     scaler -- feature scaling algorithm
     """
     # Default arguments should be chosen in SetExperiment()
@@ -142,7 +167,6 @@ class Experiment(object):
     self.model = model
     self.pool = pool
     self.layer = layer
-    self.ordered = ordered
     self.scaler = scaler
     # Initialize attributes used by an experiment
     self.classes = []
@@ -202,7 +226,7 @@ class Experiment(object):
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
-  def MakeRandomPrototypes(self, num_prototypes):
+  def MakeRandomS2Prototypes(self, num_prototypes):
     """Create a set of S2 prototypes with uniformly random entries.
     num_prototypes -- (int) the number of S2 prototype arrays to create
     """
@@ -214,7 +238,7 @@ class Experiment(object):
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
-  def ComputeFeatures(self, input_states):
+  def ComputeFeaturesFromInputStates(self, input_states):
     """Return the activity of the model's output layer for a set of images.
     input_states -- (State iterable) model states containing image data
     RETURN (iterable) a feature vector for each image
@@ -225,10 +249,7 @@ class Experiment(object):
           "for layer %s." % self.layer.name)
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
     # Compute model states containing IT features.
-    if self.ordered:
-      output_states = self.pool.map(builder, input_states)
-    else:
-      output_states = self.pool.imap_unordered(builder, input_states)
+    output_states = self.pool.map(builder, input_states)
     # Look up the activity values for the output layer, and convert them all to
     # a single vector.
     return [ util.ArrayListToVector(state[self.layer.id])
@@ -279,59 +300,63 @@ class Experiment(object):
     self.train_images = self._ReadCorpusDir(train_dir, classes)
     self.test_images = self._ReadCorpusDir(test_dir, classes)
 
-  def _ComputeLibSvmFeatures(self, *image_lists):
-    """Internal helper function for TrainSvm() and TestSvm()."""
-    if len(image_lists) == 2:
+  def ComputeFeatures(self):
+    """Compute SVM feature vectors for all images."""
+    if self.train_images == None or self.test_images == None:
+      sys.exit("Please specify the corpus.")
+    train_sizes = map(len, self.train_images)
+    train_size = sum(train_sizes)
+    test_sizes = map(len, self.test_images)
+    train_images = ChainLists(*self.train_images)
+    test_images = ChainLists(*self.test_images)
+    images = train_images + test_images
+    # Compute features for all images.
+    input_states = map(self.model.MakeStateFromFilename, images)
+    start_time = time.time()
+    features = self.ComputeFeaturesFromInputStates(input_states)
+    self.compute_feature_time = time.time() - start_time
+    train_features, test_features = SplitList(features, train_size)
+    self.train_features = np.array(SplitList(train_features, *train_sizes),
+        util.ACTIVATION_DTYPE)
+    self.test_features = np.array(SplitList(test_features, *test_sizes),
+        util.ACTIVATION_DTYPE)
+
+  def PrepareLibSvmInput(self, features_per_class):
+    """Format feature vectors for use by LIBSVM.
+    features_per_class -- (list of ndarray) per-class feature vectors
+    RETURN (tuple) (list) labels, and (list) all feature vectors
+    """
+    num_classes = len(features_per_class)
+    if num_classes == 2:
       labels = [1, -1]
     else:
-      labels = range(1, len(image_lists) + 1)
-    list_sizes = map(len, image_lists)
-    classes = [ [label] * size for label, size in zip(labels, list_sizes) ]
-    if self.ordered:
-      # Compute features for all training images.
-      input_states = map(self.model.MakeStateFromFilename,
-          ChainLists(*image_lists))
-      all_features = self.ComputeFeatures(input_states)
-      features = []
-      idx = 0
-      for size in list_sizes:
-        next_idx = idx + size
-        class_features = all_features[idx : next_idx]
-        class_features = np.array(class_features, util.ACTIVATION_DTYPE)
-        features.append(class_features)
-        idx = next_idx
-    else:
-      # Compute features for each class independently
-      features = []
-      for images in image_lists:
-        input_states = map(self.model.MakeStateFromFilename, images)
-        class_features = self.ComputeFeatures(input_states)
-        class_features = np.array(class_features, util.ACTIVATION_DTYPE)
-        features.append(class_features)
-    return classes, features
+      labels = range(1, num_classes + 1)
+    class_sizes = map(len, features_per_class)
+    labels_per_class = [ [label] * size
+        for label, size in zip(labels, class_sizes) ]
+    # Convert feature vectors from np.array to list objects
+    features_per_class = [ map(list, features)
+        for features in features_per_class ]
+    return ChainLists(*labels_per_class), ChainLists(*features_per_class)
 
   def TrainSvm(self):
     """Train an SVM classifier from the set of training images."""
-    if self.train_images == None:
-      sys.exit("Please specify the training corpus before calling TrainSvm().")
+    if self.train_features == None:
+      self.ComputeFeatures()
     start_time = time.time()
-    classes, features = self._ComputeLibSvmFeatures(*self.train_images)
-    self.train_features = features
-    classes = ChainLists(*classes)
-    features = ChainLists(*features)
-    # Sphere each feature independently
-    self.scaler.Learn(features)
-    features = self.scaler.Apply(features)
-    # Convert feature vectors from np.array to list objects
-    features = map(list, features)
+    # learn from single list of feature vectors
+    self.scaler.Learn(ChainArrays(*self.train_features))
+    # sphere features
+    features = map(self.scaler.Apply, self.train_features)
+    svm_labels, svm_features = self.PrepareLibSvmInput(features)
     options = '-q'  # don't write to stdout
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
     import svmutil
-    self.classifier = svmutil.svm_train(classes, features, options)
+    self.classifier = svmutil.svm_train(svm_labels, svm_features, options)
     options = ''  # can't disable writing to stdout
-    predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
-        features, self.classifier, options)
+    predicted_labels, acc, decision_values = svmutil.svm_predict(svm_labels,
+        svm_features, self.classifier, options)
     self.train_accuracy = float(acc[0]) / 100.
     self.svm_train_time = time.time() - start_time
     return self.train_accuracy
@@ -342,22 +367,18 @@ class Experiment(object):
     """
     if self.classifier == None:
       sys.exit("Please train the classifier before calling TestSvm().")
-    if self.test_images == None:
-      sys.exit("Please specify the testing corpus before calling TestSvm().")
+    if self.test_features == None:
+      sys.exit("Internal error: missing SVM features for test images.")
     start_time = time.time()
-    classes, features = self._ComputeLibSvmFeatures(*self.test_images)
-    self.test_features = features
-    classes = ChainLists(*classes)  # combine class indicators into single list
-    features = ChainLists(*features)  # combine features into single list
-    features = self.scaler.Apply(features)  # scale features
-    # Convert feature vectors from np.array to list objects
-    features = map(list, features)
+    # sphere features
+    features = map(self.scaler.Apply, self.test_features)
+    svm_labels, svm_features = self.PrepareLibSvmInput(features)
     options = ''  # can't disable writing to stdout
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
     import svmutil
-    predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
-        features, self.classifier, options)
+    predicted_labels, acc, decision_values = svmutil.svm_predict(svm_labels,
+        svm_features, self.classifier, options)
     # Ignore mean-squared error and correlation coefficient
     self.test_accuracy = float(acc[0]) / 100.
     self.svm_test_time = time.time() - start_time
@@ -435,12 +456,10 @@ def GetExperiment():
     SetExperiment()
   return __EXP
 
-def SetExperiment(model = None, layer = None, ordered = True, scaler = None):
+def SetExperiment(model = None, layer = None, scaler = None):
   """Create a new experiment.
   model -- the Glimpse model to use for processing images
   layer -- (LayerSpec or str) the layer activity to use for features vectors
-  ordered -- (bool) whether the order of SVM feature vectors must be preserved
-             within each class
   scaler -- feature scaling algorithm
   """
   global __EXP, __POOL
@@ -454,8 +473,7 @@ def SetExperiment(model = None, layer = None, ordered = True, scaler = None):
     layer = model.Layer.FromName(layer)
   if scaler == None:
     scaler = SpheringFeatureScaler()
-  __EXP = Experiment(model, layer, pool = __POOL, ordered = ordered,
-      scaler = scaler)
+  __EXP = Experiment(model, layer, pool = __POOL, scaler = scaler)
 
 def ImprintS2Prototypes(num_prototypes):
   """Imprint a set of S2 prototypes from a set of training images.
@@ -468,13 +486,13 @@ def ImprintS2Prototypes(num_prototypes):
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
 
-def MakeRandomPrototypes(num_prototypes):
+def MakeRandomS2Prototypes(num_prototypes):
   """Create a set of S2 prototypes with uniformly random entries.
   num_prototypes -- (int) the number of S2 prototype arrays to create
   """
   if __VERBOSE:
     print "Making %d random prototypes" % num_prototypes
-  result = GetExperiment().MakeRandomPrototypes(num_prototypes)
+  result = GetExperiment().MakeRandomS2Prototypes(num_prototypes)
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
@@ -502,6 +520,8 @@ def TrainSvm():
   result = GetExperiment().TrainSvm()
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().svm_train_time
+    print "  calculating feature vectors: %s s" % \
+        GetExperiment().compute_feature_time
   return result
 
 def TestSvm():
