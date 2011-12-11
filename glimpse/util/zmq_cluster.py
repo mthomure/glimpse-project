@@ -367,12 +367,18 @@ class BasicWorker(object):
         raise ReceiverTimeoutException
       if self.receiver in socks:
         request = self.receiver.recv_pyobj()
+        # Full metadata for a successful result includes the full hostname and
+        # PID of the worker process, and the time elapsed while computing the
+        # result.
         result_metadata = socket.getfqdn(), os.getpid()
         result = ClusterResult(request_metadata = request.metadata,
             metadata = result_metadata)
         try:
           # Apply user request_handler to the request
+          start_time = time.time()
           result.payload = self.HandleRequest(request.payload)
+          # Add the time consumed by handling the request
+          result.metadata = result.metadata + (time.time() - start_time,)
           result.status = ClusterResult.STATUS_SUCCESS
         except Exception, e:
           logging.info(("BasicWorker: caught exception %s from " % e) + \

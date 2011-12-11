@@ -160,7 +160,7 @@ class ClusterManager(object):
     result, request_metadata, result_metadata = self.out_queue.get()
     self.task_count -= 1
     if metadata:
-      return result, request_metadata
+      return result, request_metadata, result_metadata
     return result
 
   def GetMany(self, num_results, metadata = False):

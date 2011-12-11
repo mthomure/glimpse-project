@@ -32,6 +32,7 @@ class ClusterPool(object):
       chunksize = 16  # by default, send enough work to occupy a 16-core machine
     self.manager = manager
     self.chunksize = chunksize
+    self.cluster_stats = {}
 
   def map(self, func, iterable, chunksize = None):
     """Perform stable map. Block until all results are available, which are
@@ -60,17 +61,28 @@ class ClusterPool(object):
     result_groups = self.manager.GetMany(num_requests, metadata = True)
     ordered_result_groups = [None] * num_requests
     for group in result_groups:
-      results, metadata_ = group
+      results, request_metadata, result_metadata = group
+      valid = True
       try:
-        call_id_, offset = metadata_
+        call_id_, offset = request_metadata
+        if call_id_ != call_id:
+          valid = False
       except:
-        metadata_ = None
-      if metadata_ == None or call_id_ != call_id:
+        valid = False
+      if not valid:
         raise ValueError("Got results for wrong request")
+      self._HandleResultMetadata(result_metadata)
       ordered_result_groups[offset] = results
     # unchunk result groups -- this assumes workers maintain order of requets
     # within a batch
     return util.UngroupIterator(ordered_result_groups)
+
+  def _HandleResultMetadata(self, result_metadata):
+    fqdn, pid, elapsed_time = result_metadata
+    key = (fqdn, pid)
+    if key not in self.cluster_stats:
+      self.cluster_stats[key] = []
+    self.cluster_stats[key].append(elapsed_time)
 
   def imap_unordered(self, func, iterable, chunksize = None):
     """Perform non-stable sort. Return immediately with iterable, whose next()
