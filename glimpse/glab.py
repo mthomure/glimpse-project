@@ -54,7 +54,7 @@ import time
 
 __all__ = ( 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
     'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeRandomS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'TrainSvm',
+    'MakeRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'TrainSvm',
     'TestSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
 def ChainLists(*iterables):
@@ -238,6 +238,12 @@ class Experiment(object):
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
+  def SetS2Prototypes(self, prototypes):
+    """Set the S2 prototypes from an array.
+    prototypes -- (ndarray) the set of prototypes
+    """
+    self.model.s2_kernels = prototypes
+
   def ComputeFeaturesFromInputStates(self, input_states):
     """Return the activity of the model's output layer for a set of images.
     input_states -- (State iterable) model states containing image data
@@ -289,16 +295,30 @@ class Experiment(object):
     self.test_images = [ images[ len(images)/2 : ]
         for images in images_per_class ]
 
-  def SetTrainTestSplit(self, train_dir, test_dir, classes = None):
+  def SetTrainTestSplitFromDirs(self, train_dir, test_dir, classes = None):
     """Read images from the corpus directories, setting the training and testing
-    subsets manually. Use this instead of SetCorpus()."""
+    subsets manually. Use this instead of SetCorpus().
+    train_dir -- (str)
+    test_dir -- (str)
+    classes -- (list) class names
+    """
     if classes == None:
       classes = os.listdir(train_dir)
-    self.classes = classes
+    train_images = self._ReadCorpusDir(train_dir, classes)
+    test_images = self._ReadCorpusDir(test_dir, classes)
+    self.SetTrainTestSplit(train_images, test_images, classes)
     self.corpus = (train_dir, test_dir)
+
+  def SetTrainTestSplit(self, train_images, test_images, classes):
+    """Manually specify the training and testing images.
+    train_images -- (str)
+    test_images -- (str)
+    classes -- (list) class names
+    """
+    self.classes = classes
     self.train_test_split = 'manual'
-    self.train_images = self._ReadCorpusDir(train_dir, classes)
-    self.test_images = self._ReadCorpusDir(test_dir, classes)
+    self.train_images = train_images
+    self.test_images = test_images
 
   def ComputeFeatures(self):
     """Compute SVM feature vectors for all images."""
@@ -355,6 +375,7 @@ class Experiment(object):
     import svmutil
     self.classifier = svmutil.svm_train(svm_labels, svm_features, options)
     options = ''  # can't disable writing to stdout
+    print "LIBSVM-INTERNAL",  # mark output from LIBSVM
     predicted_labels, acc, decision_values = svmutil.svm_predict(svm_labels,
         svm_features, self.classifier, options)
     self.train_accuracy = float(acc[0]) / 100.
@@ -377,6 +398,7 @@ class Experiment(object):
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
     import svmutil
+    print "LIBSVM-INTERNAL",  # mark output from LIBSVM
     predicted_labels, acc, decision_values = svmutil.svm_predict(svm_labels,
         svm_features, self.classifier, options)
     # Ignore mean-squared error and correlation coefficient
@@ -497,6 +519,16 @@ def MakeRandomS2Prototypes(num_prototypes):
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
 
+def SetS2Prototypes(prototypes):
+  """Set the S2 prototypes from an array or a file.
+  prototypes -- (ndarray) the set of prototypes, or (str) a path to a file containing the prototypes
+  """
+  if isinstance(prototypes, basestring):
+    prototypes = util.Load(prototypes)
+  elif not isinstance(prototypes, np.ndarray):
+    raise ValueError("Please specify an array of prototypes, or the path to a file.")
+  GetExperiment().SetS2Prototypes(prototypes)
+
 def SetCorpus(corpus_dir, classes = None):
   """Read images from the corpus directory, and choose training and testing
   subsets automatically. Use this instead of SetTrainTestSplit().
@@ -507,10 +539,19 @@ def SetCorpus(corpus_dir, classes = None):
   """
   return GetExperiment().SetCorpus(corpus_dir, classes)
 
-def SetTrainTestSplit(train_dir, test_dir, classes = None):
+def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
   """Read images from the corpus directories, setting the training and testing
-  subsets manually. Use this instead of SetCorpus()."""
+  subsets manually. Use this instead of SetCorpus().
+  """
   return GetExperiment().SetTrainTestSplit(train_dir, test_dir, classes)
+
+def SetTrainTestSplit(train_images, test_images, classes):
+  """Manually specify the training and testing images."""
+  return GetExperiment().SetTrainTestSplit(train_images, test_images, classes)
+
+def ComputeFeatures():
+  """Compute SVM feature vectors for all images. Generally, you do not need to call this method yourself, as it will be called automatically by TrainSvm()."""
+  GetExperiment().ComputeFeatures()
 
 def TrainSvm():
   """Train an SVM classifier from the set of training images."""
@@ -520,7 +561,7 @@ def TrainSvm():
   result = GetExperiment().TrainSvm()
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().svm_train_time
-    print "  calculating feature vectors: %s s" % \
+    print "Time to compute train/test feature vectors: %s s" % \
         GetExperiment().compute_feature_time
   return result
 

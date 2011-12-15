@@ -148,8 +148,8 @@ class BasicVentilator(object):
     logging.info("BasicVentilator: starting send")
     num_requests = 0
     for request in requests:
-      logging.info("BasicVentilator: sending task %d at time %s" % \
-          (self.num_total_requests, time.time()))
+#      logging.info("BasicVentilator: sending task %d at time %s" % \
+#          (self.num_total_requests, time.time()))
       self.sender.send_pyobj(request)
       self.num_total_requests += 1
       num_requests += 1
