@@ -20,6 +20,11 @@ cd $GLIMPSE_HOME
 JOBDIR=run/glimpse-cluster/${HOST}/workers
 mkdir -p $JOBDIR
 
+if [[ "$BASHPID" == "" ]]; then
+  # Workaround for old versions of bash
+  BASHPID=$$
+fi
+
 function Run {
   # Log the process ID of the script.
   echo $$ > $JOBDIR/$NUM.pid
@@ -36,7 +41,7 @@ function Run {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  CMD="bin/glimpse-cluster -vc rc/brokered-tcp-cluster.ini LaunchWorker $NUM_PROCS"
+  CMD="bin/glimpse-cluster -v LaunchWorker $NUM_PROCS"
   until $CMD; do
     echo "GLIMPSE-CLUSTER-WRAPPER: 'glimpse-cluster' exited with status $?, restarting.." 1>&2
     sleep 1
