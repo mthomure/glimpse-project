@@ -3,7 +3,6 @@
 from glimpse import util
 import numpy
 np = numpy
-from glimpse import core
 import os
 #import odd
 
@@ -32,7 +31,7 @@ def array2D(x):
 WITH_PLOT = ('DISPLAY' in os.environ)
 if WITH_PLOT:
 
-  import glimpse.util.gplot
+  from glimpse.util import gplot
   from matplotlib import pyplot
 
   def hist(x, **args):
