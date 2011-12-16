@@ -36,7 +36,7 @@ define_macros = []
 undef_macros = []
 
 if optimize:
-  extra_compile_args += [ "-O3", "-mtune=native" ]
+  extra_compile_args += [ "-O3" ]
   extra_link_args += [ ]
 else:
   extra_compile_args += ["-O0", "-g" ]
