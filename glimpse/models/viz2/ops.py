@@ -156,13 +156,22 @@ class ModelOps(object):
     return c1s
 
   def BuildS2FromC1(self, c1s):
+    """Compute the S2 layer activity from multi-scale C1 activity.
+    c1s -- (4D ndarray, or list of 3D ndarrays) C1 activity
+    """
     if self.s2_kernels == None:
       raise Exception("Need S2 kernels to compute S2 layer activity, but none "
           "were specified.")
+    if len(c1s) == 0:
+      return []
     p = self.params
+    c1s = np.array(c1s, copy = False)
+    # Get the spatial extent of a map. Note that this assumes that every C1 map
+    # has same spatial extent.
+    height, width = c1s[0].shape[-2:]
     # Get the shape of each S2 map
     s2_shape = self.backend.OutputMapShapeForInput(p.s2_kwidth, p.s2_kwidth,
-        p.s2_scaling, c1s.shape[-2], c1s.shape[-1])
+        p.s2_scaling, height, width)
     # Get the shape of the full S2 activity array
     s2_shape = (p.num_scales, len(self.s2_kernels)) + s2_shape
     s2s = np.empty(s2_shape, ACTIVATION_DTYPE)

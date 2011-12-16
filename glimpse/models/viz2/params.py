@@ -51,7 +51,7 @@ class Params(traits.HasStrictTraits):
       desc = "spatial width of input neighborhood for C1 units")
   c1_scaling = traits.Range(low = 1, value = 2, label = "C1 Scaling",
       desc = "subsampling factor")
-  c1_whiten = traits.Bool(True, label = "C1 Whiten",
+  c1_whiten = traits.Bool(False, label = "C1 Whiten",
       desc = "whether to normalize the total energy at each C1 location")
 
   s2_beta = traits.Range(low = 0., value = 5., exclude_low = True,
