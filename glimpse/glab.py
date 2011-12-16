@@ -44,18 +44,21 @@ SetCorpus("indir/corpus")
 
 from glimpse import backends
 from glimpse.models import viz2
-from glimpse import pools, util
+from glimpse import pools
+from glimpse import util
 import itertools
+import logging
 import numpy as np
 import operator
 import os
 import sys
 import time
 
-__all__ = ( 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
+__all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
     'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'TrainSvm',
-    'TestSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
+    'MakeRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus',
+    'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
+    'TrainSvm', 'TestSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
 def ChainLists(*iterables):
   """Concatenate several sequences to form a single list."""
@@ -155,7 +158,7 @@ class Experiment(object):
   def __init__(self, model, layer, pool, scaler):
     """Create a new experiment.
     model -- the Glimpse model to use for processing images
-    layer -- (LayerSpec or str) the layer activity to use for features vectors
+    layer -- (LayerSpec) the layer activity to use for features vectors
     pool -- a serializable worker pool
     scaler -- feature scaling algorithm
     """
@@ -442,21 +445,30 @@ __MODEL_CLASS = viz2.Model
 __EXP = None
 __VERBOSE = False
 
-def UseCluster(config_file, chunksize = None):
+def SetPool(pool):
+  """Set the worker pool used for this experiment."""
+  global __POOL
+  logging.info("Using pool type: %s" % type(pool).__name__)
+  __POOL = pool
+
+def UseCluster(config_file = None, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.
   config_file -- (str) path to the cluster configuration file
   """
-  global __POOL
   from glimpse.pools.cluster import ClusterConfig, ClusterPool
+  if config_file == None:
+    if 'GLIMPSE_CLUSTER_CONFIG' not in os.environ:
+      raise ValueError("Please specify a cluster configuration file.")
+    config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
   config = ClusterConfig(config_file)
-  del __POOL
-  __POOL = ClusterPool(config, chunksize = chunksize)
+  SetPool(ClusterPool(config, chunksize = chunksize))
 
 def SetModelClass(model_class):
   """Set the model type.
   model_class -- for example, use glimpse.models.viz2.model.Model
   """
   global __MODEL_CLASS
+  logging.info("Using model type: %s" % model_class.__name__)
   __MODEL_CLASS = model_class
 
 def MakeParams():
@@ -591,3 +603,139 @@ def Verbose(flag):
   """Set (or unset) verbose logging."""
   global __VERBOSE
   __VERBOSE = flag
+
+#### CLI Interface ####
+
+def __CLIGetModel(model_name):
+  models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
+      ['Model'], 0)
+  try:
+    return getattr(models, 'Model')
+  except AttributeError:
+    raise util.UsageException("Unknown model (-m): %s" % model_name)
+
+def __CLIMakeClusterPool(config_file = None):
+  from glimpse.pools.cluster import ClusterConfig, ClusterPool
+  if config_file == None:
+    if 'GLIMPSE_CLUSTER_CONFIG' not in os.environ:
+      raise util.UsageException("Please specify a cluster configuration file.")
+    config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
+  return ClusterPool(ClusterConfig(config_file))
+
+def __CLIInit(pool_type = None, cluster_config = None, model_name = None, params = None,
+    edit_params = False, layer = None, **opts):
+  # Make the worker pool
+  if pool_type != None:
+    pool_type = pool_type.lower()
+    if pool_type in ('c', 'cluster'):
+      pool = __CLIMakeClusterPool(cluster_config)
+    elif pool_type in ('m', 'multicore'):
+      pool = pools.MulticorePool()
+    elif pool_type in ('s', 'singlecore'):
+      pool = pools.SinglecorePool()
+    else:
+      raise util.UsageException("Unknown pool type: %s" % pool_type)
+    SetPool(pool)
+  if model_name != None:
+    SetModelClass(__CLIGetModel(model_name))
+  model = None
+  if edit_params:
+    if params == None:
+      params = MakeParams()
+      params.configure_traits()
+      model = MakeModel(params)
+  elif params != None:
+    model = MakeModel(params)
+  if model != None or layer != None:
+    SetExperiment(model = model, layer = layer)
+
+def __CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10, corpus = None,
+    svm = False, **opts):
+  if corpus != None:
+    SetCorpus(corpus)
+  num_prototypes = int(num_prototypes)
+  if prototypes != None:
+    SetS2Prototypes(prototypes)
+  elif prototype_algorithm != None:
+    prototype_algorithm = prototype_algorithm.lower()
+    if prototype_algorithm == 'imprint':
+      ImprintS2Prototypes(num_prototypes)
+    elif prototype_algorithm == 'random':
+      MakeRandomS2Prototypes(num_prototypes)
+    else:
+      raise util.UsageException("Invalid prototype algorithm (%s), expected 'imprint' "
+                              "or 'random'." % prototype_algorithm)
+  if svm:
+    train_accuracy = TrainSvm()
+    test_accuracy = TestSvm()
+    print "Train Accuracy: %.3f" % train_accuracy
+    print "Test Accuracy: %.3f" % test_accuracy
+
+def main():
+  default_model = "viz2"
+  try:
+    opts = dict()
+    result_path = None
+    verbose = 0
+    cli_opts, cli_args = util.GetOptions('c:C:el:m:n:o:p:P:r:st:v', ['corpus=', 'cluster_config=',
+        'edit_options', 'layer=', 'model=', 'num_prototypes=', 'options=', 'prototype_algorithm=',
+        'prototypes=', 'results=', 'svm', 'pool_type=', 'verbose'])
+    for opt, arg in cli_opts:
+      if opt in ('-c', '--corpus'):
+        opts['corpus'] = arg
+      elif opt in ('-C', '--cluster_config'):
+        # Use a cluster of worker nodes
+        opts['cluster_config'] = arg
+      elif opt in ('-e', '--edit_options'):
+        opts['edit_params'] = True
+      elif opt in ('-l', '--layer'):
+        opts['layer'] = arg
+      elif opt in ('-m', '--model'):
+        # Set the model class
+        if arg == 'default':
+          arg = default_model
+        opts['model_name'] = arg
+      elif opt in ('-n', '--num_prototypes'):
+        opts['num_prototypes'] = int(arg)
+      elif opt in ('-o', '--options'):
+        opts['params'] = util.Load(arg)
+      elif opt in ('-p', '--prototype_algorithm'):
+        opts['prototype_algorithm'] = arg.lower()
+      elif opt in ('-P', '--prototypes'):
+        opts['prototypes'] = util.Load(arg)
+      elif opt in ('-r', '--results'):
+        result_path = arg
+      elif opt in ('-s', '--svm'):
+        opts['svm'] = True
+      elif opt in ('-t', '--pool_type'):
+        opts['pool_type'] = arg.lower()
+      elif opt in ('-v', '--verbose'):
+        verbose += 1
+    if verbose > 0:
+      Verbose(True)
+      if verbose > 1:
+        logging.getLogger().setLevel(logging.INFO)
+    __CLIInit(**opts)
+    __CLIRun(**opts)
+    if result_path != None:
+      StoreExperiment(result_path)
+  except util.UsageException, e:
+    util.Usage("[options]\n"
+        "  -c, --corpus=DIR                Use corpus directory DIR\n"
+        "  -C, --cluster_config=FILE       Read cluster configuration from FILE\n"
+        "  -e, --edit_options              Edit model options with a GUI\n"
+        "  -l, --layer=LAYR                Compute feature vectors from LAYR activity\n"
+        "  -m, --model=MODL                Use model named MODL\n"
+        "  -n, --num_prototypes=NUM        Generate NUM S2 prototypes\n"
+        "  -o, --options=FILE              Read model options from FILE\n"
+        "  -p, --prototype_algorithm=ALG   Generate S2 prototypes according to algorithm ALG\n"
+        "  -P, --prototypes=FILE           Read S2 prototypes from FILE\n"
+        "  -r, --results=FILE              Store results to FILE\n"
+        "  -s, --svm                       Train and test an SVM classifier\n"
+        "  -t, --pool_type=TYPE            Set the worker pool type\n"
+        "  -v, --verbose                   Enable verbose logging",
+        e
+    )
+
+if __name__ == '__main__':
+  main()
