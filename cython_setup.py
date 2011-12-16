@@ -8,6 +8,7 @@
 
 from distutils.core import setup
 from distutils.extension import Extension
+from Cython.Distutils import build_ext
 import numpy
 
 #### Control Flags for Compilation ####
@@ -61,7 +62,7 @@ if profiler:
 cython_backend_ext = Extension(
   "glimpse.backends.cython_backend.filter",
   [
-    "glimpse/backends/cython_backend/filter.cpp",
+    "glimpse/backends/cython_backend/filter.pyx",
     "glimpse/backends/cython_backend/src/array.cpp",
     "glimpse/backends/cython_backend/src/bitset_array.cpp",
     "glimpse/backends/cython_backend/src/filter.cpp",
@@ -86,6 +87,7 @@ setup(
   description = "Library for hierarchical visual models in C++ and Python",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
+  cmdclass = {'build_ext': build_ext},
 
   ext_modules = [ cython_backend_ext ],
   packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend',
