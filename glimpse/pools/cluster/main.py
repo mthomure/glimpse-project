@@ -10,23 +10,26 @@ from .misc import LaunchBrokers, LaunchWorker, KillWorkers, PingWorkers, \
     RestartWorkers, FlushCluster
 from .config import ClusterConfig, ConfigException
 from glimpse import util
+import os
 import sys
 
 def main():
   methods = map(eval, ("LaunchBrokers", "LaunchWorker", "KillWorkers",
       "RestartWorkers", "PingWorkers", "FlushCluster"))
   try:
-    config_files = tuple()
+    config_files = list()
+    if 'GLIMPSE_CLUSTER_CONFIG' in os.environ:
+      config_files.append(os.environ['GLIMPSE_CLUSTER_CONFIG'])
     opts, args = util.GetOptions("c:v")
     for opt, arg in opts:
       if opt == '-c':
-        config_files = config_files + (arg,)
+        config_files.append(arg)
       elif opt == '-v':
         import logging
         logging.getLogger().setLevel(logging.INFO)
     if len(args) < 1:
       raise util.UsageException
-    if not config_files:
+    if len(config_files) == 0:
       raise util.UsageException("Must specify a socket configuration file.")
     method = eval(args[0])
     config = ClusterConfig(*config_files)

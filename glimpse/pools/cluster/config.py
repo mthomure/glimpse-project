@@ -141,7 +141,7 @@ class ClusterConfig(object):
     self.config.add_section('READER')
     self.config.add_section('WRITER')
     # Read the specified config files
-    read_files = self.config.read(*config_files)
+    read_files = self.config.read(config_files)
     if len(read_files) == 0:
       raise ConfigException("Unable to read any socket configuration "
           "files.")
