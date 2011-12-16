@@ -41,6 +41,7 @@ def main():
         for m in methods ]
     util.Usage("[options] CMD [ARGS]\n"
         "  -c FILE   Read socket configuration from FILE\n"
+        "  -v        Be verbose with logging\n"
         "CMDs include:\n" + "\n".join(method_info),
         e)
 
