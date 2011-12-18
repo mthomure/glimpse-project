@@ -307,8 +307,8 @@ class Sink(BasicSink):
     results = super(Sink, self).Receive(num_results, timeout)
     for result in results:
       if result.status != ClusterResult.STATUS_SUCCESS:
-        raise WorkerException("Caught exception in worker node\n%s" % \
-            result.exception)
+        raise WorkerException("Caught exception in worker node (%s:%s)\n%s" % \
+            (result.metadata[0], result.metadata[1], result.exception))
       if metadata:
         yield result.payload, result.request_metadata, result.metadata
       else:
