@@ -186,6 +186,7 @@ class Experiment(object):
     self.prototype_construction_time = None
     self.svm_train_time = None
     self.svm_test_time = None
+    self.debug = False
 
   @property
   def s2_prototypes(self):
@@ -216,16 +217,20 @@ class Experiment(object):
     num_prototypes -- (int) the number of C1 patches to sample
     """
     if self.train_images == None:
-      sys.exit("Please specify the training corpus before calling "
-          "ImprintS2Prototypes().")
+      sys.exit("Please specify the training corpus before imprinting "
+          "prototypes.")
     start_time = time.time()
     image_files = ChainLists(*self.train_images)
     # Represent each image file as an empty model state.
     input_states = map(self.model.MakeStateFromFilename, image_files)
-    prototypes, _ = self.model.ImprintS2Prototypes(num_prototypes,
+    prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
         input_states, normalize = True, pool = self.pool)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
+    if self.debug:
+      # Convert input source index to corresponding image path.
+      locations = [ (image_files[l[0]],) + l[1:] for l in locations ]
+      self.debug_prototype_locations = locations
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
@@ -238,6 +243,7 @@ class Experiment(object):
     prototypes = np.random.uniform(0, 1, shape)
     for p in prototypes:
       p /= np.linalg.norm(p)
+    self.prototype_source = 'random'
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
@@ -245,6 +251,7 @@ class Experiment(object):
     """Set the S2 prototypes from an array.
     prototypes -- (ndarray) the set of prototypes
     """
+    self.prototype_source = 'manual'
     self.model.s2_kernels = prototypes
 
   def ComputeFeaturesFromInputStates(self, input_states):
@@ -259,6 +266,8 @@ class Experiment(object):
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
     # Compute model states containing IT features.
     output_states = self.pool.map(builder, input_states)
+    if self.debug:
+      self.debug_output_states = output_states
     # Look up the activity values for the output layer, and convert them all to
     # a single vector.
     return [ util.ArrayListToVector(state[self.layer.id])
@@ -533,12 +542,14 @@ def MakeRandomS2Prototypes(num_prototypes):
 
 def SetS2Prototypes(prototypes):
   """Set the S2 prototypes from an array or a file.
-  prototypes -- (ndarray) the set of prototypes, or (str) a path to a file containing the prototypes
+  prototypes -- (ndarray) the set of prototypes, or (str) a path to a file
+                containing the prototypes
   """
   if isinstance(prototypes, basestring):
     prototypes = util.Load(prototypes)
   elif not isinstance(prototypes, np.ndarray):
-    raise ValueError("Please specify an array of prototypes, or the path to a file.")
+    raise ValueError("Please specify an array of prototypes, or the path to a "
+        "file.")
   GetExperiment().SetS2Prototypes(prototypes)
 
 def SetCorpus(corpus_dir, classes = None):
@@ -562,7 +573,9 @@ def SetTrainTestSplit(train_images, test_images, classes):
   return GetExperiment().SetTrainTestSplit(train_images, test_images, classes)
 
 def ComputeFeatures():
-  """Compute SVM feature vectors for all images. Generally, you do not need to call this method yourself, as it will be called automatically by TrainSvm()."""
+  """Compute SVM feature vectors for all images. Generally, you do not need to
+  call this method yourself, as it will be called automatically by
+  TrainSvm()."""
   GetExperiment().ComputeFeatures()
 
 def TrainSvm():
@@ -622,8 +635,8 @@ def __CLIMakeClusterPool(config_file = None):
     config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
   return ClusterPool(ClusterConfig(config_file))
 
-def __CLIInit(pool_type = None, cluster_config = None, model_name = None, params = None,
-    edit_params = False, layer = None, **opts):
+def __CLIInit(pool_type = None, cluster_config = None, model_name = None,
+    params = None, edit_params = False, layer = None, debug = False, **opts):
   # Make the worker pool
   if pool_type != None:
     pool_type = pool_type.lower()
@@ -648,9 +661,10 @@ def __CLIInit(pool_type = None, cluster_config = None, model_name = None, params
     model = MakeModel(params)
   if model != None or layer != None:
     SetExperiment(model = model, layer = layer)
+  GetExperiment().debug = debug
 
-def __CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10, corpus = None,
-    svm = False, **opts):
+def __CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
+    corpus = None, svm = False, compute_features = False, **opts):
   if corpus != None:
     SetCorpus(corpus)
   num_prototypes = int(num_prototypes)
@@ -663,8 +677,10 @@ def __CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     elif prototype_algorithm == 'random':
       MakeRandomS2Prototypes(num_prototypes)
     else:
-      raise util.UsageException("Invalid prototype algorithm (%s), expected 'imprint' "
-                              "or 'random'." % prototype_algorithm)
+      raise util.UsageException("Invalid prototype algorithm "
+          "(%s), expected 'imprint' or 'random'." % prototype_algorithm)
+  if compute_features:
+    ComputeFeatures()
   if svm:
     train_accuracy = TrainSvm()
     test_accuracy = TestSvm()
@@ -677,16 +693,22 @@ def main():
     opts = dict()
     result_path = None
     verbose = 0
-    cli_opts, cli_args = util.GetOptions('c:C:el:m:n:o:p:P:r:st:v', ['corpus=', 'cluster_config=',
-        'edit_options', 'layer=', 'model=', 'num_prototypes=', 'options=', 'prototype_algorithm=',
-        'prototypes=', 'results=', 'svm', 'pool_type=', 'verbose'])
+    cli_opts, cli_args = util.GetOptions('c:C:del:m:n:o:p:P:r:st:v', ['corpus=',
+        'cluster-config=', 'compute-features', 'debug', 'edit-options',
+        'layer=', 'model=', 'num-prototypes=', 'options=',
+        'prototype-algorithm=', 'prototypes=', 'results=', 'svm', 'pool-type=',
+        'verbose'])
     for opt, arg in cli_opts:
       if opt in ('-c', '--corpus'):
         opts['corpus'] = arg
-      elif opt in ('-C', '--cluster_config'):
+      elif opt in ('-C', '--cluster-config'):
         # Use a cluster of worker nodes
         opts['cluster_config'] = arg
-      elif opt in ('-e', '--edit_options'):
+      elif opt in ('--compute-features'):
+        opts['compute_features'] = True
+      elif opt in ('-d', '--debug'):
+        opts['debug'] = True
+      elif opt in ('-e', '--edit-options'):
         opts['edit_params'] = True
       elif opt in ('-l', '--layer'):
         opts['layer'] = arg
@@ -695,11 +717,11 @@ def main():
         if arg == 'default':
           arg = default_model
         opts['model_name'] = arg
-      elif opt in ('-n', '--num_prototypes'):
+      elif opt in ('-n', '--num-prototypes'):
         opts['num_prototypes'] = int(arg)
       elif opt in ('-o', '--options'):
         opts['params'] = util.Load(arg)
-      elif opt in ('-p', '--prototype_algorithm'):
+      elif opt in ('-p', '--prototype-algorithm'):
         opts['prototype_algorithm'] = arg.lower()
       elif opt in ('-P', '--prototypes'):
         opts['prototypes'] = util.Load(arg)
@@ -707,7 +729,7 @@ def main():
         result_path = arg
       elif opt in ('-s', '--svm'):
         opts['svm'] = True
-      elif opt in ('-t', '--pool_type'):
+      elif opt in ('-t', '--pool-type'):
         opts['pool_type'] = arg.lower()
       elif opt in ('-v', '--verbose'):
         verbose += 1
@@ -722,17 +744,23 @@ def main():
   except util.UsageException, e:
     util.Usage("[options]\n"
         "  -c, --corpus=DIR                Use corpus directory DIR\n"
-        "  -C, --cluster_config=FILE       Read cluster configuration from FILE\n"
-        "  -e, --edit_options              Edit model options with a GUI\n"
-        "  -l, --layer=LAYR                Compute feature vectors from LAYR activity\n"
+        "  -C, --cluster-config=FILE       Read cluster configuration from "
+        "FILE\n"
+        "      --compute-features          Compute feature vectors (implied "
+        "by -s)\n"
+        "  -d, --debug                     Enable debugging\n"
+        "  -e, --edit-options              Edit model options with a GUI\n"
+        "  -l, --layer=LAYR                Compute feature vectors from LAYR "
+        " activity\n"
         "  -m, --model=MODL                Use model named MODL\n"
-        "  -n, --num_prototypes=NUM        Generate NUM S2 prototypes\n"
+        "  -n, --num-prototypes=NUM        Generate NUM S2 prototypes\n"
         "  -o, --options=FILE              Read model options from FILE\n"
-        "  -p, --prototype_algorithm=ALG   Generate S2 prototypes according to algorithm ALG\n"
+        "  -p, --prototype-algorithm=ALG   Generate S2 prototypes according "
+        "to algorithm ALG\n"
         "  -P, --prototypes=FILE           Read S2 prototypes from FILE\n"
         "  -r, --results=FILE              Store results to FILE\n"
         "  -s, --svm                       Train and test an SVM classifier\n"
-        "  -t, --pool_type=TYPE            Set the worker pool type\n"
+        "  -t, --pool-type=TYPE            Set the worker pool type\n"
         "  -v, --verbose                   Enable verbose logging",
         e
     )
