@@ -13,6 +13,7 @@ from glimpse.models.misc import LayerSpec, InputSource, SampleC1Patches, \
     DependencyError, AbstractNetwork
 from glimpse import pools, util
 import itertools
+from math import sqrt
 import numpy as np
 from ops import ModelOps
 import random
@@ -144,9 +145,16 @@ class Model(ModelOps, AbstractNetwork):
     c1s = state[self.Layer.C1.id]
     patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
     patches = list(itertools.islice(patch_it, num_patches))
+    # TEST CASE: single state with uniform C1 activity and using normalize=True,
+    # check that result does not contain NaNs.
     if normalize:
       for patch, location in patches:
-        patch /= np.linalg.norm(patch)
+        n = np.linalg.norm(patch)
+        if n == 0:
+          logging.warn("Normalizing empty C1 patch")
+          patch[:] = 1. / sqrt(patch.size)
+        else:
+          patch /= n
     return patches
 
   def SampleC1PatchesCallback(self, num_patches, normalize = False):
@@ -196,17 +204,25 @@ class Model(ModelOps, AbstractNetwork):
     # Compute C1 activity, and sample patches.
     values_per_image = pool.imap_unordered(sampler, input_states)
     # We now have a iterator over (prototype,location) pairs for each image.
-    # Chain them together into a single iterator.
-    all_values = itertools.chain(*values_per_image)
     # Evaluate the iterator, and store the result as a list. Note that we must
     # evaluate before concatenating (below) to ensure we don't leave requests
     # sitting on the worker pool.
-    all_values = list(all_values)
+    values_per_image = map(list, values_per_image)
+    # Add input state index to locations.
+    assert len(input_states) == len(values_per_image)
+    for idx in range(len(input_states)):
+      values = values_per_image[idx]
+      # Locations are tuples of (scale, y, x). Prepend input state index.
+      values = [ (p, (idx,) + l) for p, l in values ]
+      values_per_image[idx] = values
+    # Chain them together into a single iterator.
+    all_values = list(itertools.chain(*values_per_image))
     # If the number of requested prototypes is not an even multiple of the
     # number of images, we have imprinted too many prototypes. Crop them.
     all_values = all_values[:num_prototypes]
+    # Convert list of tuples to tuple of lists.
     prototypes, locations = zip(*all_values)
-    # Convert to numpy array.
+    # Convert prototype to a single numpy array.
     prototypes = np.array(prototypes, util.ACTIVATION_DTYPE)
     return prototypes, locations
 
