@@ -1,265 +1,226 @@
-
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-#
-# Classes and functions for I/O and evaluation of linear support vector machines
-# (SVMs).
-#
-
-from gio import ReadLines, Load
-import numpy
+import math
+from .gio import SuppressStdout
+from .misc import GroupIterator, UngroupLists
+import numpy as np
+import os
 import sys
 
-class SvmModel(object):
-  """Represents a two-class linear kernel SVM."""
-  def __init__(self, coefficients, support_vectors, bias):
-    self.coefficients = coefficients
-    self.support_vectors = support_vectors
-    self.bias = bias
-  def Classify(self, xs):
-    return Sign(self.support_vectors.dot(xs).dot(self.coefficients) - self.bias)
-  def Evaluate(self, xs):
-    return numpy.dot(
-        numpy.dot(self.support_vectors, xs),
-        self.coefficients) - self.bias
+class RangeFeatureScaler(object):
+  """Scales features to lie in a fixed interval."""
 
-class SvmScaler(object):
-  def __init__(self, fname):
-    lines = ReadLines(fname)
-    self.out_low, self.out_high = map(float, lines[1].split())
-    self.in_ranges = [ map(float, line.split()[1:]) for line in lines[2:] ]
-  def _Scale(self, idx, value):
-    low, high = self.in_ranges[idx]
-    if value < low:
-      value = low
-    elif value > high:
-      value = high
-    normalized_input = (value - low) / (high - low)
-    normalized_output = normalized_input * (self.out_high - self.out_low)
-    return normalized_output + self.out_low
-  def Scale(self, vector):
-    scaled_vector = [ self._Scale(i,x) for i,x in zip(range(len(vector)), vector) ]
-    return numpy.array(scaled_vector, dtype=numpy.float32)
+  def __init__(self, min = -1, max = 1):
+    """Create new object.
+    min -- (float) minimum value in output range
+    max -- (float) maximum value in output range
+    """
+    self.omin, self.omax = min, max
 
-def Sign(x):
-  if x < 0:
-    return -1
-  elif x > 0:
-    return 1
-  return 0
+  def Learn(self, features):
+    """Determine the parameters required to scale each feature (independently)
+    to the range [-1, 1].
+    features -- (list of list)
+    """
+    self.imin, self.imax = np.min(features, 0), np.max(features, 0)
 
-def LoadSvmInstances(fname = sys.stdin):
-  """Reads SVM instance lines from file (name or handle). Lines must be
-  formatted as
-    VAL KEY:VAL [...] [# ...]
-  where VAL is a float, KEY is an int, and everything after the "#" is ignored.
-  If lines are support vectors, then first (header) VAL gives the alpha
-  coefficient. Otherwise, lines are training or testing instances and first VAL
-  is target class.
-  @returns list of header values and another list of feature vectors"""
+  def Apply(self, features):
+    """Scale the features in-place. The range of output values will be
+    (approximately) [-vmin, vmax], assuming the feature vectors passed here were
+    drawn from the same distribution as those used to learn the scaling
+    parameters.
+    features -- (list of ndarray)
+    RETURN (np.ndarray) new array of scaled feature values
+    """
+    features = np.array(features)  # copy feature values
+    for f in features:
+      f -= self.imin  # map to [0, imax - imin]
+      f /= (self.imax - self.imin)  # map to [0, 1]
+      f *= (self.omax - self.omin)  # map to [0, omax - omin]
+      f += self.omin  # map to [omin, omax]
+    return features
 
-  def ParseLine(line):
-    line = line.strip().split()
-    assert(len(line) > 1)
-    header = float(line[0])
-    keys = []
-    values = []
-    for entry in line[1:]:
-      if entry == "#":
-        break
-      key, value = entry.split(":")
-      keys.append(int(key) - 1)   # LIBSVM indices are 1-based
-      values.append(float(value))
-    features = numpy.empty([max(keys)+1], numpy.float32)
-    features[keys] = values
-    return header, features
+class SpheringFeatureScaler(object):
+  """Scales features to have fixed mean and standard deviation."""
 
-  if hasattr(fname, 'read'):
-    fh = fname
-  else:
-    fh = open(fname, 'r')
-  values = map(ParseLine, fh)
-  headers = numpy.array(list(v[0] for v in values), numpy.float32)
-  features = numpy.array(list(v[1] for v in values), numpy.float32)
-  if fh != fname:
-    fh.close()
-  return headers, features
+  def __init__(self, mean = 0, std = 1):
+    """Create new object.
+    mean -- (float) mean of output feature values
+    std -- (float) standard deviation of feature values
+    """
+    self.omean, self.ostd = mean, std
 
-LoadInstances = LoadSvmInstances
+  def Learn(self, features):
+    """Determine the parameters required to scale each feature (independently)
+    to the range [-1, 1].
+    features -- (list of list)
+    """
+    self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
 
-def StoreSvmInstances(headers, features, fname = sys.stdout):
-  """Serialize SVM instance data in LIBSVM/SVM-LIGHT format.
-  @params headers per-instance target class (either +1 or -1)
-  @params features per-instance feature vector
-  @params fname output file name or handle"""
-  if hasattr(fname, "write"):
-    fh = fname
-  else:
-    fh = open(fname, "w")
-  for h, f in zip(headers, features):
-    # SVM keys are 1-based
-    print >>fh, "%s %s" % (h,
-      " ".join("%s:%s" % (k+1, v) for k, v in zip(range(len(f)), f)))
-  if fh != fname:
-    fh.close()
+  def Apply(self, features):
+    """Scale the features. The range of output values will be (approximately)
+    [-vmin, vmax], assuming the feature vectors passed here were drawn from the
+    same distribution as those used to learn the scaling parameters.
+    features -- (list of ndarray)
+    RETURN (ndarray) new array with scaled features
+    """
+    features = np.array(features)  # copy feature values
+    features -= self.imean  # map to mean zero
+    features /= self.istd  # map to unit variance
+    features *= self.ostd  # map to output standard deviation
+    features += self.omean  # map to output mean
+    return features
 
-StoreInstances = StoreSvmInstances
-
-def StoreSvmInstances2(pos_activity, neg_activity, fname):
-  """Serialize SVM instance data in LIBSVM/SVM-LIGHT format.
-  @params pos_activity feature vectors for positive instances
-  @params neg_activity feature vectors for positive instances
-  @params fname output file name or handle"""
-  num_pos, num_neg = pos_activity.shape[0], neg_activity.shape[0]
-  headers = [1] * num_pos + [-1] * num_neg
-  num_features = pos_activity.shape[1]
-  assert(num_features == neg_activity.shape[1])
-  features = numpy.empty((num_pos + num_neg, num_features), numpy.float32)
-  features[:num_pos] = pos_activity
-  features[num_pos:] = neg_activity
-  StoreSvmInstances(headers, features, fname)
-
-def LoadLibsvmModel(fname = sys.stdin):
-   fh = open(fname)
-   # start read header
-   if not (
-     fh.readline().strip() == "svm_type c_svc" and
-     fh.readline().strip() == "kernel_type linear" and
-     fh.readline().strip() == "nr_class 2"):
-     raise Exception("Bad LIBSVM header")
-   line = fh.readline().strip().split()
-   if not (len(line) == 2 and line[0] == "total_sv"):
-     raise Exception("Bad LIBSVM header")
-   num_vectors = int(line[1])
-   line = fh.readline().strip().split()
-   if not (len(line) == 2 and line[0] == "rho"):
-     raise Exception("Bad LIBSVM header")
-   bias = float(line[1])
-   if not fh.readline().strip() == "label 1 -1":
-     raise Exception("Bad LIBSVM header")
-   line = fh.readline().strip().split()
-   if not (len(line) == 3 and line[0] == "nr_sv" and \
-       int(line[1]) + int(line[2]) == num_vectors):
-     raise Exception("Bad LIBSVM header")
-   if not fh.readline().strip() == "SV":
-     raise Exception("Bad LIBSVM header")
-   # end read header
-   if num_vectors <= 0: # or math.abs(bias) > 0.0001:
-     raise Exception("Bad LIBSVM header")
-   coefficients, support_vectors = LoadSvmInstances(fh)
-   fh.close()
-   return SvmModel(coefficients, support_vectors, bias)
-
-ReadLibsvmModel = LoadLibsvmModel
-
-def StoreLibsvmModel(model, fname = sys.stdout):
-  """Serialize SVM model to LIBSVM format."""
-  if hasattr(fname, "write"):
-    fh = fname
-  else:
-    fh = open(fname, "w")
-  print >>fh, "svm_type c_svc"
-  print >>fh, "kernel_type linear"
-  print >>fh, "nr_class 2"
-  print >>fh, "total_sv %d" % len(model.support_vectors)
-  print >>fh, "rho %f" % model.bias
-  print >>fh, "label 1 -1"
-
-  raise Exception("Not implemented: need to find documentation on LIBSVM model formatting.")
-
-  print >>fh, "nr_sv %d %d" % (num_pos, num_neg)
-  print >>fh, "SV"
-  StoreSvmInstances(model.coefficients, model.support_vectors, fh)
-  if fh != fname:
-    fh.close()
-
-def StoreSvmlightModel(model, fname = sys.stdout):
-  """Serialize SVM model to SVM-light format."""
-  if hasattr(fname, "write"):
-    fh = fname
-  else:
-    fh = open(fname, "w")
-  print >>fh, "SVM-light Version V6.02"
-  print >>fh, "0 # kernel type"
-  print >>fh, "3 # kernel parameter -d"
-  print >>fh, "1 # kernel parameter -g"
-  print >>fh, "1 # kernel parameter -s"
-  print >>fh, "1 # kernel parameter -r"
-  print >>fh, "empty# kernel parameter -u"
-  print >>fh, "%d # highest feature index" % model.support_vectors.shape[1]
-  print >>fh, "%d # number of training documents" % 0
-  print >>fh, "%d # number of support vectors plus 1" % (model.support_vectors.shape[0] + 1)
-  print >>fh, "%f # threshold b, each following line is a SV (starting with alpha*y)" % model.bias
-  StoreSvmInstances(model.coefficients, model.support_vectors, fh)
-  if fh != fname:
-    fh.close()
-
-def LoadSvmlightModel(fname = sys.stdin):
-  fh = open(fname)
-  # start read header
-  if not ((fh.readline().startswith("SVM-light Version") and
-           fh.readline().strip().split()[0] == "0")):
-    raise Exception("Bad SVM-light header")
-  for x in range(5): fh.readline()
-  num_features = int(fh.readline().strip().split(" ")[0])
-  fh.readline()
-  num_vectors = int(fh.readline().strip().split(" ")[0]) - 1
-  bias = float(fh.readline().strip().split(" ")[0])
-  # end read header
-  coefficients, support_vectors = LoadSvmInstances(fh)
-  fh.close()
-  assert(num_features == support_vectors.shape[1]), "SVM-light format error"
-  return SvmModel(coefficients, support_vectors, bias)
-
-ReadSvmlightModel = LoadSvmlightModel
-
-def ReadSvmFeatureString(feature_string, feature_array):
-  line = feature_string.split()
-  for entry in line:
-    entry = entry.split(':')
-    idx = int(entry[0]) - 1     # LIBSVM indices are 1-based
-    value = float(entry[1])
-    feature_array[idx] = value
-  return feature_array
-
-def FormatSvm(label, features):
-  """Convert a single instance to a string in LIBSVM format.
-  label -- either 1 or -1
-  features -- array of feature values.
+def PrepareLibSvmInput(features_per_class):
+  """Format feature vectors for use by LIBSVM.
+  features_per_class -- (list of ndarray) per-class feature vectors
+  RETURN (tuple) (list) labels, and (list) all feature vectors
   """
-  features = " ".join("%d:%s" % (i, f) for i,f in zip(range(1, len(features)+1),
-      features))
-  return "%s %s" % (label, features)
+  num_classes = len(features_per_class)
+  if num_classes == 2:
+    labels = [1, -1]
+  else:
+    labels = range(1, num_classes + 1)
+  class_sizes = map(len, features_per_class)
+  labels_per_class = [ [label] * size
+      for label, size in zip(labels, class_sizes) ]
+  # Convert feature vectors from np.array to list objects
+  features_per_class = [ map(list, features)
+      for features in features_per_class ]
+  return UngroupLists(labels_per_class), UngroupLists(features_per_class)
 
-def CorpusToSvm(corpus_dir, fh):
-  """Read IT activity for each image, iterating over directories in corpus_dir/{pos,neg}/*."""
-  join = os.path.join
-  def f(dir): return [ Load(join(d, 'it-activity')) for d in glob(join(dir, '*')) ]
-  for v in f(join(corpus_dir, 'pos')):
-    print >>fh, FormatSvm(1, v)
-  for v in f(join(corpus_dir, 'neg')):
-    print >>fh, FormatSvm(-1, v)
+def SvmForSplit(train_features, test_features, scaler = None):
+  """Train and test an SVM classifier from a set of features, which have
+  already been partitioned into training and testing sets.
+  train_features -- (list of 2D float ndarray) training instances: indexed by
+                    class, instance, and then feature offset.
+  test_features -- (list of 2D float ndarray) testing instances: indexed by
+                    class, instance, and then feature offset.
+  scaler -- feature scaling algorithm
+  RETURN (LIBSVM) classifier, (float) training accuracy, (float) test accuracy
+  """
+  # TEST CASE: unbalanced number of instances across training/testing sets
+  # TEST CASE: unbalanced number of instances across classes
+  assert all(isinstance(f, np.ndarray) for f in train_features), \
+      "Expected list of arrays for training features"
+  assert all(isinstance(f, np.ndarray) for f in test_features), \
+      "Expected list of arrays for testing features"
+  assert all(f.ndim == 2 for f in train_features), \
+      "Expected list of 2D arrays for training features"
+  assert all(f.ndim == 2 for f in test_features), \
+      "Expected list of 2D arrays for training features"
+  if scaler == None:
+    scaler = SpheringFeatureScaler()
+  # Learn scaling parameters from single list of all training vectors
+  scaler.Learn(np.vstack(train_features))
+  # Scale features of training set
+  features = map(scaler.Apply, train_features)
+  svm_labels, svm_features = PrepareLibSvmInput(features)
+  options = '-q'  # don't write to stdout
+  # Use delayed import of LIBSVM library, so non-SVM methods are always
+  # available.
+  import svmutil
+  classifier = svmutil.svm_train(svm_labels, svm_features, options)
+  options = ''  # can't disable writing to stdout
+  #~ print "LIBSVM-INTERNAL",  # mark output from LIBSVM
+  predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
+      svm_labels, svm_features, classifier, options)
+  train_accuracy = float(acc[0]) / 100.
+  # Scale features of test set
+  features = map(scaler.Apply, test_features)
+  svm_labels, svm_features = PrepareLibSvmInput(features)
+  options = ''  # can't disable writing to stdout
+  # Use delayed import of LIBSVM library, so non-SVM methods are always
+  # available.
+  import svmutil
+  #~ print "LIBSVM-INTERNAL",  # mark output from LIBSVM
+  predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
+      svm_labels, svm_features, classifier, options)
+  # Ignore mean-squared error and correlation coefficient
+  test_accuracy = float(acc[0]) / 100.
+  return classifier, train_accuracy, test_accuracy
 
-#~ def ActivityToSvm(pos_activity, neg_activity, fname):
-  #~ """Write a set of positive and negative instances to a file in LIBSVM format.
-  #~ """
-  #~ fh = open(fname, 'w')
-  #~ for v in pos_activity:
-    #~ print >>fh, FormatSvm(1, v)
-  #~ for v in neg_activity:
-    #~ print >>fh, FormatSvm(-1, v)
-  #~ fh.close()
+def SvmCrossValidate(features_per_class, num_repetitions = None,
+    num_splits = None, scaler = None):
+  """Perform 10x10 way cross-validation.
+  features_per_class -- (list of 2D ndarray) feature vectors indexed by class,
+                        instance, and then feature offset.
+  num_repetitions -- (int) how many times to repeat the measurements (default is
+                     10)
+  num_splits -- (int) how many ways to split the instances (default is
+                num_repetitions)
+  scaler -- feature scaling algorithm
+  RETURN mean test accuracy across splits and repetitions
+  """
+  if num_repetitions == None:
+    num_repetitions = 10
+  elif num_repetitions < 1:
+    raise ValueError("Number of repetitions must be positive")
+  if num_splits == None:
+    num_splits = num_repetitions
+  elif num_splits <= 1:
+    raise ValueError("Must use at least two splits")
+  assert all(isinstance(f, np.ndarray) for f in features_per_class), \
+      "Expected sequence of arrays"
+  assert all(f.ndim == 2 for f in features_per_class), \
+      "Expected sequence of 2D arrays"
+  num_classes = len(features_per_class)
+  max_num_splits = np.min([f.shape[0] for f in features_per_class])
+  assert num_splits <= max_num_splits, \
+      "Requested %d splits, but only %d possible" % (num_splits, max_num_splits)
 
-def ActivityToSvm(pos_activity, neg_activity, fname):
-  num_pos, num_neg = len(pos_activity), len(neg_activity)
-  headers = [1] * num_pos + [-1] * num_neg
-  num_features = pos_activity[0].shape[0]
-  assert(num_features == neg_activity[0].shape[0])
-  features = numpy.empty((num_pos + num_neg, num_features), numpy.float32)
-  features[:num_pos] = pos_activity
-  features[num_pos:] = neg_activity
-  StoreSvmInstances(headers, features, fname)
+  def make_splits_for_class(instances):
+    """Randomize the order of a set of instances for a single class, and split
+    them into subsets.
+    instances -- (2D array) set of feature vectors
+    RETURN (list of 2D array) instance subsets
+    """
+    # Randomize order of instances
+    instances = np.array(instances, copy = True)
+    np.random.shuffle(instances)
+    # Split into subsets
+    split_size, extra = divmod(len(instances), num_splits)
+    splits = map(list, GroupIterator(instances, split_size))
+    if extra > 0:
+      last_bin = UngroupLists(splits[num_splits:])
+      splits = splits[:num_splits]
+      # Distribute extra instances across remaining splits.
+      for split, x in zip(splits, last_bin):
+        split.append(x)
+    # Convert the set of instances for each split to an array.
+    splits = map(np.array, splits)
+    assert len(splits) == num_splits, \
+        "Unable to create the correct number of splits for all classes: " \
+        "requested %d splits, but created %d" % (num_splits, len(splits))
+    return splits
 
+  def accuracy_for_split(splits_per_class, test_idx):
+    """Compute test accuracy for a given slice, using remaining slices for
+    training.
+    splits_per_class -- (list of list of ndarray) set of splits for each class,
+                        where each split is an matrix of instances.
+    test_idx -- (int) index of test split
+    """
+    # For each class, get all training instances as list of ndarray.
+    train_features = [ splits[:test_idx] + splits[test_idx + 1:]
+        for splits in splits_per_class ]
+    # For each class, combine training instance arrays along first axis
+    # (concatenate).
+    train_features = map(np.vstack, train_features)
+    # For each class, get single array of test instances.
+    test_features = [ splits[test_idx] for splits in splits_per_class ]
+    _, _, test_accuracy = SvmForSplit(train_features, test_features, scaler)
+    return test_accuracy
+
+  def cross_validate():
+    # Get accuracy for each slice.
+    splits_per_class = map(make_splits_for_class, features_per_class)
+    return [ accuracy_for_split(splits_per_class, x)
+        for x in range(num_splits) ]
+
+  accuracies = [ cross_validate() for _ in range(num_repetitions) ]
+  accuracy = np.mean(accuracies)
+  return accuracy

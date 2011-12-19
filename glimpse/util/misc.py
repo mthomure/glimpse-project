@@ -76,6 +76,10 @@ def UngroupIterator(groups):
   at a time. This is the inverse of the GroupIterator()."""
   return itertools.chain(*groups)
 
+def UngroupLists(groups):
+  """Concatenate several sequences to form a single list."""
+  return list(UngroupIterator(groups))
+
 def ToArray(obj):
   if isinstance(obj, numpy.ndarray):
     return obj
