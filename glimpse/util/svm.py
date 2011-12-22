@@ -3,6 +3,8 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
+"""This module provides access to the LIBSVM solver."""
+
 import math
 from .gio import SuppressStdout
 from .misc import GroupIterator, UngroupLists
@@ -11,7 +13,15 @@ import os
 import sys
 
 class RangeFeatureScaler(object):
-  """Scales features to lie in a fixed interval."""
+  """Scales features to lie in a fixed interval.
+
+  Example Usage:
+
+  instances = np.arange(10).reshape(2, 5)
+  scaler = RangeFeatureScaler()
+  scaler.Learn(instances)
+  scaled_instances = scaler.Apply(instances)
+  """
 
   def __init__(self, min = -1, max = 1):
     """Create new object.
@@ -23,7 +33,7 @@ class RangeFeatureScaler(object):
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
     to the range [-1, 1].
-    features -- (list of list)
+    features -- (2D array-like)
     """
     self.imin, self.imax = np.min(features, 0), np.max(features, 0)
 
@@ -32,10 +42,10 @@ class RangeFeatureScaler(object):
     (approximately) [-vmin, vmax], assuming the feature vectors passed here were
     drawn from the same distribution as those used to learn the scaling
     parameters.
-    features -- (list of ndarray)
-    RETURN (np.ndarray) new array of scaled feature values
+    features -- (2D array-like)
+    RETURN (2D ndarray) new array of scaled feature values
     """
-    features = np.array(features)  # copy feature values
+    features = np.array(features, copy = True)  # copy feature values
     for f in features:
       f -= self.imin  # map to [0, imax - imin]
       f /= (self.imax - self.imin)  # map to [0, 1]
@@ -44,7 +54,15 @@ class RangeFeatureScaler(object):
     return features
 
 class SpheringFeatureScaler(object):
-  """Scales features to have fixed mean and standard deviation."""
+  """Scales features to have fixed mean and standard deviation.
+
+  Example Usage:
+
+  instances = np.arange(10).reshape(2, 5)
+  scaler = SpheringFeatureScaler()
+  scaler.Learn(instances)
+  scaled_instances = scaler.Apply(instances)
+  """
 
   def __init__(self, mean = 0, std = 1):
     """Create new object.
@@ -56,7 +74,7 @@ class SpheringFeatureScaler(object):
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
     to the range [-1, 1].
-    features -- (list of list)
+    features -- (2D array-like)
     """
     self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
 
@@ -64,8 +82,8 @@ class SpheringFeatureScaler(object):
     """Scale the features. The range of output values will be (approximately)
     [-vmin, vmax], assuming the feature vectors passed here were drawn from the
     same distribution as those used to learn the scaling parameters.
-    features -- (list of ndarray)
-    RETURN (ndarray) new array with scaled features
+    features -- (2D array-like)
+    RETURN (2D ndarray) new array with scaled features
     """
     features = np.array(features)  # copy feature values
     features -= self.imean  # map to mean zero
@@ -92,10 +110,79 @@ def PrepareLibSvmInput(features_per_class):
       for features in features_per_class ]
   return UngroupLists(labels_per_class), UngroupLists(features_per_class)
 
+class Svm(object):
+  """The LIBSVM classifier."""
+
+  def __init__(self):
+    self.classifier = None
+
+  def Train(self, features):
+    """Train an SVM classifier.
+    features -- (3D array-like) training instances, indexed by class, instance, and then feature offset.
+    """
+    # Use delayed import of LIBSVM library, so non-SVM methods are always
+    # available.
+    import svmutil
+    if not all(isinstance(f, np.ndarray) for f in features):
+      raise ValueError("Expected list of arrays for features")
+    if not all(f.ndim == 2 for f in features):
+      raise ValueError("Expected list of 2D arrays for features")
+    svm_labels, svm_features = PrepareLibSvmInput(features)
+    options = '-q'  # don't write to stdout
+    self.classifier = svmutil.svm_train(svm_labels, svm_features, options)
+
+  def Test(self, features):
+    """Test an existing classifier.
+    features -- (3D array-like) test instances: indexed by class, instance, and then feature offset.
+    RETURN (float) accuracy in the range [0, 1]
+    """
+    # Use delayed import of LIBSVM library, so non-SVM methods are always
+    # available.
+    import svmutil
+    if self.classifier == None:
+      raise ValueError("Must train classifier before testing")
+    if not all(isinstance(f, np.ndarray) for f in features):
+      raise ValueError("Expected list of arrays for features")
+    if not all(f.ndim == 2 for f in features):
+      raise ValueError("Expected list of 2D arrays for features")
+    svm_labels, svm_features = PrepareLibSvmInput(features)
+    options = ''  # can't disable writing to stdout
+    predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
+        svm_labels, svm_features, self.classifier, options)
+    # Ignore mean-squared error and correlation coefficient
+    return float(acc[0]) / 100.
+
+class ScaledSvm(Svm):
+  """A LIBSVM solver, which automatically scales feature values."""
+
+  def __init__(self, scaler = None):
+    super(ScaledSvm, self).__init__()
+    if scaler == None:
+      scaler = SpheringFeatureScaler()
+    self.scaler = scaler
+
+  def Train(self, features):
+    """Train an SVM classifier.
+    features -- (3D array-like) training instances, indexed by class, instance, and then feature offset.
+    """
+    # Learn scaling parameters from single list of all training vectors
+    self.scaler.Learn(np.vstack(features))
+    # Scale features of training set
+    scaled_features = map(self.scaler.Apply, features)
+    return super(ScaledSvm, self).Train(scaled_features)
+
+  def Test(self, features):
+    """Test an existing classifier.
+    features -- (3D array-like) test instances: indexed by class, instance, and then feature offset.
+    RETURN (float) accuracy in the range [0, 1]
+    """
+    scaled_features = map(self.scaler.Apply, features)
+    return super(ScaledSvm, self).Test(scaled_features)
+
 def SvmForSplit(train_features, test_features, scaler = None):
   """Train and test an SVM classifier from a set of features, which have
   already been partitioned into training and testing sets.
-  train_features -- (list of 2D float ndarray) training instances: indexed by
+  train_features -- (3D array-like) training instances: indexed by
                     class, instance, and then feature offset.
   test_features -- (list of 2D float ndarray) testing instances: indexed by
                     class, instance, and then feature offset.
@@ -104,44 +191,11 @@ def SvmForSplit(train_features, test_features, scaler = None):
   """
   # TEST CASE: unbalanced number of instances across training/testing sets
   # TEST CASE: unbalanced number of instances across classes
-  assert all(isinstance(f, np.ndarray) for f in train_features), \
-      "Expected list of arrays for training features"
-  assert all(isinstance(f, np.ndarray) for f in test_features), \
-      "Expected list of arrays for testing features"
-  assert all(f.ndim == 2 for f in train_features), \
-      "Expected list of 2D arrays for training features"
-  assert all(f.ndim == 2 for f in test_features), \
-      "Expected list of 2D arrays for training features"
-  if scaler == None:
-    scaler = SpheringFeatureScaler()
-  # Learn scaling parameters from single list of all training vectors
-  scaler.Learn(np.vstack(train_features))
-  # Scale features of training set
-  features = map(scaler.Apply, train_features)
-  svm_labels, svm_features = PrepareLibSvmInput(features)
-  options = '-q'  # don't write to stdout
-  # Use delayed import of LIBSVM library, so non-SVM methods are always
-  # available.
-  import svmutil
-  classifier = svmutil.svm_train(svm_labels, svm_features, options)
-  options = ''  # can't disable writing to stdout
-  #~ print "LIBSVM-INTERNAL",  # mark output from LIBSVM
-  predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
-      svm_labels, svm_features, classifier, options)
-  train_accuracy = float(acc[0]) / 100.
-  # Scale features of test set
-  features = map(scaler.Apply, test_features)
-  svm_labels, svm_features = PrepareLibSvmInput(features)
-  options = ''  # can't disable writing to stdout
-  # Use delayed import of LIBSVM library, so non-SVM methods are always
-  # available.
-  import svmutil
-  #~ print "LIBSVM-INTERNAL",  # mark output from LIBSVM
-  predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
-      svm_labels, svm_features, classifier, options)
-  # Ignore mean-squared error and correlation coefficient
-  test_accuracy = float(acc[0]) / 100.
-  return classifier, train_accuracy, test_accuracy
+  svm = ScaledSvm(scaler)
+  svm.Train(train_features)
+  train_accuracy = svm.Test(train_features)
+  test_accuracy = svm.Test(test_features)
+  return svm.classifier, train_accuracy, test_accuracy
 
 def SvmCrossValidate(features_per_class, num_repetitions = None,
     num_splits = None, scaler = None):
@@ -153,7 +207,7 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
   num_splits -- (int) how many ways to split the instances (default is
                 num_repetitions)
   scaler -- feature scaling algorithm
-  RETURN mean test accuracy across splits and repetitions
+  RETURN (float) mean test accuracy across splits and repetitions
   """
   if num_repetitions == None:
     num_repetitions = 10
@@ -212,7 +266,9 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
     train_features = map(np.vstack, train_features)
     # For each class, get single array of test instances.
     test_features = [ splits[test_idx] for splits in splits_per_class ]
-    _, _, test_accuracy = SvmForSplit(train_features, test_features, scaler)
+    svm = ScaledSvm(scaler)
+    svm.Train(train_features)
+    test_accuracy = svm.Test(test_features)
     return test_accuracy
 
   def cross_validate():

@@ -690,7 +690,7 @@ def main():
         "  -o, --options=FILE              Read model options from FILE\n"
         "  -p, --prototype-algorithm=ALG   Generate S2 prototypes according "
         "to algorithm\n"
-        "                                  ALG\n"
+        "                                  ALG (one of 'imprint' or 'random')\n"
         "  -P, --prototypes=FILE           Read S2 prototypes from FILE "
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"
