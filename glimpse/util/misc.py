@@ -16,6 +16,22 @@ import numpy
 import os
 import sys
 
+def TypeName(x):
+  """Get the fully-qualified name of an object's type. If the argument is a type
+  object, its fully-qualified name is returned.
+  RETURN (str) the type name
+  """
+  # If we're already given a type object, then return it's name.
+  if isinstance(x, type):
+    type_ = x
+  else:
+    type_ = type(x)
+  module = type_.__module__
+  # Ignore the builtin namespace.
+  if type_.__module__ == '__builtin__':
+    return type_.__name__
+  return "%s.%s" % (module, type_.__name__)
+
 def MergeDict(new_dict, **base_dict):
   """Merge two dictionaries, with entries in the first dictionary taking
   precedence."""
@@ -59,6 +75,10 @@ def UngroupIterator(groups):
   """Create an iterator that returns each element from each group, one element
   at a time. This is the inverse of the GroupIterator()."""
   return itertools.chain(*groups)
+
+def UngroupLists(groups):
+  """Concatenate several sequences to form a single list."""
+  return list(UngroupIterator(groups))
 
 def ToArray(obj):
   if isinstance(obj, numpy.ndarray):

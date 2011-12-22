@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
@@ -6,48 +6,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-# This is a frontend script for model-specific operations.
+from glimpse.models.main import main
 
-import sys
-from glimpse import util
-
-DEFAULT_MODEL = "viz2"
-
-try:
-  opts, args = util.GetOptions("c:m:pv")
-  model_name = DEFAULT_MODEL
-  mapper = None
-  preload_image = False
-  for opt, arg in opts:
-    if opt == '-c':
-      # Use a clustered executor
-      from glimpse.executors.simple_cluster import ClusterMap
-      mapper = ClusterMap(arg)
-    elif opt == '-m':
-      # Set the model class
-      arg = arg.lower()
-      if arg == "default":
-        model_name = DEFAULT_MODEL
-      else:
-        model_name = arg
-    elif opt == '-v':
-      import logging
-      logging.getLogger().setLevel(logging.INFO)
-  if mapper == None:
-    from glimpse.executors.multicore_executor import MulticoreMap
-    mapper = MulticoreMap()
-  models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
-      ['cmds'], 0)
-  try:
-    model = getattr(models, 'cmds')
-  except AttributeError:
-    raise util.UsageException("Unknown model (-m): %s" % model_name)
-except util.UsageException, e:
-  util.Usage("[options]\n"
-      "  -c FILE  Use a cluster to evaluate images, configured in FILE.\n"
-      "  -m MOD   Use model named MOD\n"
-      "  -v       Enable verbose logging",
-      e
-  )
-
-model.Main(mapper, args)
+main()

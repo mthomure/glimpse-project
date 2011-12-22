@@ -28,10 +28,10 @@ class Params(traits.HasStrictTraits):
   retina_kwidth = KWidth(15, label = "Retina Kernel Width",
       desc = "spatial width of input neighborhood for retinal units")
 
-  s1_bias = traits.Range(low = 0., value = 1., label = "S1 Bias",
-      desc = "beta parameter of RBF for S1 cells")
   s1_beta = traits.Range(low = 0., value = 1., exclude_low = True,
       label = "S1 Beta", desc = "term added to the norm of the input vector")
+  s1_bias = traits.Range(low = 0., value = 1., label = "S1 Bias",
+      desc = "beta parameter of RBF for S1 cells")
   s1_kwidth = KWidth(11, label = "S1 Kernel Width",
       desc = "spatial width of input neighborhood for S1 units")
   s1_num_orientations = traits.Range(low = 1, value = 8,
@@ -51,7 +51,7 @@ class Params(traits.HasStrictTraits):
       desc = "spatial width of input neighborhood for C1 units")
   c1_scaling = traits.Range(low = 1, value = 2, label = "C1 Scaling",
       desc = "subsampling factor")
-  c1_whiten = traits.Bool(False, label = "C1 Whiten",
+  c1_whiten = traits.Bool(True, label = "C1 Whiten",
       desc = "whether to normalize the total energy at each C1 location")
 
   s2_beta = traits.Range(low = 0., value = 5., exclude_low = True,
@@ -72,6 +72,10 @@ class Params(traits.HasStrictTraits):
 
   num_scales = traits.Range(low = 1, value = 4, label = "Number of Scales",
       desc = "number of different scale bands")
+
+  scale_factor = traits.Range(low = 1., value = 2**0.5,
+      label = "Scaling Factor",
+      desc = "Image downsampling factor between scale bands")
 
   def __str__(self):
     # Get list of all traits.

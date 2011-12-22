@@ -4,12 +4,22 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-import transform as core
+from layer_mapping import RegionMapper
+from params import Params
 import unittest
 
-class RegionMapper(unittest.TestCase):
-  options = core.ExpandOptions(dict(retina_enabled = True, retina_kwidth = 15, s1_kwidth = 11, s1_scaling = 2, c1_kwidth = 5, c1_scaling = 2, s2_kwidth = 7, s2_scaling = 2, c2_kwidth = 3, c2_scaling = 2))
-  rm = core.RegionMapper(options)
+class TestRegionMapper(unittest.TestCase):
+  params = Params()
+  params.retina_enabled = True
+  params.retina_kwidth = 15
+  params.s1_kwidth = 11
+  params.s1_scaling = 2
+  params.c1_kwidth = 5
+  params.c1_scaling = 2
+  params.s2_kwidth = 7
+  params.c2_kwidth = 3
+  params.c2_scaling = 2
+  rm = RegionMapper(params)
 
   def testRetinaToImage(self):
     self.assertEqual(slice(0, 15),

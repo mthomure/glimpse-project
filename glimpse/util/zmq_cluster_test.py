@@ -6,7 +6,8 @@ import time
 import unittest
 import zmq
 from zmq_cluster import BasicVentilator, BasicSink, Ventilator, Sink, \
-    ReceiverTimeoutException, Connect, ClusterResult, WorkerException, Worker
+    ReceiverTimeoutException, Connect, ClusterResult, WorkerException, \
+    BasicWorker
 
 class TestCase(unittest.TestCase):
 
@@ -47,8 +48,8 @@ class TestBasicVentilatorAndSink(TestCase):
     sender = context.socket(zmq.PUSH)
     sender.connect("inproc://results")
     s = BasicSink(context, receiver,
-        receive_timeout = 1000)  # set timeout to avoid infinite wait in case of
-                                 # errors
+        receiver_timeout = 1000)  # set timeout to avoid infinite wait in case of
+                                  # errors
     if manual_setup:
       s.Setup()
     xs = range(10)
@@ -85,8 +86,8 @@ class TestBasicVentilatorAndSink(TestCase):
     sender.connect("inproc://results")
     v = BasicVentilator(context, sender)
     s = BasicSink(context, receiver,
-        receive_timeout = 1000)  # set timeout to avoid infinite wait in case of
-                                 # errors
+        receiver_timeout = 1000)  # set timeout to avoid infinite wait in case of
+                                  # errors
     v.Setup()
     s.Setup()
     xs = range(10)
@@ -109,8 +110,8 @@ class TestBasicVentilatorAndSink(TestCase):
     command_receiver.setsockopt(zmq.SUBSCRIBE, "")
     command_receiver.connect("inproc://commands")
     s = BasicSink(context, receiver, command_receiver,
-        receive_timeout = 1000)  # set timeout to avoid infinite wait in case of
-                                 # errors
+        receiver_timeout = 1000)  # set timeout to avoid infinite wait in case of
+                                  # errors
     s.Setup()
     xs = range(10)
     map(sender.send_pyobj, xs)
@@ -129,8 +130,8 @@ class TestVentilatorAndSink(TestCase):
     sender = context.socket(zmq.PUSH)
     sender.connect("inproc://results")
     s = Sink(context, receiver,
-        receive_timeout = 1000)  # set timeout to avoid infinite wait in case of
-                                 # errors
+        receiver_timeout = 1000)  # set timeout to avoid infinite wait in case of
+                                  # errors
     s.Setup()
     xs = range(10)
     xs2 = [ ClusterResult(status = ClusterResult.STATUS_SUCCESS, payload = x)
@@ -149,8 +150,8 @@ class TestVentilatorAndSink(TestCase):
     sender = context.socket(zmq.PUSH)
     sender.connect("inproc://results")
     s = Sink(context, receiver,
-        receive_timeout = 1000)  # set timeout to avoid infinite wait in case of
-                                 # errors
+        receiver_timeout = 1000)  # set timeout to avoid infinite wait in case of
+                                  # errors
     s.Setup()
     xs = range(10)
     xs2 = [ ClusterResult(status = ClusterResult.STATUS_FAIL, payload = x)
@@ -160,6 +161,18 @@ class TestVentilatorAndSink(TestCase):
     def func():
       ys_it.next()
     self.assertRaises(WorkerException, func)
+
+class Worker(BasicWorker):
+
+  def __init__(self, context, request_receiver, result_sender, request_handler,
+      command_receiver = None, receiver_timeout = None):
+    super(Worker, self).__init__(context, request_receiver, result_sender,
+        command_receiver, receiver_timeout)
+    self.request_handler = request_handler
+
+  def HandleRequest(self, request):
+    result = self.request_handler(request)
+    return result
 
 def WorkerThreadTarget(ignore_timeout, context, request_receiver, result_sender,
     request_handler, command_receiver = None, receiver_timeout = None):
@@ -172,7 +185,7 @@ def WorkerThreadTarget(ignore_timeout, context, request_receiver, result_sender,
     if not ignore_timeout:
       raise
 
-class TestWorker(TestCase):
+class TestBasicWorker(TestCase):
 
   def test_worker_exitsOnCommand(self):
     context = zmq.Context()
@@ -300,10 +313,13 @@ class TestWorker(TestCase):
     worker.join(1.5)  # wait long enough for worker to timeout
     self.assertFalse(worker.is_alive())
 
-
 if __name__ == '__main__':
 
-   # Uncomment the following for debugging messages.
-   #logging.getLogger().setLevel(logging.INFO)
+  # Uncomment the following for debugging messages.
+  #~ logging.getLogger().setLevel(logging.INFO)
+
+  # Uncomment the following to run a subset of tests.
+  #~ suite = unittest.TestLoader().loadTestsFromTestCase(Test2)
+  #~ unittest.TextTestRunner(verbosity=2).run(suite)
 
   unittest.main()

@@ -1,0 +1,5 @@
+#!/usr/bin/env python
+
+import glimpse.glab
+
+glimpse.glab.main()

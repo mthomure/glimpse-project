@@ -9,6 +9,7 @@
 #
 
 import cPickle
+from cStringIO import StringIO
 import numpy
 import pprint
 import struct
@@ -158,3 +159,13 @@ def Store(obj, fname = sys.stdout, encoding = ENCODING_PICKLE):
   if fh != fname:
     fh.close()
 
+def SuppressStdout(callback, *args, **vargs):
+  """Evaluate a function, ignoring the data written to stdout. This works even
+  if the code emitting data to stdout is in a compiled extension.
+  """
+  # Copied from http://stackoverflow.com/questions/4178614/suppressing-output-
+  # of-module-calling-outside-library
+  so, sys.stdout = sys.stdout, StringIO()
+  ret = callback(*args, **vargs)
+  sys.stdout = so
+  return ret

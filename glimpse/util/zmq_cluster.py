@@ -7,6 +7,7 @@
 import itertools
 import logging
 import os
+import socket
 import time
 import zmq
 
@@ -111,45 +112,48 @@ class BasicVentilator(object):
     if worker_connect_delay == None:
       worker_connect_delay = 1.
     self.request_sender = request_sender
-    self._ready = False
-    self._start = None
+    self.ready = False
+    self.start = None
     self.context = context
     self.worker_connect_delay = worker_connect_delay
+    self.num_total_requests = 0
 
   def Setup(self):
-    logging.info("Ventilator: starting ventilator on pid %d" % os.getpid())
-    #~ logging.info("Ventilator:   sender: %s" % self.request_sender.url)
+    logging.info("BasicVentilator: starting ventilator on pid %d" % os.getpid())
+    logging.info("BasicVentilator:   sender: %s" % self.request_sender)
     if isinstance(self.request_sender, Connect):
-      self._sender = self.request_sender.MakeSocket(self.context, type = zmq.PUSH)
+      self.sender = self.request_sender.MakeSocket(self.context,
+          type = zmq.PUSH)
     else:
-      self._sender = self.request_sender
+      self.sender = self.request_sender
     self._connect_delay = time.time() + self.worker_connect_delay
-    logging.info("Ventilator: bound, starting at pid %d" % os.getpid())
-    self._ready = True
+    logging.info("BasicVentilator: bound, starting at pid %d" % os.getpid())
+    self.ready = True
 
   def Shutdown(self):
-    del self._sender
-    self._ready = False
+    del self.sender
+    self.ready = False
 
   def Send(self, requests):
     """Reads tasks from an iterator, and sends them to worker nodes.
     RETURN the number of sent tasks.
     """
     # Set up the connection
-    if not self._ready:
+    if not self.ready:
       self.Setup()
     # Give worker nodes time to connect
     time_delta = time.time() - self._connect_delay
     if time_delta > 0:
       time.sleep(time_delta)
-    logging.info("Ventilator: starting send")
+    logging.info("BasicVentilator: starting send")
     num_requests = 0
     for request in requests:
-      logging.info("Ventilator: sending task %d" % num_requests)
-      self._sender.send_pyobj(request)
-      logging.info("Ventilator: finished sending task %s" % num_requests)
+#      logging.info("BasicVentilator: sending task %d at time %s" % \
+#          (self.num_total_requests, time.time()))
+      self.sender.send_pyobj(request)
+      self.num_total_requests += 1
       num_requests += 1
-    logging.info("Ventilator: finished sending %d tasks" % num_requests)
+    logging.info("BasicVentilator: finished sending %d tasks" % num_requests)
     return num_requests
 
 class BasicSink(object):
@@ -162,17 +166,18 @@ class BasicSink(object):
                                   # the sink.
 
   def __init__(self, context, result_receiver, command_receiver = None,
-      receive_timeout = None):
+      receiver_timeout = None):
     """Create a new Sink object.
     result_receiver -- (zmq.socket or Connect) channel on which to receive
                        results
     command_receiver -- (zmq.socket or Connect, optional) channel on which to
                         receive quit command
+    receiver_timeout -- (int) time to wait for a result before quiting
     """
     self.context = context
     self.result_receiver = result_receiver
     self.command_receiver = command_receiver
-    self.receive_timeout = receive_timeout
+    self.receiver_timeout = receiver_timeout
     self._ready = False
 
   def Setup(self):
@@ -214,18 +219,15 @@ class BasicSink(object):
       self.Setup()
     idx = 0
     if timeout == None:
-      timeout = self.receive_timeout
+      timeout = self.receiver_timeout
     while True:
       if num_results != None and idx >= num_results:
         break
-      #~ logging.info("BasicSink: polling with timeout %s" % timeout)
       socks = dict(self._poller.poll(timeout))
-      #~ logging.info("BasicSink: poll finished with socks = %s" % (socks,))
       if len(socks) == 0:
         raise ReceiverTimeoutException
       if self._receiver_socket in socks:
         result = self._receiver_socket.recv_pyobj()
-        #~ logging.info("BasicSink: received object: %s" % result)
         yield result
         idx += 1
       if self._command_socket in socks:
@@ -252,6 +254,17 @@ class BasicSink(object):
     commands.send_pyobj(BasicSink.CMD_KILL)
     logging.info("BasicSink.SendKillCommand: kill command sent")
 
+class ClusterRequest(object):
+  """A cluster request, corresponding to the input value of a callback."""
+
+  payload = None  # task's input values.
+  metadata = None  # optional information associated with the request. this
+                   # information is copied to the result object.
+
+  def __init__(self, payload = None, metadata = None):
+    self.payload = payload
+    self.metadata = metadata
+
 class ClusterResult(object):
   """A cluster result, corresponding to the output value of a callback when
   applied to one input element."""
@@ -260,57 +273,76 @@ class ClusterResult(object):
   payload = None  # output corresponding to task's input elements. this will
                   # either be a list -- in the case of a map() operation -- or a
                   # scalar -- in the case of a reduce().
+
+  request_metadata = None  # optional information that was associated with
+                           # request.
+  metadata = None  # optional information associated with result.
   exception = None  # exception that occurrred during processing, if any
 
   STATUS_SUCCESS = "OK"  # indicates that request was processed successfully
   STATUS_FAIL = "FAIL"  # indicates that error occurred while processing request
 
-  def __init__(self, status = None, payload = None, exception = None):
-    self.status, self.payload, self.exception = status, payload, exception
+  def __init__(self, status = None, payload = None, request_metadata = None,
+      metadata = None, exception = None):
+    self.status, self.payload, self.request_metadata, self.metadata, \
+        self.exception = status, payload, request_metadata, metadata, exception
 
-Ventilator = BasicVentilator
+class Ventilator(BasicVentilator):
+
+  def Send(self, requests, metadata = None):
+    """Send requests to worker nodes.
+    requests -- (iterable) callback arguments
+    metadata -- (iterable) same number of metadata objects
+    """
+    # Wrap in a cluster request with an empty ID.
+    if metadata != None:
+      requests = itertools.imap(ClusterRequest, requests, metadata)
+    else:
+      requests = itertools.imap(ClusterRequest, requests)
+    return super(Ventilator, self).Send(requests)
 
 class Sink(BasicSink):
 
-  def Receive(self, num_results = None, timeout = None):
+  def Receive(self, num_results = None, timeout = None, metadata = False):
     results = super(Sink, self).Receive(num_results, timeout)
     for result in results:
       if result.status != ClusterResult.STATUS_SUCCESS:
-        raise WorkerException("Caught exception in worker node: %s" % \
-            result.exception)
-      yield result.payload
+        raise WorkerException("Caught exception in worker node (%s:%s)\n%s" % \
+            (result.metadata[0], result.metadata[1], result.exception))
+      if metadata:
+        yield result.payload, result.request_metadata, result.metadata
+      else:
+        yield result.payload
     raise StopIteration
 
-class Worker(object):
-
-  # TODO: figure out how to make cluster worker run multiple threads/procs?
+class BasicWorker(object):
 
   CMD_KILL = "CLUSTER_WORKER_KILL"  # Send this to the command socket to shut
                                     # down the worker.
 
-  def __init__(self, context, request_receiver, result_sender, request_handler,
+  def __init__(self, context, request_receiver, result_sender,
       command_receiver = None, receiver_timeout = None):
     """Handles requests that arrive on a socket, writing results to another
     socket.
+    context -- (zmq.Context) context used to create sockets
     request_receiver -- (Connect) channel for receiving incoming requests
     result_sender -- (Connect) channel for sending results
-    request_handler -- (callable) function to convert a request to a result
-    command_receiver -- (zmq.socket or Connect) channel for receiving kill
-                        commands
-    context -- (zmq.Context) context used to create sockets. set for threaded
-               workers only.
+    command_receiver -- (zmq.socket or Connect) channel for receiving commands
+    receiver_timeout -- (int) how long to wait for a request or command before
+                        quiting. If not set, wait indefinitely.
     """
     self.context, self.request_receiver, self.result_sender, \
-        self.request_handler, self.command_receiver, \
-        self.receiver_timeout = context, request_receiver, result_sender, \
-        request_handler, command_receiver, receiver_timeout
+        self.command_receiver, self.receiver_timeout = context, \
+        request_receiver, result_sender, command_receiver, \
+        receiver_timeout
     self.receiver = None
 
   def Setup(self):
-    logging.info("Worker: starting worker on pid %s" % os.getpid())
-    logging.info("Worker:   receiver: %s" % self.request_receiver)
-    logging.info("Worker:   command: %s" % self.command_receiver)
-    logging.info("Worker:   sender: %s" % self.result_sender)
+    logging.info("BasicWorker: starting worker on pid %s at %s" % (os.getpid(),
+        time.asctime()))
+    logging.info("BasicWorker:   receiver: %s" % self.request_receiver)
+    logging.info("BasicWorker:   command: %s" % self.command_receiver)
+    logging.info("BasicWorker:   sender: %s" % self.result_sender)
     # Set up the sockets
     self.receiver = self.request_receiver.MakeSocket(self.context,
         type = zmq.PULL)
@@ -323,7 +355,7 @@ class Worker(object):
       self.poller.register(self.cmd_subscriber, zmq.POLLIN)
     else:
       self.cmd_subscriber = None
-    logging.info("Worker: bound at pid %d" % os.getpid())
+    logging.info("BasicWorker: bound at pid %d" % os.getpid())
 
   def Run(self):
     if self.receiver == None:
@@ -335,46 +367,58 @@ class Worker(object):
         raise ReceiverTimeoutException
       if self.receiver in socks:
         request = self.receiver.recv_pyobj()
-
-        try:
-          logging.info("Worker: received batch request with %d arguments" % len(request[1]))
-          logging.info("Worker: passing batch to handler %s" % (self.request_handler,))
-        except TypeError:
-          pass
-
-        result = ClusterResult()
+        # Full metadata for a successful result includes the full hostname and
+        # PID of the worker process, and the time elapsed while computing the
+        # result.
+        result_metadata = socket.getfqdn(), os.getpid()
+        result = ClusterResult(request_metadata = request.metadata,
+            metadata = result_metadata)
         try:
           # Apply user request_handler to the request
-          result.payload = self.request_handler(request)
+          start_time = time.time()
+          result.payload = self.HandleRequest(request.payload)
+          # Add the time consumed by handling the request
+          result.metadata = result.metadata + (time.time() - start_time,)
           result.status = ClusterResult.STATUS_SUCCESS
         except Exception, e:
-          logging.info(("Worker: caught exception %s from request " % e) + \
-              "processor")
+          logging.info(("BasicWorker: caught exception %s from " % e) + \
+              "request processor")
           result.exception = e
           result.status = ClusterResult.STATUS_FAIL
         self.sender.send_pyobj(result)
       if self.cmd_subscriber in socks:
         cmd = self.cmd_subscriber.recv_pyobj()
-        logging.info("Worker: got cmd %s on pid %d" % (cmd, os.getpid()))
-        if cmd == Worker.CMD_KILL:
-          logging.info("Worker: quiting on pid %d" % os.getpid())
+        logging.info("BasicWorker: got cmd %s on pid %d" % (cmd, os.getpid()))
+        if self.HandleCommand(cmd):
+          logging.info("BasicWorker: quiting on pid %d" % os.getpid())
           break
 
+  def HandleRequest(self, request):
+    return request
+
+  def HandleCommand(self, command):
+    finish = False
+    if command == BasicWorker.CMD_KILL:
+      logging.info("BasicWorker: received kill command")
+      finish = True
+    return finish
+
   @staticmethod
-  def SendKillCommand(context, command_sender):
+  def SendKillCommand(context, command_sender, command = None):
     """Send a kill command to all workers on a given channel.
     command_sender -- (zmq.socket or Connect)
+    command -- message to send to workers. defaults to CMD_KILL.
     """
-    logging.info("Worker: sending kill command")
-    logging.info("Worker:   command: %s" % command_sender)
+    if command == None:
+      command = BasicWorker.CMD_KILL
+    logging.info("BasicWorker: sending kill command")
+    logging.info("BasicWorker:   command: %s" % command_sender)
     if isinstance(command_sender, Connect):
-      commands = command_sender.MakeSocket(context, type = zmq.PUB)
-    else:
-      commands = command_sender
+      command_sender = command_sender.MakeSocket(context, type = zmq.PUB)
     time.sleep(1)  # Wait for workers to connect. This is necessary to make sure
                    # all subscribers get the QUIT message.
-    commands.send_pyobj(Worker.CMD_KILL)
-    logging.info("Worker: sent kill command")
+    command_sender.send_pyobj(command)
+    logging.info("BasicWorker: sent kill command")
 
 def LaunchStreamerDevice(context, frontend_connect, backend_connect):
   frontend = frontend_connect.MakeSocket(context, type = zmq.PULL, bind = True)

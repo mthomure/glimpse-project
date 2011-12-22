@@ -7,22 +7,24 @@
 
 class IBackend(object):
 
-  def ContrastEnhance(self, data, kwidth, bias, scaling):
+  def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):
     """Apply local contrast stretch to an array.
     data -- (2-D) array of input data
     kwidth -- (int) kernel width
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def DotProduct(self, data, kernels, scaling):
+  def DotProduct(self, data, kernels, scaling, out = None):
     """Convolve an array with a set of kernels.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def NormDotProduct(self, data, kernels, bias, scaling):
+  def NormDotProduct(self, data, kernels, bias, scaling, out = None):
     """Convolve an array with a set of kernels, normalizing the response by the
     vector length of the input neighborhood.
     data -- (3-D) array of input data
@@ -30,17 +32,19 @@ class IBackend(object):
               have unit vector length
     bias -- (float) additive term in denominator
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def Rbf(self, data, kernels, beta, scaling):
+  def Rbf(self, data, kernels, beta, scaling, out = None):
     """Compare kernels to input data using the RBF activation function.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def NormRbf(self, data, kernels, bias, beta, scaling):
+  def NormRbf(self, data, kernels, bias, beta, scaling, out = None):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
     data -- (3-D) array of input data
@@ -49,18 +53,21 @@ class IBackend(object):
     bias -- (float) additive term in denominator
     beta -- (positive float) tuning parameter for radial basis function
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def LocalMax(self, data, kwidth, scaling):
+  def LocalMax(self, data, kwidth, scaling, out = None):
     """Convolve maps with local 2-D max filter.
     data -- (3-D) array of input data
     kwidth -- (positive int) kernel width
     scaling -- (positive int) subsampling factor
+    out -- (2-D) array in which to store result
     """
 
-  def GlobalMax(self, data):
+  def GlobalMax(self, data, out = None):
     """Find the per-band maxima.
     data -- (3-D) array of input data
+    out -- (2-D) array in which to store result
     """
 
   def OutputMapShapeForInput(self, kheight, kwidth, scaling, iheight, iwidth):
