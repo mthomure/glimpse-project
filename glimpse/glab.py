@@ -58,9 +58,11 @@ import time
 
 __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
     'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus',
-    'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
-    'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
+    'MakeUniformRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
+    'MakeHistogramRandomS2Prototypes', 'MakeNormalRandomS2Prototypes',
+    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit',
+    'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'RunSvm', 'LoadExperiment',
+    'StoreExperiment', 'Verbose')
 
 def SplitList(data, *sizes):
   """Break a list into sublists.
@@ -543,7 +545,8 @@ def MakeHistogramRandomS2Prototypes(num_prototypes):
 
 def MakeNormalRandomS2Prototypes(num_prototypes):
   """Create a set of S2 prototypes by drawing elements from the normal
-  distribution, whose parameters are estimated from a set of imprinted prototypes. Each entry is drawn independently of the others.
+  distribution, whose parameters are estimated from a set of imprinted
+  prototypes. Each entry is drawn independently of the others.
   num_prototypes -- (int) the number of S2 prototype arrays to create
   """
   if __VERBOSE:
