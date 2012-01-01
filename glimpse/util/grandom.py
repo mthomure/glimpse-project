@@ -44,7 +44,7 @@ class HistogramSampler(object):
                   400 elements.
     """
     # Bin the data.
-    magnitudes, edges = np.histogram(data, nbins)
+    magnitudes, edges = np.histogram(data, bins)
     bin_width = edges[1] - edges[0]
     # Number of cum-dist elements per bin. This is the normalized bin
     # magnitudes, multiplied by the inverse resolution (which gives the total
@@ -77,16 +77,16 @@ class HistogramSampler(object):
     actual = actual_range[1] - actual_range[0]
     self.range_error = (target - actual) / target
 
-  def Sample(self, nsamples = 1):
+  def Sample(self, size = 1):
     """Generate variates according to the modelled distribution.
-    nsamples -- (positive int) the number of variates to generate
+    size -- (int or tuple of int) the number of variates to generate
     """
     # Sample uniformly from the cumulative distribution array.
-    cum_dist_indices = np.random.randint(0, len(self.cum_dist), nsamples)
+    cum_dist_indices = np.random.randint(0, len(self.cum_dist), size = size)
     bin_indices = self.cum_dist[cum_dist_indices]
     # Lookup the corresponding edge values for each bin.
     offsets = self.edges[ bin_indices ]
     # Add a small delta, so that returned samples are drawn uniformly from the
     # corresponding bins.
-    offsets += np.random.random_sample(nsamples) * self.bin_width
+    offsets += np.random.random_sample(size) * self.bin_width
     return offsets
