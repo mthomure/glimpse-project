@@ -45,6 +45,7 @@ from glimpse import backends
 from glimpse.models import viz2
 from glimpse import pools
 from glimpse import util
+from glimpse.util.grandom import HistogramSampler
 from glimpse.util.svm import SpheringFeatureScaler, PrepareLibSvmInput, \
     SvmForSplit, SvmCrossValidate
 import itertools
@@ -190,7 +191,7 @@ class Experiment(object):
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
-  def MakeRandomS2Prototypes(self, num_prototypes):
+  def MakeUniformRandomS2Prototypes(self, num_prototypes):
     """Create a set of S2 prototypes with uniformly random entries.
     num_prototypes -- (int) the number of S2 prototype arrays to create
     """
@@ -199,9 +200,59 @@ class Experiment(object):
     prototypes = np.random.uniform(0, 1, shape)
     for p in prototypes:
       p /= np.linalg.norm(p)
-    self.prototype_source = 'random'
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
+    self.prototype_source = 'uniform'
+
+  def MakeShuffledRandomS2Prototypes(self, num_prototypes):
+    """Create a set of S2 prototypes by imprinting, and then shuffling the order
+    of entries within each prototype.
+    num_prototypes -- (int) the number of S2 prototype arrays to create
+    """
+    start_time = time.time()
+    self.ImprintS2Prototypes(num_prototypes)
+    for k in self.model.s2_kernels:
+      np.random.shuffle(k.flat)
+    self.prototype_construction_time = time.time() - start_time
+    self.prototype_source = 'shuffle'
+
+  def MakeHistogramRandomS2Prototypes(self, num_prototypes):
+    """Create a set of S2 prototypes by drawing elements from a distribution,
+    which is estimated from a set of imprinted prototypes. Each entry is drawn
+    independently of the others.
+    num_prototypes -- (int) the number of S2 prototype arrays to create
+    """
+    start_time = time.time()
+    # Get ~100k C1 samples, which is approximately 255 prototypes.
+    self.ImprintS2Prototypes(num_prototypes = 255)
+    hist = HistogramSampler(self.model.s2_kernels.flat)
+    size = (num_prototypes,) + self.model.s2_kernel_shape
+    prototypes = hist.Sample(size).astype(
+        util.ACTIVATION_DTYPE)
+    for p in prototypes:
+      p /= np.linalg.norm(p)
+    self.model.s2_kernels = prototypes
+    self.prototype_construction_time = time.time() - start_time
+    self.prototype_source = 'histogram'
+
+  def MakeNormalRandomS2Prototypes(self, num_prototypes):
+    """Create a set of S2 prototypes by drawing elements from the normal
+    distribution, whose parameters are estimated from a set of imprinted
+    prototypes. Each entry is drawn independently of the others.
+    num_prototypes -- (int) the number of S2 prototype arrays to create
+    """
+    start_time = time.time()
+    # Get ~100k C1 samples, which is approximately 255 prototypes.
+    self.ImprintS2Prototypes(num_prototypes = 255)
+    mean, std = self.model.s2_kernels.mean(), self.model.s2_kernels.std()
+    size = (num_prototypes,) + self.model.s2_kernel_shape
+    prototypes = np.random.normal(mean, std, size = size).astype(
+        util.ACTIVATION_DTYPE)
+    for p in prototypes:
+      p /= np.linalg.norm(p)
+    self.model.s2_kernels = prototypes
+    self.prototype_construction_time = time.time() - start_time
+    self.prototype_source = 'normal'
 
   def SetS2Prototypes(self, prototypes):
     """Set the S2 prototypes from an array.
@@ -454,13 +505,50 @@ def ImprintS2Prototypes(num_prototypes):
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
 
-def MakeRandomS2Prototypes(num_prototypes):
+def MakeUniformRandomS2Prototypes(num_prototypes):
   """Create a set of S2 prototypes with uniformly random entries.
   num_prototypes -- (int) the number of S2 prototype arrays to create
   """
   if __VERBOSE:
-    print "Making %d random prototypes" % num_prototypes
-  result = GetExperiment().MakeRandomS2Prototypes(num_prototypes)
+    print "Making %d uniform random prototypes" % num_prototypes
+  result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes)
+  if __VERBOSE:
+    print "  done: %s s" % GetExperiment().prototype_construction_time
+  return result
+
+def MakeShuffledRandomS2Prototypes(num_prototypes):
+  """Create a set of S2 prototypes by imprinting, and then shuffling the order
+  of entries within each prototype.
+  num_prototypes -- (int) the number of S2 prototype arrays to create
+  """
+  if __VERBOSE:
+    print "Making %d shuffled random prototypes" % num_prototypes
+  result = GetExperiment().MakeShuffledRandomS2Prototypes(num_prototypes)
+  if __VERBOSE:
+    print "  done: %s s" % GetExperiment().prototype_construction_time
+  return result
+
+def MakeHistogramRandomS2Prototypes(num_prototypes):
+  """Create a set of S2 prototypes by drawing elements from a distribution,
+  which is estimated from a set of imprinted prototypes. Each entry is drawn
+  independently of the others.
+  num_prototypes -- (int) the number of S2 prototype arrays to create
+  """
+  if __VERBOSE:
+    print "Making %d histogram random prototypes" % num_prototypes
+  result = GetExperiment().MakeHistogramRandomS2Prototypes(num_prototypes)
+  if __VERBOSE:
+    print "  done: %s s" % GetExperiment().prototype_construction_time
+  return result
+
+def MakeNormalRandomS2Prototypes(num_prototypes):
+  """Create a set of S2 prototypes by drawing elements from the normal
+  distribution, whose parameters are estimated from a set of imprinted prototypes. Each entry is drawn independently of the others.
+  num_prototypes -- (int) the number of S2 prototype arrays to create
+  """
+  if __VERBOSE:
+    print "Making %d normal random prototypes" % num_prototypes
+  result = GetExperiment().MakeNormalRandomS2Prototypes(num_prototypes)
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
@@ -594,7 +682,7 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
 
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
-    cross_validate = False, **opts):
+    cross_validate = False, verbose = 0, **opts):
   if corpus != None:
     SetCorpus(corpus)
   num_prototypes = int(num_prototypes)
@@ -604,8 +692,14 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     prototype_algorithm = prototype_algorithm.lower()
     if prototype_algorithm == 'imprint':
       ImprintS2Prototypes(num_prototypes)
-    elif prototype_algorithm == 'random':
-      MakeRandomS2Prototypes(num_prototypes)
+    elif prototype_algorithm == 'uniform':
+      MakeUniformRandomS2Prototypes(num_prototypes)
+    elif prototype_algorithm == 'shuffle':
+      MakeShuffledRandomS2Prototypes(num_prototypes)
+    elif prototype_algorithm == 'histogram':
+      MakeHistogramRandomS2Prototypes(num_prototypes)
+    elif prototype_algorithm == 'normal':
+      MakeNormalRandomS2Prototypes(num_prototypes)
     else:
       raise util.UsageException("Invalid prototype algorithm "
           "(%s), expected 'imprint' or 'random'." % prototype_algorithm)
@@ -613,9 +707,10 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     ComputeFeatures()
   if svm:
     train_accuracy, test_accuracy = RunSvm(cross_validate)
-    if not cross_validate:
-      print "Train Accuracy: %.3f" % train_accuracy
-    print "Test Accuracy: %.3f" % test_accuracy
+    if verbose > 0:
+      if not cross_validate:
+        print "Train Accuracy: %.3f" % train_accuracy
+      print "Test Accuracy: %.3f" % test_accuracy
   if result_path != None:
     StoreExperiment(result_path)
 
@@ -690,7 +785,9 @@ def main():
         "  -o, --options=FILE              Read model options from FILE\n"
         "  -p, --prototype-algorithm=ALG   Generate S2 prototypes according "
         "to algorithm\n"
-        "                                  ALG (one of 'imprint' or 'random')\n"
+        "                                  ALG (one of 'imprint', 'uniform', "
+        "'shuffle',\n"
+        "                                  'histogram', or 'normal')\n"
         "  -P, --prototypes=FILE           Read S2 prototypes from FILE "
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"

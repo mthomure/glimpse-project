@@ -209,7 +209,9 @@ class Model(ModelOps, AbstractNetwork):
     # sitting on the worker pool.
     values_per_image = map(list, values_per_image)
     # Add input state index to locations.
-    assert len(input_states) == len(values_per_image)
+    assert len(input_states) == len(values_per_image), \
+        "Expected %d C1 patch sets, but got %d" % (len(input_states),
+            len(values_per_image))
     for idx in range(len(input_states)):
       values = values_per_image[idx]
       # Locations are tuples of (scale, y, x). Prepend input state index.
