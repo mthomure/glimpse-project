@@ -4,8 +4,8 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.pools.cluster.pool import ClusterPool, PoolWorker
-from glimpse.pools.cluster.manager import ClusterManager
+from .pool import ClusterPool, PoolWorker
+from .manager import ClusterManager
 from glimpse.util.zmq_cluster import Connect, BasicWorker, ClusterResult, \
     ReceiverTimeoutException
 from multiprocessing import Process
