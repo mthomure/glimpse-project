@@ -1,6 +1,6 @@
 import logging
 import gearman
-import pickle
+import cPickle
 from glimpse import pools
 from glimpse.util.zmq_cluster import FutureSocket, InitSocket
 import threading
@@ -18,11 +18,11 @@ class PickleDataEncoder(gearman.DataEncoder):
 
   @classmethod
   def encode(cls, encodable_object):
-    return pickle.dumps(encodable_object)
+    return cPickle.dumps(encodable_object, protocol = 2)
 
   @classmethod
   def decode(cls, decodable_string):
-    return pickle.loads(decodable_string)
+    return cPickle.loads(decodable_string)
 
 GEARMAN_TASK_MAP = "glimpse_map"
 COMMAND_QUIT = "quit"
