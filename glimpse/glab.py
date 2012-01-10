@@ -438,17 +438,20 @@ def SetPool(pool):
   logging.info("Using pool type: %s" % type(pool).__name__)
   __POOL = pool
 
-def UseCluster(config_file = None, chunksize = None):
-  """Use a cluster of worker nodes for any following experiment commands.
-  config_file -- (str) path to the cluster configuration file
-  """
-  from glimpse.pools.cluster import ClusterConfig, ClusterPool
+def MakeClusterPool(config_file = None, chunksize = None):
+  from glimpse.pools.gearman_cluster import ClusterConfig, ClusterPool
   if config_file == None:
     if 'GLIMPSE_CLUSTER_CONFIG' not in os.environ:
       raise ValueError("Please specify a cluster configuration file.")
     config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
   config = ClusterConfig(config_file)
-  SetPool(ClusterPool(config, chunksize = chunksize))
+  return ClusterPool(config, chunksize = chunksize)
+
+def UseCluster(config_file = None, chunksize = None):
+  """Use a cluster of worker nodes for any following experiment commands.
+  config_file -- (str) path to the cluster configuration file
+  """
+  SetPool(MakeClusterPool(config_file, chunksize))
 
 def SetModelClass(model_class):
   """Set the model type.
@@ -642,14 +645,6 @@ def CLIGetModel(model_name):
   except AttributeError:
     raise util.UsageException("Unknown model (-m): %s" % model_name)
 
-def CLIMakeClusterPool(config_file = None):
-  from glimpse.pools.cluster import ClusterConfig, ClusterPool
-  if config_file == None:
-    if 'GLIMPSE_CLUSTER_CONFIG' not in os.environ:
-      raise util.UsageException("Please specify a cluster configuration file.")
-    config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
-  return ClusterPool(ClusterConfig(config_file))
-
 def CLIInit(pool_type = None, cluster_config = None, model_name = None,
     params = None, edit_params = False, layer = None, debug = False,
     verbose = 0, **opts):
@@ -661,7 +656,7 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
   if pool_type != None:
     pool_type = pool_type.lower()
     if pool_type in ('c', 'cluster'):
-      pool = CLIMakeClusterPool(cluster_config)
+      pool = MakeClusterPool(cluster_config)
     elif pool_type in ('m', 'multicore'):
       pool = pools.MulticorePool()
     elif pool_type in ('s', 'singlecore'):
@@ -795,7 +790,7 @@ def main():
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"
         "  -s, --svm                       Train and test an SVM classifier\n"
-        "  -t, --pool-type=TYPE            Set the worker pool type\n"
+        "  -t, --pool-type=TYPE            Set the worker pool type (one of 'multicore', 'singlecore', or 'cluster')\n"
         "  -v, --verbose                   Enable verbose logging\n"
         "  -x, --cross-validate            Compute test accuracy via cross-"
         "validation\n"

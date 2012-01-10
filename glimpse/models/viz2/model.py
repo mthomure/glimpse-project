@@ -202,7 +202,7 @@ class Model(ModelOps, AbstractNetwork):
     sampler = self.SampleC1PatchesCallback(patches_per_image,
         normalize = normalize)
     # Compute C1 activity, and sample patches.
-    values_per_image = pool.imap_unordered(sampler, input_states)
+    values_per_image = pool.map(sampler, input_states)
     # We now have a iterator over (prototype,location) pairs for each image.
     # Evaluate the iterator, and store the result as a list. Note that we must
     # evaluate before concatenating (below) to ensure we don't leave requests
