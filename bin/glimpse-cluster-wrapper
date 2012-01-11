@@ -9,10 +9,14 @@ fi
 
 CMD=$1
 NUM=1
+#NUM_PROCS=2  # number of processes to run per worker
+NUM_PROCS=  # number of processes to run per worker
 if [[ "$#" > 1 ]]; then
   NUM=$2
 fi
-NUM_PROCS=2  # number of processes to run per worker
+if [[ "$#" > 2 ]]; then
+  NUM_PROCS=$3
+fi
 GLIMPSE_HOME=$(dirname $0)/..
 HOST=$(hostname -f)
 
