@@ -45,7 +45,10 @@ function Run {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  CMD="bin/glimpse-cluster LaunchWorker $NUM_PROCS"
+  if [[ "$VERBOSE" != "" ]]; then
+    VERBOSE="-v"
+  fi
+  CMD="bin/glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
   until $CMD; do
     echo "GLIMPSE-CLUSTER-WRAPPER: 'glimpse-cluster' exited with status $?, restarting.." 1>&2
     sleep 1
