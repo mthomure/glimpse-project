@@ -42,7 +42,7 @@ class Worker(gearman.GearmanWorker):
 class Client(gearman.GearmanClient):
   data_encoder = PickleDataEncoder
   chunksize = 8
-  poll_timeout = 60.0  # wait up to one minute for job to complete
+  poll_timeout = 60.0  # wait one minute for each job to complete
   max_retries = 3  # resubmit job up to three times
 
   def map(self, func, iterable, chunksize = None):
@@ -55,14 +55,16 @@ class Client(gearman.GearmanClient):
         for data in itertools.izip(itertools.repeat(func), request_groups) ]
     # Waits for all jobs to complete, returning a gearman.job.GearmanJobRequest
     # object for each chunk.
+    timeout = self.poll_timeout * len(batch_requests)
     job_requests = self.submit_multiple_jobs(batch_requests,
         background = False, wait_until_complete = True,
-        max_retries = self.max_retries, poll_timeout = self.poll_timeout)
-    completed = [ r.complete and r.state == gearman.JOB_COMPLETE
-        for r in job_requests ]
-    if not all(completed):
-      raise Exception("Failed to process %d of %d tasks in job" % \
-          (len(filter((lambda x: not x), completed)), len(completed)))
+        max_retries = self.max_retries, poll_timeout = timeout)
+    completed = [ r.complete for r in job_requests ]
+    if not all(r.complete and r.state == gearman.JOB_COMPLETE
+        for r in job_requests):
+      raise Exception("Failed to process %d of %d tasks, %d timed out" % \
+          (len(filter((lambda x: not x), completed)), len(completed),
+          len(filter((lambda x: x.timed_out), job_requests))))
     results = [ r.result for r in job_requests ]
     return list(util.UngroupIterator(results))
 
@@ -83,7 +85,6 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
   log_socket = InitSocket(context, log_future, type = zmq.PUB)
   poller = zmq.Poller()
   poller.register(cmd_socket, zmq.POLLIN)
-  start_time = time.time()
   while True:
     socks = dict(poller.poll())
     if cmd_socket in socks:
@@ -103,14 +104,14 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
       elif cmd == COMMAND_PING:
         logging.info("Gearman worker received ping")
         stats = ping_handler()
-        stats['UPTIME'] = time.time() - start_time
         log_socket.send_pyobj(stats)
       else:
         logging.warn("Gearman worker got unknown command: %s" % (cmd,))
 
 def RunWorker(job_server_url, command_url, log_url, num_processes = None):
   pool = pools.MulticorePool(num_processes)
-  stats = dict(HOST = socket.getfqdn(), PID = os.getpid(), ELAPSED_TIME = 0, NUM_REQUESTS = 0)
+  stats = dict(HOST = socket.getfqdn(), PID = os.getpid(), ELAPSED_TIME = 0,
+      NUM_REQUESTS = 0, START_TIME = time.strftime("%Y-%m-%d %H:%M:%S"))
   get_stats = lambda: dict(stats.items())  # return a copy
 
   def handle_map(worker, job):
@@ -121,7 +122,7 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
     try:
       start = time.time()
       func, args = job.data
-      logging.info("Gearman worker processing task with %d elements" % len(args))
+      logging.info("Worker processing task with %d elements" % len(args))
       results = pool.map(func, args)
       elapsed_time = time.time() - start
       logging.info("\tfinished in %.2f secs" % elapsed_time)
@@ -134,6 +135,9 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
 
   worker = Worker([job_server_url])
   # Start the command listener
+  logging.info("Gearman worker starting with job server at %s" % job_server_url)
+  logging.info("\tSUB commands from %s" % command_url)
+  logging.info("\tPUB logs to %s" % log_url)
   cmd_future = FutureSocket(url = command_url, bind = False)
   log_future = FutureSocket(url = log_url, bind = False)
   cmd_thread = threading.Thread(target = CommandHandlerTarget,
@@ -143,7 +147,6 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
   # Start the task processor
   worker.set_client_id("GlimpseWorker")
   worker.register_task(GEARMAN_TASK_MAP, handle_map)
-  logging.info("Gearman worker starting at %s" % job_server_url)
   # Process tasks, checking command channel every two seconds
   worker.work(poll_timeout = 2.0)
   worker.shutdown()

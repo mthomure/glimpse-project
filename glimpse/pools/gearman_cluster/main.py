@@ -46,12 +46,16 @@ def LaunchBroker(config):
     zmq.device(zmq.FORWARDER, log_fe_socket, log_be_socket)
   thread = threading.Thread(target = thread_target)
   thread.daemon = True
+  logging.info("Launching logging forwarder -- clients should SUB to "
+      "%s and PUB to %s" % (log_backend_url, log_frontend_url))
   thread.start()
   context = zmq.Context()
   cmd_be_socket = MakeSocket(context, url = cmd_backend_url, type = zmq.PUB,
       bind = True)
   cmd_fe_socket = MakeSocket(context, url = cmd_frontend_url, type = zmq.SUB,
       bind = True, options = {zmq.SUBSCRIBE : ""})
+  logging.info("Launching command forwarder -- clients should SUB to "
+      "%s and PUB to %s" % (cmd_backend_url, cmd_frontend_url))
   zmq.device(zmq.FORWARDER, cmd_fe_socket, cmd_be_socket)
 
 def LaunchWorker(config, num_processes = None):
@@ -65,7 +69,8 @@ def LaunchWorker(config, num_processes = None):
   job_server_url = config.get('client', 'job_server_url')
   command_url = config.get('client', 'command_backend_url')
   log_url = config.get('client', 'log_frontend_url')
-  exit_status = pool.RunWorker(job_server_url, command_url, log_url, num_processes)
+  exit_status = pool.RunWorker(job_server_url, command_url, log_url,
+      num_processes)
   sys.exit(exit_status)
 
 def SendCommand(command_url, command):
@@ -106,6 +111,8 @@ def _PingWorkers(config, wait_time = None):
 
 def PingWorkers(config, wait_time = None):
   """Determine the set of active workers."""
+  if wait_time != None:
+    wait_time = int(wait_time)
   for r in _PingWorkers(config, wait_time):
     pprint.pprint(r)
 
