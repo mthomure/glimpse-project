@@ -79,11 +79,13 @@ class FutureSocket(object):
       pre_delay = self.pre_delay
     if post_delay == None:
       post_delay = self.post_delay
+    assert type is not None
     socket = context.socket(type)
     for k, v in options.items():
       socket.setsockopt(k, v)
     if pre_delay != None:
       time.sleep(pre_delay)
+    assert url is not None
     if bind:
       logging.info("Binding %s socket to %s with context %s" % (
           SocketTypeToString(type), url, hash(context)))

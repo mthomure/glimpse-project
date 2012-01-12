@@ -12,7 +12,10 @@ from glimpse import util
 from glimpse.util.zmq_cluster import MakeSocket
 import logging
 import os
+import pprint
 import sys
+import threading
+import time
 import zmq
 
 class ConfigException(Exception):
@@ -27,16 +30,28 @@ def ReadClusterConfig(*config_files):
     raise ConfigException("Unable to read any socket configuration files.")
   return config
 
-def LaunchForwarder(config):
+def LaunchBroker(config):
   """Start a set of intermediate devices for the cluster on this machine.
   RETURN This method does not return."""
-  frontend_url = config.get('server', 'command_frontend_url')
-  backend_url = config.get('server', 'command_backend_url')
+  cmd_frontend_url = config.get('server', 'command_frontend_url')
+  cmd_backend_url = config.get('server', 'command_backend_url')
+  log_frontend_url = config.get('server', 'log_frontend_url')
+  log_backend_url = config.get('server', 'log_backend_url')
+  def thread_target():
+    context = zmq.Context()
+    log_be_socket = MakeSocket(context, url = log_backend_url, type = zmq.PUB,
+        bind = True)
+    log_fe_socket = MakeSocket(context, url = log_frontend_url, type = zmq.SUB,
+        bind = True, options = {zmq.SUBSCRIBE : ""})
+    zmq.device(zmq.FORWARDER, log_fe_socket, log_be_socket)
+  thread = threading.Thread(target = thread_target)
+  thread.daemon = True
+  thread.start()
   context = zmq.Context()
-  cmd_be_socket = MakeSocket(context, url = backend_url, type = zmq.PUB,
-      bind = False)
-  cmd_fe_socket = MakeSocket(context, url = frontend_url, type = zmq.SUB,
-      options = {zmq.SUBSCRIBE : ""})
+  cmd_be_socket = MakeSocket(context, url = cmd_backend_url, type = zmq.PUB,
+      bind = True)
+  cmd_fe_socket = MakeSocket(context, url = cmd_frontend_url, type = zmq.SUB,
+      bind = True, options = {zmq.SUBSCRIBE : ""})
   zmq.device(zmq.FORWARDER, cmd_fe_socket, cmd_be_socket)
 
 def LaunchWorker(config, num_processes = None):
@@ -49,7 +64,8 @@ def LaunchWorker(config, num_processes = None):
     num_processes = int(num_processes)
   job_server_url = config.get('client', 'job_server_url')
   command_url = config.get('client', 'command_backend_url')
-  exit_status = pool.RunWorker(job_server_url, command_url, num_processes)
+  log_url = config.get('client', 'log_frontend_url')
+  exit_status = pool.RunWorker(job_server_url, command_url, log_url, num_processes)
   sys.exit(exit_status)
 
 def SendCommand(command_url, command):
@@ -68,9 +84,34 @@ def RestartWorkers(config):
   command_url = config.get('client', 'command_frontend_url')
   SendCommand(command_url, pool.COMMAND_RESTART)
 
+def _PingWorkers(config, wait_time = None):
+  if wait_time == None:
+    wait_time = 1  # wait for one second by default
+  log_url = config.get('client', 'log_backend_url')
+  context = zmq.Context()
+  log_socket = MakeSocket(context, url = log_url, type = zmq.SUB, bind = False,
+      options = {zmq.SUBSCRIBE : ""})
+  command_url = config.get('client', 'command_frontend_url')
+  SendCommand(command_url, pool.COMMAND_PING)
+  poll_timeout = 1000  # poll for one second
+  wait_start_time = time.time()
+  results = list()
+  poller = zmq.Poller()
+  poller.register(log_socket, zmq.POLLIN)
+  while time.time() - wait_start_time < wait_time:
+    # Wait for input, with timeout given in milliseconds
+    if poller.poll(timeout = poll_timeout):
+      stats = log_socket.recv_pyobj()
+      yield stats
+
+def PingWorkers(config, wait_time = None):
+  """Determine the set of active workers."""
+  for r in _PingWorkers(config, wait_time):
+    pprint.pprint(r)
+
 def main():
-  methods = map(eval, ("LaunchForwarder", "LaunchWorker", "KillWorkers",
-      "RestartWorkers"))
+  methods = map(eval, ("LaunchBroker", "LaunchWorker", "KillWorkers",
+      "RestartWorkers", "PingWorkers"))
   try:
     config_files = list()
     if 'GLIMPSE_CLUSTER_CONFIG' in os.environ:

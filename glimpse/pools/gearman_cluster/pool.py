@@ -3,11 +3,13 @@ import gearman
 import cPickle
 from glimpse import pools
 from glimpse.util.zmq_cluster import FutureSocket, InitSocket
-import threading
-import zmq
 from glimpse import util
 import itertools
+import os
+import socket
+import threading
 import time
+import zmq
 
 # By default, GearmanClient's can only send off byte-strings. If we want to be
 # able to send out Python objects, we can specify a data encoder. This will
@@ -27,6 +29,7 @@ class PickleDataEncoder(gearman.DataEncoder):
 GEARMAN_TASK_MAP = "glimpse_map"
 COMMAND_QUIT = "quit"
 COMMAND_RESTART = "restart"
+COMMAND_PING = "ping"
 
 class Worker(gearman.GearmanWorker):
   exit_status = 0
@@ -72,17 +75,19 @@ class ClusterPool(Client):
     super(ClusterPool, self).__init__([job_server_url])
     self.chunksize = chunksize
 
-def CommandHandlerTarget(worker, cmd_future):
+def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
   logging.info("Gearman command handler starting")
   context = zmq.Context()
-  socket = InitSocket(context, cmd_future, type = zmq.SUB, bind = False,
+  cmd_socket = InitSocket(context, cmd_future, type = zmq.SUB,
       options = {zmq.SUBSCRIBE : ""})
+  log_socket = InitSocket(context, log_future, type = zmq.PUB)
   poller = zmq.Poller()
-  poller.register(socket, zmq.POLLIN)
+  poller.register(cmd_socket, zmq.POLLIN)
+  start_time = time.time()
   while True:
     socks = dict(poller.poll())
-    if socket in socks:
-      cmd = socket.recv_pyobj()
+    if cmd_socket in socks:
+      cmd = cmd_socket.recv_pyobj()
       if cmd == COMMAND_QUIT:
         logging.info("Gearman worker quiting")
         # exit with error, so wrapper script will not restart worker
@@ -95,11 +100,18 @@ def CommandHandlerTarget(worker, cmd_future):
         worker.exit_status = 0
         worker.finish = True
         return
+      elif cmd == COMMAND_PING:
+        logging.info("Gearman worker received ping")
+        stats = ping_handler()
+        stats['UPTIME'] = time.time() - start_time
+        log_socket.send_pyobj(stats)
       else:
-        logging.info("Gearman worker quiting")
+        logging.warn("Gearman worker got unknown command: %s" % (cmd,))
 
-def RunWorker(job_server_url, command_url, num_processes = None):
+def RunWorker(job_server_url, command_url, log_url, num_processes = None):
   pool = pools.MulticorePool(num_processes)
+  stats = dict(HOST = socket.getfqdn(), PID = os.getpid(), ELAPSED_TIME = 0, NUM_REQUESTS = 0)
+  get_stats = lambda: dict(stats.items())  # return a copy
 
   def handle_map(worker, job):
     """Map a function onto its arguments.
@@ -111,17 +123,21 @@ def RunWorker(job_server_url, command_url, num_processes = None):
       func, args = job.data
       logging.info("Gearman worker processing task with %d elements" % len(args))
       results = pool.map(func, args)
-      logging.info("\tfinished in %.2f secs" % (time.time() - start))
+      elapsed_time = time.time() - start
+      logging.info("\tfinished in %.2f secs" % elapsed_time)
+      stats['ELAPSED_TIME'] += elapsed_time
+      stats['NUM_REQUESTS'] += 1
       return results
     except Exception, e:
-      logging.info("\tcaught exception: %s" % e)
+      logging.warn("\tcaught exception: %s" % e)
       raise
 
   worker = Worker([job_server_url])
   # Start the command listener
   cmd_future = FutureSocket(url = command_url, bind = False)
+  log_future = FutureSocket(url = log_url, bind = False)
   cmd_thread = threading.Thread(target = CommandHandlerTarget,
-      args = (worker, cmd_future))
+      args = (worker, cmd_future, log_future, get_stats))
   cmd_thread.daemon = True
   cmd_thread.start()
   # Start the task processor
@@ -132,15 +148,6 @@ def RunWorker(job_server_url, command_url, num_processes = None):
   worker.work(poll_timeout = 2.0)
   worker.shutdown()
   return worker.exit_status
-
-def check_request_status(job_request):
-  if job_request.complete:
-    print "Job %s finished!  Result: %s - %s" % (job_request.job.unique,
-        job_request.state, job_request.result)
-  elif job_request.timed_out:
-    print "Job %s timed out!" % job_request.unique
-  elif job_request.state == JOB_UNKNOWN:
-    print "Job %s connection failed!" % job_request.unique
 
 # start job server as
 #   gearmand -vvvvvvvv -l gearmand.log -d
