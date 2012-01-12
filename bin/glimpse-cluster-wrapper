@@ -72,7 +72,7 @@ function Status {
 if [[ "$CMD" == "START-INNER" ]]; then
   Run
 elif [[ "$CMD" == "START" ]]; then
-  $BASH_SOURCE START-INNER $NUM 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
+  $BASH_SOURCE START-INNER $NUM $NUM_PROCS 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
 elif [[ "$CMD" == "KILL" ]]; then
   Kill
 elif [[ "$CMD" == "STATUS" ]]; then
