@@ -113,8 +113,31 @@ def PingWorkers(config, wait_time = None):
   """Determine the set of active workers."""
   if wait_time != None:
     wait_time = int(wait_time)
-  for r in _PingWorkers(config, wait_time):
-    pprint.pprint(r)
+  rs_list = _PingWorkers(config, wait_time)
+  rs = dict()
+  for r in rs_list:
+    host = r['HOST']
+    if host not in rs:
+      rs[host] = []
+    rs[host].append(r)
+  widths = (30, 6, 5, 5, 10, 19)
+  if rs:
+    fields = ['HOST', 'PID', 'NREQS', 'ETIME', 'MEAN_ETIME', 'STIME']
+    fields = [ str(f).center(w) for f, w in zip(fields, widths) ]
+    print " ".join(fields)
+    print " ".join([ "-" * w for w in widths ])
+  for host in sorted(rs.keys()):
+    for r in rs[host]:
+      pid, nreqs, etime, stime = r['PID'], r['NUM_REQUESTS'], r['ELAPSED_TIME'], r['START_TIME']
+      if nreqs > 0:
+        mean_etime = etime / nreqs
+      else:
+        mean_etime = etime
+      etime = "%.1f" % etime
+      mean_etime = "%.1f" % mean_etime
+      fields = (host, pid, nreqs, etime, mean_etime, stime)
+      fields = [ str(f).ljust(w) for f, w in zip(fields, widths) ]
+      print " ".join(fields)
 
 def main():
   methods = map(eval, ("LaunchBroker", "LaunchWorker", "KillWorkers",
