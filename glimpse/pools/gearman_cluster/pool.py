@@ -91,14 +91,14 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
       cmd = cmd_socket.recv_pyobj()
       if cmd == COMMAND_QUIT:
         logging.info("Gearman worker quiting")
-        # exit with error, so wrapper script will not restart worker
-        worker.exit_status = -1
+        # exit without error, so wrapper script will not restart worker
+        worker.exit_status = 0
         worker.finish = True
         return
       elif cmd == COMMAND_RESTART:
         logging.info("Gearman worker restarting")
-        # exit without error, so worker will be restarted
-        worker.exit_status = 0
+        # exit with error, so worker will be restarted
+        worker.exit_status = -1
         worker.finish = True
         return
       elif cmd == COMMAND_PING:
