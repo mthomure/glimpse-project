@@ -70,6 +70,8 @@ class SpheringFeatureScaler(object):
     std -- (float) standard deviation of feature values
     """
     self.omean, self.ostd = mean, std
+    self.imean = None
+    self.istd = None
 
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
@@ -85,6 +87,8 @@ class SpheringFeatureScaler(object):
     features -- (2D array-like)
     RETURN (2D ndarray) new array with scaled features
     """
+    if len(features) == 0:
+      return features
     features = np.array(features)  # copy feature values
     features -= self.imean  # map to mean zero
     features /= self.istd  # map to unit variance
@@ -113,12 +117,13 @@ def PrepareLibSvmInput(features_per_class):
 class Svm(object):
   """The LIBSVM classifier."""
 
-  def __init__(self):
-    self.classifier = None
+  def __init__(self, classifier = None):
+    self.classifier = classifier
 
   def Train(self, features):
     """Train an SVM classifier.
-    features -- (3D array-like) training instances, indexed by class, instance, and then feature offset.
+    features -- (3D array-like) training instances, indexed by class, instance,
+                and then feature offset.
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -133,7 +138,8 @@ class Svm(object):
 
   def Test(self, features):
     """Test an existing classifier.
-    features -- (3D array-like) test instances: indexed by class, instance, and then feature offset.
+    features -- (3D array-like) test instances: indexed by class, instance, and
+                then feature offset.
     RETURN (float) accuracy in the range [0, 1]
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
@@ -141,22 +147,26 @@ class Svm(object):
     import svmutil
     if self.classifier == None:
       raise ValueError("Must train classifier before testing")
-    if not all(isinstance(f, np.ndarray) for f in features):
-      raise ValueError("Expected list of arrays for features")
-    if not all(f.ndim == 2 for f in features):
-      raise ValueError("Expected list of 2D arrays for features")
+    for f in features:
+      if not( (isinstance(f, np.ndarray) and f.ndim == 2) or \
+          (isinstance(f, list) and len(f) == 0) ):
+        raise ValueError("Features for a given class should be a 2D array or "
+            "an empty list")
     svm_labels, svm_features = PrepareLibSvmInput(features)
     options = ''  # can't disable writing to stdout
-    predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
-        svm_labels, svm_features, self.classifier, options)
+    return SuppressStdout(svmutil.svm_predict, svm_labels, svm_features,
+        self.classifier, options)
+
+  def TestAccuracy(self, features):
+    predicted_labels, acc, decision_values = self.Test(features)
     # Ignore mean-squared error and correlation coefficient
     return float(acc[0]) / 100.
 
 class ScaledSvm(Svm):
   """A LIBSVM solver, which automatically scales feature values."""
 
-  def __init__(self, scaler = None):
-    super(ScaledSvm, self).__init__()
+  def __init__(self, classifier = None, scaler = None):
+    super(ScaledSvm, self).__init__(classifier)
     if scaler == None:
       scaler = SpheringFeatureScaler()
     self.scaler = scaler
@@ -193,8 +203,8 @@ def SvmForSplit(train_features, test_features, scaler = None):
   # TEST CASE: unbalanced number of instances across classes
   svm = ScaledSvm(scaler)
   svm.Train(train_features)
-  train_accuracy = svm.Test(train_features)
-  test_accuracy = svm.Test(test_features)
+  train_accuracy = svm.TestAccuracy(train_features)
+  test_accuracy = svm.TestAccuracy(test_features)
   return svm.classifier, train_accuracy, test_accuracy
 
 def SvmCrossValidate(features_per_class, num_repetitions = None,
@@ -268,7 +278,7 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
     test_features = [ splits[test_idx] for splits in splits_per_class ]
     svm = ScaledSvm(scaler)
     svm.Train(train_features)
-    test_accuracy = svm.Test(test_features)
+    test_accuracy = svm.TestAccuracy(test_features)
     return test_accuracy
 
   def cross_validate():

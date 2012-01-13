@@ -1,33 +1,24 @@
 #!/usr/bin/python
 
-from glimpse.gditlib import GetDirContents, TestSvm, ModelWrapper
-from glimpse import util
+from glimpse.glab import LoadExperiment
+from glimpse.util import svm
 import os
-import svmutil
 import sys
 
+def GetDirContents(dir_path):
+  return [ os.path.join(dir_path, f) for f in os.listdir(dir_path) ]
+
 def main(xform_dir, pos_image_dir, neg_image_dir):
-  # Compute SVM feature vectors for positive images.
+  exp = LoadExperiment(os.path.join(xform_dir, "exp.dat"))
   pos_fnames = GetDirContents(pos_image_dir)
-  model = ModelWrapper()
-  pos_states = map(model.FilenameToState, pos_fnames)
-  pos_c1_activity = model.ComputeC1Activity(pos_states)
-  feature_transformer = util.Load(os.path.join(xform_dir,
-      'feature-transformer'))
-  pos_features = map(feature_transformer.ComputeSvmFeatures,
-      pos_c1_activity)
-  del pos_c1_activity
-  # Compute SVM feature vectors for negative images.
+  pos_features = exp.ComputeFeaturesFromInputStates(map(
+      exp.model.MakeStateFromFilename, pos_fnames))
   neg_fnames = GetDirContents(neg_image_dir)
-  neg_states = map(model.FilenameToState, neg_fnames)
-  neg_c1_activity = model.ComputeC1Activity(neg_states)
-  neg_features = map(feature_transformer.ComputeSvmFeatures,
-      neg_c1_activity)
-  del neg_c1_activity
-  # Load and apply the SVM classifier to feature vectors.
-  model = svmutil.svm_load_model(os.path.join(xform_dir, 'svm-model'))
-  predicted_labels, decision_values = TestSvm(model, pos_features,
-      neg_features)
+  neg_features = exp.ComputeFeaturesFromInputStates(map(
+      exp.model.MakeStateFromFilename, neg_fnames))
+  model = svm.ScaledSvm(classifier = exp.classifier, scaler = exp.scaler)
+  predicted_labels, acc, decision_values = model.Test((pos_features,
+      neg_features))
   print "FILE PREDICTED-LABEL CONFIDENCE"
   for f, pl, dv in zip(pos_fnames + neg_fnames, predicted_labels,
       decision_values):

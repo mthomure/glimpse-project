@@ -42,14 +42,15 @@ class ModelWrapper(object):
     # Create an empty model state object for each image.
     return self.model.MakeStateFromFilename(filename)
 
-class SvmFeatureTransformer(object):
-
-  def ComputeSvmFeatures(self, c1_activity):
-    """Compute the SVM feature vector for a single image."""
-    return c1_activity
+#~ class SvmFeatureTransformer(object):
+#~
+  #~ def ComputeSvmFeatures(self, c1_activity):
+    #~ """Compute the SVM feature vector for a single image."""
+    #~ return c1_activity
 
 def BuildSvmFeatureTransformer(c1_activity_list):
   """Construct a new SVM feature transformer."""
+  scaler = svm.Sphering
   return SvmFeatureTransformer()
 
 # XXX Enabling this flag (i.e., passing "-b 1" to LIBSVM) seems to cause a
@@ -58,33 +59,12 @@ COMPUTE_CONFIDENCE = False
 
 # performs training of the svm classifier with scaling of the features
 def TrainSvm(pos_features, neg_features):
-  classes = [1] * len(pos_features) + [-1] * len(neg_features)
-  features = pos_features + neg_features
-  features = map(list, features)
+  model = svm.ScaledSvm()
+  model.Train((pos_features, neg_features))
+  return model
 
-  scaler = svm.SpheringFeatureScaler()
-  scaler.Learn(np.vstack(features))
-  print scaler
-  svm_labels, svm_features = svm.PrepareLibSvmInput(map(scaler.Apply, train_features))
-  options = '-q'  # don't write to stdout
-  if COMPUTE_CONFIDENCE:
-    options += ' -b 1'
-  classifier = svmutil.svm_train(svm_labels, svm_features, options)
-  return classifier
-
-def TestSvm(model, pos_features, neg_features ):
-  classes = [1] * len(pos_features) + [-1] * len(neg_features)
-  features = pos_features + neg_features
-  features = map(list, features)
-  # Sadly, we can't make it shut up -- i.e., it writes to stdout.
-  if COMPUTE_CONFIDENCE:
-    options = '-b 1'
-  else:
-    options = ''
-  predicted_labels, acc, decision_values = svmutil.svm_predict(classes,
-      features, model, options)
-  decision_values = [ dv[0] for dv in decision_values ]
-  return predicted_labels, decision_values
+def TestSvm(model, pos_features, neg_features):
+  return model.Test((pos_features, neg_features))
 
 # apply the model to the image
 def ApplyModel(model,img_features):

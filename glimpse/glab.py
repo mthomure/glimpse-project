@@ -45,8 +45,7 @@ from glimpse import backends
 from glimpse.models import viz2
 from glimpse import pools
 from glimpse import util
-from glimpse.util.svm import SpheringFeatureScaler, PrepareLibSvmInput, \
-    SvmForSplit, SvmCrossValidate
+from glimpse.util import svm
 import itertools
 import logging
 import numpy as np
@@ -59,7 +58,7 @@ __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
     'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
     'MakeRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus',
     'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
-    'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
+    'TrainSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
 def SplitList(data, *sizes):
   """Break a list into sublists.
@@ -69,12 +68,30 @@ def SplitList(data, *sizes):
            sublist in the result.
   RETURN (list of lists) sublists of requested size
   """
+  # TEST CASE: no tail elements
   assert(all([ s >= 0 for s in sizes ]))
   if len(sizes) == 0:
     return data
   if sum(sizes) < len(data):
     sizes = list(sizes)
     sizes.append(len(data) - sum(sizes))
+  out = list()
+  last = 0
+  for s in sizes:
+    out.append(data[last : last+s])
+    last += s
+  return out
+
+def SplitListStrict(data, *sizes):
+  """Break a list into sublists.
+  data -- (list) input data
+  sizes -- (int list) size of all chunks, where sum(sizes) = len(data).
+  RETURN (list of lists) sublists of requested size
+  """
+  # TEST CASE: no tail elements
+  sizes = list(sizes)
+  assert(all([ s >= 0 for s in sizes ]))
+  assert sum(sizes) == len(data)
   out = list()
   last = 0
   for s in sizes:
@@ -210,7 +227,7 @@ class Experiment(object):
     self.prototype_source = 'manual'
     self.model.s2_kernels = prototypes
 
-  def ComputeFeaturesFromInputStates(self, input_states):
+  def ComputeFeaturesFromInputStates(self, input_states, as_iterator = False):
     """Return the activity of the model's output layer for a set of images.
     input_states -- (State iterable) model states containing image data
     RETURN (iterable) a feature vector for each image
@@ -220,14 +237,16 @@ class Experiment(object):
       sys.exit("Please set the S2 prototypes before computing feature vectors "
           "for layer %s." % self.layer.name)
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
-    # Compute model states containing IT features.
-    output_states = self.pool.map(builder, input_states)
-    if self.debug:
-      self.debug_output_states = output_states
-    # Look up the activity values for the output layer, and convert them all to
-    # a single vector.
-    return [ util.ArrayListToVector(state[self.layer.id])
-        for state in output_states ]
+    # Compute model states containing IT features. Then look up the activity
+    # values for the output layer, and convert them all to a single vector.
+    if as_iterator:
+      output_states = self.pool.imap(builder, input_states)
+      return ( util.ArrayListToVector(state[self.layer.id])
+          for state in output_states )
+    else:
+      output_states = self.pool.map(builder, input_states)
+      return [ util.ArrayListToVector(state[self.layer.id])
+          for state in output_states ]
 
   def _ReadCorpusDir(self, corpus_dir, classes = None):
     if classes == None:
@@ -297,6 +316,7 @@ class Experiment(object):
     train_sizes = map(len, self.train_images)
     train_size = sum(train_sizes)
     test_sizes = map(len, self.test_images)
+    test_size = sum(test_sizes)
     train_images = util.UngroupLists(self.train_images)
     test_images = util.UngroupLists(self.test_images)
     images = train_images + test_images
@@ -306,11 +326,12 @@ class Experiment(object):
     features = self.ComputeFeaturesFromInputStates(input_states)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
-    train_features, test_features = SplitList(features, train_size)
+    train_features, test_features = SplitListStrict(features, train_size,
+        test_size)
     # Split training set by class
-    train_features = SplitList(train_features, *train_sizes)
+    train_features = SplitListStrict(train_features, *train_sizes)
     # Split testing set by class
-    test_features = SplitList(test_features, *test_sizes)
+    test_features = SplitListStrict(test_features, *test_sizes)
     # Store features as list of 2D arrays
     self.train_features = [ np.array(f, util.ACTIVATION_DTYPE)
         for f in train_features ]
@@ -329,13 +350,21 @@ class Experiment(object):
       self.ComputeFeatures()
     start_time = time.time()
     if cross_validate:
-      self.test_accuracy = SvmCrossValidate(self.features, num_repetitions = 10,
-          num_splits = 10, scaler = self.scaler)
+      # Compute accuracy via cross-validation.
+      self.test_accuracy = svm.SvmCrossValidate(self.features,
+          num_repetitions = 10, num_splits = 10, scaler = self.scaler)
       self.train_accuracy = None
-    else:
+    elif sum(map(len, self.test_features)) > 0:
+      # Use existing training and testing splits.
       self.classifier, self.train_accuracy, self.test_accuracy = \
-          SvmForSplit(self.train_features, self.test_features,
+          svm.SvmForSplit(self.train_features, self.test_features,
               scaler = self.scaler)
+    else:
+      # Just train the classifier
+      model = svm.ScaledSvm(scaler = self.scaler)
+      model.Train(self.train_features)
+      self.classifier = model.classifier
+      self.train_accuracy = model.TestAccuracy(self.train_features)
     self.cross_validated = cross_validate
     self.svm_time = time.time() - start_time
     return self.train_accuracy, self.test_accuracy
@@ -385,6 +414,13 @@ def SetPool(pool):
   logging.info("Using pool type: %s" % type(pool).__name__)
   __POOL = pool
 
+def GetPool():
+  """Get the current worker pool used for new experiments."""
+  global __POOL
+  if __POOL == None:
+    __POOL = pools.MakePool()
+  return __POOL
+
 def UseCluster(config_file = None, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.
   config_file -- (str) path to the cluster configuration file
@@ -430,9 +466,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
   layer -- (LayerSpec or str) the layer activity to use for features vectors
   scaler -- feature scaling algorithm
   """
-  global __EXP, __POOL
-  if __POOL == None:
-    __POOL = pools.MakePool()
+  global __EXP
   if model == None:
     model = MakeModel()
   if layer == None:
@@ -440,8 +474,8 @@ def SetExperiment(model = None, layer = None, scaler = None):
   elif isinstance(layer, str):
     layer = model.Layer.FromName(layer)
   if scaler == None:
-    scaler = SpheringFeatureScaler()
-  __EXP = Experiment(model, layer, pool = __POOL, scaler = scaler)
+    scaler = svm.SpheringFeatureScaler()
+  __EXP = Experiment(model, layer, pool = GetPool(), scaler = scaler)
 
 def ImprintS2Prototypes(num_prototypes):
   """Imprint a set of S2 prototypes from a set of training images.
@@ -502,6 +536,9 @@ def ComputeFeatures():
   call this method yourself, as it will be called automatically by RunSvm()."""
   GetExperiment().ComputeFeatures()
 
+def TrainSvm():
+  return GetExperiment().TrainSvm()
+
 def RunSvm(cross_validate = False):
   """Train and test an SVM classifier from the set of images in the corpus.
   cross_validate -- (bool) if true, perform 10x10-way cross-validation.
@@ -534,6 +571,7 @@ def LoadExperiment(root_path):
   """Load the experiment from disk."""
   global __EXP
   __EXP = Experiment.Load(root_path)
+  __EXP.pool = GetPool()
   return __EXP
 
 def Verbose(flag):

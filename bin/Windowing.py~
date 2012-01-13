@@ -1,0 +1,113 @@
+#!/usr/bin/python
+
+from glimpse.util import svm
+from glimpse.glab import LoadExperiment
+import Image
+import ImageDraw
+from itertools import imap
+import numpy as np
+import os
+import sys
+
+def main_iterable(xform_dir, image_dir):
+  exp = LoadExperiment(os.path.join(xform_dir, "exp.dat"))
+  model = exp.model
+  image = Image.open(image_dir)
+  boxes = subwindows(image, ystep = 20, xstep = 20)
+  print "crops done (%d boxes)" % len(boxes)
+  # Compute SVM feature vectors for image crops
+
+  def crop_image(box):
+    crop = image.crop(box)
+    crop = crop.convert('L')
+    if crop.size != (128,128):
+      size = (128,128)
+      crop = crop.resize(size)
+    return crop
+
+  #crops = imap(crop_image, boxes)
+  crops = []
+  crops.append(crop_image(boxes[0]))
+  img_states = imap(model.MakeStateFromImage, crops)
+  print "states generated"
+
+  img_c1_activity = exp.ComputeFeaturesFromInputStates(img_states)
+
+  def progress_updater(xs, update_every = 10):
+    count = 0
+    for x in xs:
+      count += 1
+      if count >= update_every:
+        print ".",
+        sys.stdout.flush()
+        count = 0
+      yield x
+
+  img_c1_activity = progress_updater(img_c1_activity)
+  # Evaluate the iterable
+  img_c1_activity = list(img_c1_activity)
+  if len(img_c1_activity) == 0:
+    return
+  # Apply the SVM classifier to feature vectors.
+  model = svm.ScaledSvm(classifier = exp.classifier, scaler = exp.scaler)
+  predicted_labels, acc, decision_values = model.Test((img_c1_activity, []))
+  decision_values = [ x[0] for x in decision_values ]
+
+  print "FILE PREDICTED-LABEL CONFIDENCE"
+  for pl, dv in zip(predicted_labels, decision_values):
+    print pl, dv
+  print_max(image, boxes, decision_values)
+
+#~ # create a list of crops to process by tiling the windows
+#~ def create_croplist(image,window_size):
+    #~ # take an image return a list of crops of that image
+    #~ width,height = image.size
+    #~ croplist = []
+#~
+    #~ # perform the crops and add them to the croplist
+    #~ for y in range(0,height - window_size, window_size):
+      #~ for x in range(0,width - window_size, window_size):
+          #~ box = (x,y,x+window_size,y+window_size)
+          #~ crop = image.crop(box)
+          #~ size = (128,128)
+          #~ crop = crop.resize(size)
+          #~ croplXist.append(crop)
+    #~ return croplist
+
+def subwindows(image, ystep, xstep, box_size = 256):
+  width, height = image.size
+  boxes = []
+  for y in range(0, height, ystep):
+    for x in range(0, width , xstep):
+      box = (x, y, x + box_size, y + box_size)
+      boxes.append(box)
+  return boxes
+
+#~ def subwindow_crops(image):
+  #~ width,height = image.size
+  #~ crops = []
+  #~ for y in range(0,height-256,10):
+    #~ for x in range(0,width-256,10):
+      #~ box = (x,y,x+256,y+256)
+      #~ crop = image.crop(box)
+      #~ size = (256,256)
+      #~ crop = crop.resize(size)
+      #~ crops.append(crop)
+  #~ return crops
+
+
+def print_max(image,boxes,results):
+  assert(len(boxes) == len(results))
+  draw = ImageDraw.Draw(image)
+  for x, box in zip(results, boxes):
+    if float(x) > -0.3:
+      draw.rectangle(box, outline="green")
+  image.show()
+
+# determine the global maximum neighborhoods of an image by taking current max bounding box and loop till some threshhold
+
+if __name__ == '__main__':
+  if len(sys.argv) < 2:
+    sys.exit("usage: %s XFORM-DIR IMAGE " % sys.argv[0])
+  xform_dir, image_dir= sys.argv[1:3]
+  main_iterable(xform_dir, image_dir)
