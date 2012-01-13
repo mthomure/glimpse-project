@@ -212,7 +212,8 @@ class Experiment(object):
     num_prototypes -- (int) the number of S2 prototype arrays to create
     """
     start_time = time.time()
-    self.ImprintS2Prototypes(num_prototypes)
+    if self.model.s2_kernels == None:
+      self.ImprintS2Prototypes(num_prototypes)
     for k in self.model.s2_kernels:
       np.random.shuffle(k.flat)
     self.prototype_construction_time = time.time() - start_time
@@ -686,7 +687,7 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
   num_prototypes = int(num_prototypes)
   if prototypes != None:
     SetS2Prototypes(prototypes)
-  elif prototype_algorithm != None:
+  if prototype_algorithm != None:
     prototype_algorithm = prototype_algorithm.lower()
     if prototype_algorithm == 'imprint':
       ImprintS2Prototypes(num_prototypes)
