@@ -5,6 +5,11 @@
 
 # Interface for filter operations.
 
+class InsufficientSizeException(BaseException):
+  """Exception indicating that the input array was too small (spatially) to
+  support the requested operation."""
+  pass
+
 class IBackend(object):
 
   def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):

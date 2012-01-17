@@ -6,6 +6,7 @@
 ###### UTIL DECLARATIONS ##################
 
 cimport numpy as np
+from glimpse.backends.backend import InsufficientSizeException
 import numpy as np
 import operator
 
@@ -148,17 +149,12 @@ def ContrastEnhance(np.ndarray[act_t, ndim = 2] in_data not None, int kheight,
         1,  # scaling
         in_data.shape[0], in_data.shape[1])
     if oheight <= 0 or owidth <= 0:
-      raise InsufficientSizeException()
+      raise InsufficientSizeException
     out_data = np.empty((oheight, owidth), activation_dtype)
   i = WrapArray2D(in_data)
   o = WrapArray2D(out_data)
   CContrastEnhance(i.ptr[0], kheight, kwidth, bias, o.ptr[0])
   return out_data
-
-class InsufficientSizeException(BaseException):
-  """Exception indicating that the input array was too small (spatially) to
-  support the requested operation."""
-  pass
 
 def _Prepare3dFilterArgs(np.ndarray[act_t, ndim = 3] in_data not None,
     np.ndarray[act_t, ndim=4] kernels not None,
@@ -172,7 +168,7 @@ def _Prepare3dFilterArgs(np.ndarray[act_t, ndim = 3] in_data not None,
         in_data.shape[1], in_data.shape[2])
     nkernels = kernels.shape[0]
     if oheight <= 0 or owidth <= 0:
-      raise InsufficientSizeException()
+      raise InsufficientSizeException
     out_data = np.empty((nkernels, oheight, owidth), np.float32)
   if in_data.shape[0] != kernels.shape[1]:
     raise ValueError("Number of bands in kernel must match number of bands in" \
@@ -233,7 +229,7 @@ def LocalMax(np.ndarray[act_t, ndim = 3] in_data not None, int kheight,
     oheight, owidth = OutputMapShapeForInput(kheight, kwidth, scaling,
         in_data.shape[1], in_data.shape[2])
     if oheight <= 0 or owidth <= 0:
-      raise InsufficientSizeException()
+      raise InsufficientSizeException
     ibands = in_data.shape[0]
     out_data = np.empty((ibands, oheight, owidth), activation_dtype)
   idata_ref = WrapArray3D(in_data)
