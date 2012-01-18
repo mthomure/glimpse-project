@@ -64,27 +64,6 @@ __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
     'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
     'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
-def SplitList(data, *sizes):
-  """Break a list into sublists.
-  data -- (list) input data
-  sizes -- (int list) size of each chunk. if sum of sizes is less than entire
-           size of input array, the remaining elements are returned as an extra
-           sublist in the result.
-  RETURN (list of lists) sublists of requested size
-  """
-  assert(all([ s >= 0 for s in sizes ]))
-  if len(sizes) == 0:
-    return data
-  if sum(sizes) < len(data):
-    sizes = list(sizes)
-    sizes.append(len(data) - sum(sizes))
-  out = list()
-  last = 0
-  for s in sizes:
-    out.append(data[last : last+s])
-    last += s
-  return out
-
 class Experiment(object):
 
   def __init__(self, model, layer, pool, scaler):
@@ -114,8 +93,8 @@ class Experiment(object):
     self.train_features = None  # (list of 2D array) indexed by class, image,
                                 # and then feature offset
     self.test_features = None  # (list of 2D array) indexed as in train_features
-    self.train_accuracy = None
-    self.test_accuracy = None
+    self.train_results = None
+    self.test_results = None
     self.cross_validated = None  # (bool) indicates whether cross-validation was
                                  # used to compute test accuracy.
     self.prototype_construction_time = None
@@ -159,6 +138,11 @@ class Experiment(object):
   def __str__(self):
     values = dict(self.__dict__)
     values['classes'] = ", ".join(values['classes'])
+    if self.train_results == None:
+      values['train_accuracy'] = None
+    else:
+      values['train_accuracy'] = self.train_results['accuracy']
+    values['test_accuracy'] = self.test_results['accuracy']
     return """Experiment:
   corpus: %(corpus)s
   classes: %(classes)s
@@ -287,10 +271,14 @@ class Experiment(object):
     if classes == None:
       classes = os.listdir(corpus_dir)
     try:
-      def ReadClass(cls):
+      def image_filter(img):
+        # Ignore "hidden" files in corpus directory.
+        return not img.startswith('.')
+      def read_class(cls):
         class_dir = os.path.join(corpus_dir, cls)
-        return [ os.path.join(class_dir, img) for img in os.listdir(class_dir) ]
-      return map(ReadClass, classes)
+        return [ os.path.join(class_dir, img) for img in os.listdir(class_dir)
+            if image_filter(img) ]
+      return map(read_class, classes)
     except OSError, e:
       sys.exit("Failed to read corpus directory: %s" % e)
 
@@ -360,11 +348,11 @@ class Experiment(object):
     features = self.ComputeFeaturesFromInputStates(input_states)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
-    train_features, test_features = SplitList(features, train_size)
+    train_features, test_features = util.SplitList(features, [train_size])
     # Split training set by class
-    train_features = SplitList(train_features, *train_sizes)
+    train_features = util.SplitList(train_features, train_sizes)
     # Split testing set by class
-    test_features = SplitList(test_features, *test_sizes)
+    test_features = util.SplitList(test_features, test_sizes)
     # Store features as list of 2D arrays
     self.train_features = [ np.array(f, util.ACTIVATION_DTYPE)
         for f in train_features ]
@@ -383,16 +371,19 @@ class Experiment(object):
       self.ComputeFeatures()
     start_time = time.time()
     if cross_validate:
-      self.test_accuracy = SvmCrossValidate(self.features, num_repetitions = 10,
+      test_accuracy = SvmCrossValidate(self.features, num_repetitions = 10,
           num_splits = 10, scaler = self.scaler)
-      self.train_accuracy = None
+      train_accuracy = None
+      self.train_results = None
+      self.test_results = dict(accuracy = test_accuracy)
     else:
-      self.classifier, self.train_accuracy, self.test_accuracy = \
+      self.classifier, self.train_results, self.test_results = \
           SvmForSplit(self.train_features, self.test_features,
               scaler = self.scaler)
+      train_accuracy = self.train_results['accuracy']
     self.cross_validated = cross_validate
     self.svm_time = time.time() - start_time
-    return self.train_accuracy, self.test_accuracy
+    return train_accuracy, self.test_results['accuracy']
 
   def Store(self, root_path):
     """Save the experiment to disk."""
@@ -476,7 +467,7 @@ def GetModelClass():
 def SetParams(params = None):
   global __PARAMS, __MODEL_CLASS
   if params == None:
-    params = __MODEL_CLASS.Params()
+    params = GetModelClass().Params()
   __PARAMS = params
   return __PARAMS
 
@@ -707,6 +698,39 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
     GetParams().configure_traits()
   GetExperiment().debug = debug
 
+def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
+    **opts):
+  e = GetExperiment()
+  if e.train_results != None:
+    print "Train Accuracy: %.3f" % e.train_results['accuracy']
+  if e.test_results != None:
+    print "Test Accuracy: %.3f" % e.test_results['accuracy']
+    test_images = e.test_images
+    test_results = e.test_results
+    if svm_decision_values:
+      if 'decision_values' not in test_results:
+        logging.warn("Decision values are unavailable.")
+      decision_values = test_results['decision_values']
+      print "Decision Values:"
+      for cls in range(len(test_images)):
+        print "\n".join("%s %s" % _
+            for _ in zip(test_images[cls], decision_values[cls]))
+    if svm_predicted_labels:
+      if 'predicted_labels' not in test_results:
+        logging.warn("Decision values are unavailable.")
+      predicted_labels = test_results['predicted_labels']
+      print "Predicted Labels:"
+      for cls in range(len(test_images)):
+        print "\n".join("%s %s" % _
+            for _ in zip(test_images[cls], predicted_labels[cls]))
+  else:
+    print "No results available."
+
+def CLISvm(cross_validate = False, verbose = 0, **opts):
+  train_accuracy, test_accuracy = RunSvm(cross_validate)
+  if verbose > 0:
+    CLIFormatResults(**opts)
+
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
     cross_validate = False, verbose = 0, **opts):
@@ -733,11 +757,7 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
   if compute_features:
     ComputeFeatures()
   if svm:
-    train_accuracy, test_accuracy = RunSvm(cross_validate)
-    if verbose > 0:
-      if not cross_validate:
-        print "Train Accuracy: %.3f" % train_accuracy
-      print "Test Accuracy: %.3f" % test_accuracy
+    CLISvm(cross_validate, verbose, **opts)
   if result_path != None:
     StoreExperiment(result_path)
 
@@ -756,8 +776,9 @@ def main():
     cli_opts, cli_args = util.GetOptions('c:C:del:m:n:o:p:P:r:st:vx',
         ['corpus=', 'cluster-config=', 'compute-features', 'debug',
         'edit-options', 'layer=', 'model=', 'num-prototypes=', 'options=',
-        'prototype-algorithm=', 'prototypes=', 'results=', 'svm', 'pool-type=',
-        'verbose', 'cross-validate'])
+        'prototype-algorithm=', 'prototypes=', 'results=', 'svm',
+        'svm-decision-values', 'svm-predicted-labels', 'pool-type=', 'verbose',
+        'cross-validate'])
     for opt, arg in cli_opts:
       if opt in ('-c', '--corpus'):
         opts['corpus'] = arg
@@ -789,6 +810,10 @@ def main():
         opts['result_path'] = arg
       elif opt in ('-s', '--svm'):
         opts['svm'] = True
+      elif opt == '--svm-decision-values':
+        opts['svm_decision_values'] = True
+      elif opt == '--svm-predicted-labels':
+        opts['svm_predicted_labels'] = True
       elif opt in ('-t', '--pool-type'):
         opts['pool_type'] = arg.lower()
       elif opt in ('-v', '--verbose'):
@@ -819,7 +844,14 @@ def main():
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"
         "  -s, --svm                       Train and test an SVM classifier\n"
-        "  -t, --pool-type=TYPE            Set the worker pool type (one of 'multicore', 'singlecore', or 'cluster')\n"
+        "      --svm-decision-values       Print the pre-thresholded SVM "
+        "decision values\n"
+        "                                  for each test image\n"
+        "      --svm-predicted-labels      Print the predicted labels for each "
+        "test image\n"
+        "  -t, --pool-type=TYPE            Set the worker pool type (one of "
+        "'multicore',\n"
+        "                                  'singlecore', or 'cluster')\n"
         "  -v, --verbose                   Enable verbose logging\n"
         "  -x, --cross-validate            Compute test accuracy via cross-"
         "validation\n"

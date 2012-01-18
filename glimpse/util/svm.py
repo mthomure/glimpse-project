@@ -7,7 +7,7 @@
 
 import math
 from .gio import SuppressStdout
-from .misc import GroupIterator, UngroupLists
+from .misc import GroupIterator, UngroupLists, SplitList
 import numpy as np
 import os
 import sys
@@ -118,7 +118,8 @@ class Svm(object):
 
   def Train(self, features):
     """Train an SVM classifier.
-    features -- (3D array-like) training instances, indexed by class, instance, and then feature offset.
+    features -- (3D array-like) training instances, indexed by class, instance,
+                and then feature offset.
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -133,7 +134,8 @@ class Svm(object):
 
   def Test(self, features):
     """Test an existing classifier.
-    features -- (3D array-like) test instances: indexed by class, instance, and then feature offset.
+    features -- (3D array-like) test instances: indexed by class, instance, and
+                then feature offset.
     RETURN (float) accuracy in the range [0, 1]
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
@@ -149,8 +151,12 @@ class Svm(object):
     options = ''  # can't disable writing to stdout
     predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
         svm_labels, svm_features, self.classifier, options)
+    decision_values = [ dv[0] for dv in decision_values ]
+    predicted_labels = SplitList(predicted_labels, map(len, features))
+    decision_values = SplitList(decision_values, map(len, features))
     # Ignore mean-squared error and correlation coefficient
-    return float(acc[0]) / 100.
+    return dict(accuracy = float(acc[0]) / 100.,
+        predicted_labels = predicted_labels, decision_values = decision_values)
 
 class ScaledSvm(Svm):
   """A LIBSVM solver, which automatically scales feature values."""
@@ -163,7 +169,8 @@ class ScaledSvm(Svm):
 
   def Train(self, features):
     """Train an SVM classifier.
-    features -- (3D array-like) training instances, indexed by class, instance, and then feature offset.
+    features -- (3D array-like) training instances, indexed by class, instance,
+                and then feature offset.
     """
     # Learn scaling parameters from single list of all training vectors
     self.scaler.Learn(np.vstack(features))
@@ -173,7 +180,8 @@ class ScaledSvm(Svm):
 
   def Test(self, features):
     """Test an existing classifier.
-    features -- (3D array-like) test instances: indexed by class, instance, and then feature offset.
+    features -- (3D array-like) test instances: indexed by class, instance, and
+                then feature offset.
     RETURN (float) accuracy in the range [0, 1]
     """
     scaled_features = map(self.scaler.Apply, features)
@@ -193,9 +201,7 @@ def SvmForSplit(train_features, test_features, scaler = None):
   # TEST CASE: unbalanced number of instances across classes
   svm = ScaledSvm(scaler)
   svm.Train(train_features)
-  train_accuracy = svm.Test(train_features)
-  test_accuracy = svm.Test(test_features)
-  return svm.classifier, train_accuracy, test_accuracy
+  return svm.classifier, svm.Test(train_features), svm.Test(test_features)
 
 def SvmCrossValidate(features_per_class, num_repetitions = None,
     num_splits = None, scaler = None):
