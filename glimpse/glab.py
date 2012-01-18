@@ -56,13 +56,13 @@ import os
 import sys
 import time
 
-__all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'MakeParams', 'MakeModel',
-    'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeUniformRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
-    'MakeHistogramRandomS2Prototypes', 'MakeNormalRandomS2Prototypes',
-    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit',
-    'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'RunSvm', 'LoadExperiment',
-    'StoreExperiment', 'Verbose')
+__all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
+    'MakeParams', 'MakeModel', 'GetExperiment', 'SetExperiment',
+    'ImprintS2Prototypes', 'MakeUniformRandomS2Prototypes',
+    'MakeShuffledRandomS2Prototypes', 'MakeHistogramRandomS2Prototypes',
+    'MakeNormalRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus',
+    'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
+    'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
 
 def SplitList(data, *sizes):
   """Break a list into sublists.
@@ -429,7 +429,9 @@ class Experiment(object):
     return experiment
 
 __POOL = None
-__MODEL_CLASS = viz2.Model
+__MODEL_CLASS = None
+__PARAMS = None
+__LAYER = None
 __EXP = None
 __VERBOSE = False
 
@@ -454,24 +456,56 @@ def UseCluster(config_file = None, chunksize = None):
   """
   SetPool(MakeClusterPool(config_file, chunksize))
 
-def SetModelClass(model_class):
+def SetModelClass(model_class = None):
   """Set the model type.
   model_class -- for example, use glimpse.models.viz2.model.Model
   """
   global __MODEL_CLASS
+  if model_class == None:
+    model_class = viz2.Model  # the default GLIMPSE model
   logging.info("Using model type: %s" % model_class.__name__)
   __MODEL_CLASS = model_class
+  return __MODEL_CLASS
 
-def MakeParams():
-  """Create a default set of parameters for the current model type."""
+def GetModelClass():
   global __MODEL_CLASS
-  return __MODEL_CLASS.Params()
+  if __MODEL_CLASS == None:
+    SetModelClass()
+  return __MODEL_CLASS
+
+def SetParams(params = None):
+  global __PARAMS, __MODEL_CLASS
+  if params == None:
+    params = __MODEL_CLASS.Params()
+  __PARAMS = params
+  return __PARAMS
+
+def GetParams():
+  global __PARAMS
+  if __PARAMS == None:
+    SetParams()
+  return __PARAMS
+
+def SetLayer(layer = None):
+  global __LAYER, __MODEL_CLASS
+  if layer == None:
+    layer = __MODEL_CLASS.Layer.IT
+  elif isinstance(layer, str):
+    layer = model.Layer.FromName(layer)
+  __LAYER = layer
+  return __LAYER
+
+def GetLayer():
+  global __LAYER
+  if __LAYER == None:
+    SetLayer()
+  return __LAYER
 
 def MakeModel(params = None):
   """Create the default model."""
   global __MODEL_CLASS
   if params == None:
-    params = MakeParams()
+    params = GetParams()
   return __MODEL_CLASS(backends.MakeBackend(), params)
 
 def GetExperiment():
@@ -493,7 +527,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
   if model == None:
     model = MakeModel()
   if layer == None:
-    layer = model.Layer.IT
+    layer = GetLayer()
   elif isinstance(layer, str):
     layer = model.Layer.FromName(layer)
   if scaler == None:
@@ -667,16 +701,10 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
     SetPool(pool)
   if model_name != None:
     SetModelClass(CLIGetModel(model_name))
-  model = None
+  SetParams(params)
+  SetLayer(layer)
   if edit_params:
-    if params == None:
-      params = MakeParams()
-      params.configure_traits()
-      model = MakeModel(params)
-  elif params != None:
-    model = MakeModel(params)
-  if model != None or layer != None:
-    SetExperiment(model = model, layer = layer)
+    GetParams().configure_traits()
   GetExperiment().debug = debug
 
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,

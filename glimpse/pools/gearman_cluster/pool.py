@@ -62,9 +62,14 @@ class Client(gearman.GearmanClient):
     completed = [ r.complete for r in job_requests ]
     if not all(r.complete and r.state == gearman.JOB_COMPLETE
         for r in job_requests):
-      raise Exception("Failed to process %d of %d tasks, %d timed out" % \
+      failed_requests = [ r for r in job_requests if r.state == gearman.JOB_FAILED ]
+      if len(failed_requests) > 0:
+        buff = " First failed request: %s" % (failed_requests[0],)
+      else:
+        buff = ""
+      raise Exception("Failed to process %d of %d tasks, %d timed out.%s" % \
           (len(filter((lambda x: not x), completed)), len(completed),
-          len(filter((lambda x: x.timed_out), job_requests))))
+          len(filter((lambda x: x.timed_out), job_requests)), buff))
     results = [ r.result for r in job_requests ]
     return list(util.UngroupIterator(results))
 

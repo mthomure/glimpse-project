@@ -1,0 +1,59 @@
+#!/usr/bin/env python
+
+# This script determines the smallest valid image size for a given model.
+
+from glimpse import glab
+from glimpse.backends.backend import InsufficientSizeException
+from glimpse.models import ml
+import Image
+import sys
+
+def search(test, false_point, true_point):
+  if true_point <= false_point + 1:
+    return true_point
+  mid_point = (false_point + true_point) / 2
+  if test(mid_point):
+    return search(test, false_point, mid_point)
+  else:
+    return search(test, mid_point, true_point)
+
+def main():
+  if len(sys.argv) < 2:
+    sys.exit("usage: %s MODEL-CLASS" % sys.argv[0])
+  model_name = sys.argv[1]
+  package = __import__("glimpse.models.%s" % model_name, globals(), locals(),
+      ['Model'], 0)
+  try:
+    model = getattr(package, 'Model')
+  except AttributeError:
+    sys.exit("Unknown model: %s" % model_name)
+  glab.SetModelClass(model)
+  if model_name == "ml":
+    glab.GetParams().scale_factor = 2**0.25
+  glab.MakeUniformRandomS2Prototypes(2)
+  model = glab.GetExperiment().model
+  start_size = 256
+  img = Image.new('L', (start_size, start_size))
+
+  def test(x, y):
+    try:
+      s0 = model.MakeStateFromImage(img.crop((0, 0, x, y)))
+      model.BuildLayer(model.Layer.IT, s0)
+    except InsufficientSizeException:
+      return False
+    return True
+
+  def test_width(x):
+    return test(x, start_size)
+
+  def test_height(y):
+    return test(start_size, y)
+
+  print "Testing X-axis"
+  smallest_x = search(test_width, 0, 256)
+  print "Testing Y-axis"
+  smallest_y = search(test_height, 0, 256)
+  print "Smallest supported size for model %s is %d wide by %d high" % \
+      (model_name, smallest_x, smallest_y)
+
+main()
