@@ -39,6 +39,13 @@ class LayerSpec(object):
     # only uses the id attribute).
     return isinstance(other, LayerSpec) and self.id == other.id
 
+class InputSourceLoadException(Exception):
+  """Thrown when an input source can not be loaded."""
+
+  def __init__(self, source = None):
+    super(Exception, self).__init__()
+    self.source = source
+
 class InputSource(object):
   """Describes the input to a hierarchical model. Examples include the path to a
   single image, or the path and frame of a video."""
@@ -53,7 +60,10 @@ class InputSource(object):
 
   def CreateImage(self):
     """Create a new PIL.Image object for this input source."""
-    return Image.open(self.image_path)
+    try:
+      return Image.open(self.image_path)
+    except IOError:
+      raise InputSourceLoadException(self)
 
   def __str__(self):
     return self.image_path

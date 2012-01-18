@@ -42,12 +42,14 @@ SetCorpus("indir/corpus")
 """
 
 from glimpse import backends
+from glimpse.backends import InsufficientSizeException
 from glimpse.models import viz2
 from glimpse import pools
 from glimpse import util
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util.svm import SpheringFeatureScaler, PrepareLibSvmInput, \
     SvmForSplit, SvmCrossValidate
+from glimpse.models.misc import InputSourceLoadException
 import itertools
 import logging
 import numpy as np
@@ -166,8 +168,17 @@ class Experiment(object):
     image_files = util.UngroupLists(self.train_images)
     # Represent each image file as an empty model state.
     input_states = map(self.model.MakeStateFromFilename, image_files)
-    prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
-        input_states, normalize = True, pool = self.pool)
+    try:
+      prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
+          input_states, normalize = True, pool = self.pool)
+    except InputSourceLoadException, e:
+      logging.error("Failed to process image (%s): image read error" % \
+          e.source.image_path)
+      sys.exit(-1)
+    except InsufficientSizeException, e:
+      logging.error("Failed to process image (%s): image too small" % \
+          e.source.image_path)
+      sys.exit(-1)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
     if self.debug:
@@ -259,7 +270,15 @@ class Experiment(object):
           "for layer %s." % self.layer.name)
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
     # Compute model states containing IT features.
-    output_states = self.pool.map(builder, input_states)
+    try:
+      output_states = self.pool.map(builder, input_states)
+    except InputSourceLoadException, e:
+      logging.error("Failed to read image from disk: %s" % e.source.image_path)
+      sys.exit(-1)
+    except InsufficientSizeException, e:
+      logging.error("Failed to process image (%s): image too small" % \
+          e.source.image_path)
+      sys.exit(-1)
     if self.debug:
       self.debug_output_states = output_states
     # Look up the activity values for the output layer, and convert them all to
@@ -465,7 +484,7 @@ def GetModelClass():
   return __MODEL_CLASS
 
 def SetParams(params = None):
-  global __PARAMS, __MODEL_CLASS
+  global __PARAMS
   if params == None:
     params = GetModelClass().Params()
   __PARAMS = params
@@ -726,11 +745,6 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
   else:
     print "No results available."
 
-def CLISvm(cross_validate = False, verbose = 0, **opts):
-  train_accuracy, test_accuracy = RunSvm(cross_validate)
-  if verbose > 0:
-    CLIFormatResults(**opts)
-
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
     cross_validate = False, verbose = 0, **opts):
@@ -757,7 +771,9 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
   if compute_features:
     ComputeFeatures()
   if svm:
-    CLISvm(cross_validate, verbose, **opts)
+    RunSvm(cross_validate)
+    if verbose > 0:
+      CLIFormatResults(**opts)
   if result_path != None:
     StoreExperiment(result_path)
 

@@ -9,6 +9,7 @@
 
 import copy
 import logging
+from glimpse.backends import InsufficientSizeException
 from glimpse.models.misc import LayerSpec, InputSource, SampleC1Patches, \
     DependencyError, AbstractNetwork
 from glimpse import pools, util
@@ -119,7 +120,14 @@ class Model(ModelOps, AbstractNetwork):
     state = copy.copy(state)  # get a shallow copy of the model state
     if isinstance(output_layer, LayerSpec):
       output_layer = output_layer.id
-    state = self.BuildNode(output_layer, state)
+    try:
+      output_state = self.BuildNode(output_layer, state)
+    except InsufficientSizeException, e:
+      # Try to annotate exception with source information.
+      source = state.get(self.Layer.SOURCE.id, None)
+      if source == None:
+        raise
+      raise InsufficientSizeException(source = source)
     if not save_all:
       state_ = State()
       # Keep output layer data
