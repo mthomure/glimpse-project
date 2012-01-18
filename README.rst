@@ -18,6 +18,9 @@ NSF Grant 1018967 (PIs: Melanie Mitchell and Garrett Kenyon) for support.
 
 See the `user guide`_ for more information.
 
-.. [1] S. Brumby, G. Kenyon, W. Landecker, C. Rasmussen, S. Swaminarayan, and L. Bettencourt, "Large-Scale Functional Models of Visual Cortex for Remote Sensing," in Applied Imagery Pattern Recognition 2009 (AIPR ’09), 2009.
+.. [1] S. Brumby, G. Kenyon, W. Landecker, C. Rasmussen, S. Swaminarayan,
+   and L. Bettencourt, "Large-Scale Functional Models of Visual Cortex for
+   Remote Sensing," in *Applied Imagery Pattern Recognition 2009 (AIPR ’09)*,
+   2009.
 
 .. _user guide: https://docs.google.com/document/pub?id=1mhrX7jSVR_Ur9XE-DpalH2UYDqbalHKHZgoGrEcvTT4
