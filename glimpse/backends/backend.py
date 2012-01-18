@@ -5,10 +5,13 @@
 
 # Interface for filter operations.
 
-class InsufficientSizeException(BaseException):
+class InsufficientSizeException(Exception):
   """Exception indicating that the input array was too small (spatially) to
   support the requested operation."""
-  pass
+
+  def __init__(self, source = None):
+    super(Exception, self).__init__()
+    self.source = source
 
 class IBackend(object):
 
