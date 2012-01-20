@@ -78,6 +78,7 @@ class SpheringFeatureScaler(object):
     to the range [-1, 1].
     features -- (2D array-like)
     """
+    assert np.ndim(features) == 2
     self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
 
   def Apply(self, features):
@@ -90,6 +91,10 @@ class SpheringFeatureScaler(object):
     if len(features) == 0:
       return features
     features = np.array(features)  # copy feature values
+    assert features.ndim == 2
+    assert features.shape[1] == self.imean.shape[0], \
+        "Expected %d features, got %d" % (self.imean.shape[0],
+        features.shape[1])
     features -= self.imean  # map to mean zero
     features /= self.istd  # map to unit variance
     features *= self.ostd  # map to output standard deviation
