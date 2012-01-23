@@ -48,17 +48,21 @@ def Pca(X):
   mean = mean[ order ]
   return transform, stdev, mean
 
-def CalculateRoc(labels, evaluations):
+def CalculateRoc(target_labels, predicted_labels):
   """Calculate the points of the ROC curve from a set of labels and evaluations
   of a classifier. Uses the single-pass efficient algorithm of Fawcett
-  (2006)."""
+  (2006). This assumes a binary classification task.
+  target_labels -- (1D np.array) ground-truth label for each instance
+  predicted_labels -- (1D np.array) predicted label for each instance
+  RETURN (1D np.array) points on the ROC curve
+  """
   def iterator():
-    num_pos = len(labels[ labels == 1 ])
-    num_neg = len(labels) - num_pos
-    i = evaluations.argsort()[::-1]
+    num_pos = len(target_labels[ target_labels == 1 ])
+    num_neg = len(target_labels) - num_pos
+    i = predicted_labels.argsort()[::-1]
     fp = tp = 0
     last_e = -numpy.inf
-    for l, e in zip(labels[i], evaluations[i]):
+    for l, e in zip(target_labels[i], predicted_labels[i]):
       if e != last_e:
         yield (fp / float(num_neg), tp / float(num_pos))
         last_e = e
@@ -69,11 +73,15 @@ def CalculateRoc(labels, evaluations):
     yield (fp / float(num_neg), tp / float(num_pos))
   return numpy.array(list(iterator()))
 
-def CalculateRocScore(labels, evaluations):
-  """Calculate area under the ROC curve from a set of labels and evaluations of
-  a classifier."""
+def CalculateRocScore(target_labels, predicted_labels):
+  """Calculate area under the ROC curve (AUC) from a set of target labels and
+  predicted labels of a classifier.
+  target_labels -- (1D np.array) ground-truth label for each instance
+  predicted_labels -- (1D np.array) predicted label for each instance
+  RETURN AUC value
+  """
   import scipy.integrate
-  points = CalculateRoc(labels, evaluations)
+  points = CalculateRoc(target_labels, predicted_labels)
   p = points.T
   return scipy.integrate.trapz(p[1], p[0]), points
 

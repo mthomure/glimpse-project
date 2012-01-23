@@ -44,12 +44,18 @@ void handler(const std::string& msg, const char* file, int line) {
 
 void COutputMapShapeForInput(int kheight, int kwidth, int scaling,
     int input_height, int input_width, int* output_height, int* output_width) {
+  // We can think of the operations as applying a valid convolution, and then
+  // down-sampling (though the implementation is more efficient). Thus, we strip
+  // the border before scaling, rather than scaling first.
   *output_height = (input_height - kheight + 1) / scaling;
   *output_width = (input_width - kwidth + 1) / scaling;
 }
 
 void CInputMapShapeForOutput(int kheight, int kwidth, int scaling,
     int output_height, int output_width, int* input_height, int* input_width) {
+  // The output map is computed by applying a valid convolution, and then
+  // down-sampling. Thus, first scale the map, and then add the borders, rather
+  // than adding the borders first.
   *input_height = output_height * scaling + kheight - 1;
   *input_width = output_width * scaling + kwidth - 1;
 }
