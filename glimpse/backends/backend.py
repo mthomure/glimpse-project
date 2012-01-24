@@ -13,6 +13,11 @@ class InsufficientSizeException(Exception):
     super(Exception, self).__init__()
     self.source = source
 
+  def __str__(self):
+    return "InsufficientSizeException(%s)" % self.source
+
+  __repr__ = __str__
+
 class IBackend(object):
 
   def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):

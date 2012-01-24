@@ -45,13 +45,21 @@ function Run {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  if [[ "$VERBOSE" != "" ]]; then
-    VERBOSE="-v"
-  fi
-  CMD="bin/glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
-  until $CMD; do
-    echo "GLIMPSE-CLUSTER-WRAPPER: 'glimpse-cluster' exited with status $?, restarting.." 1>&2
-    sleep 1
+  CMD="ipcluster engines"
+  ALIVE=1
+  while [[ "$ALIVE" == 1 ]]; do
+    # This is a hackish way to communicate a restart signal from the ipython engine to the wrapper script.
+    # Note that all engines on this host write to the same file (thus creating it multiple times), which is fine.
+    rm -f $JOBDIR/restart
+    $CMD
+    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited." 1>&2
+    if [ -e $JOBDIR/restart ]; then
+      echo "GLIMPSE-CLUSTER-WRAPPER: caught restart signal, restarting..." 1>&2
+      sleep 1
+    else
+      echo "GLIMPSE-CLUSTER-WRAPPER: quiting." 1>&2
+      ALIVE=0
+    fi
   done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
 }
 

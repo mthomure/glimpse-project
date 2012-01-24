@@ -46,6 +46,11 @@ class InputSourceLoadException(Exception):
     super(Exception, self).__init__()
     self.source = source
 
+  def __self__(self):
+    return "InputSourceLoadException(%s)" % self.source
+
+  __repr__ = __self__
+
 class InputSource(object):
   """Describes the input to a hierarchical model. Examples include the path to a
   single image, or the path and frame of a video."""

@@ -6,6 +6,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.pools.gearman_cluster.main import main
+from glimpse.pools.ipython_cluster.main import main
 
 main()

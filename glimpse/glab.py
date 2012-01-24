@@ -259,7 +259,7 @@ class Experiment(object):
     self.prototype_source = 'manual'
     self.model.s2_kernels = prototypes
 
-  def ComputeFeaturesFromInputStates(self, input_states):
+  def ComputeFeaturesFromInputStates(self, input_states, block = True):
     """Return the activity of the model's output layer for a set of images.
     input_states -- (State iterable) model states containing image data
     RETURN (iterable) a feature vector for each image
@@ -269,22 +269,23 @@ class Experiment(object):
       sys.exit("Please set the S2 prototypes before computing feature vectors "
           "for layer %s." % self.layer.name)
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
-    # Compute model states containing IT features.
-    try:
-      output_states = self.pool.map(builder, input_states)
-    except InputSourceLoadException, e:
-      logging.error("Failed to read image from disk: %s" % e.source.image_path)
-      sys.exit(-1)
-    except InsufficientSizeException, e:
-      logging.error("Failed to process image (%s): image too small" % \
-          e.source.image_path)
-      sys.exit(-1)
-    if self.debug:
-      self.debug_output_states = output_states
+    # Compute model states containing desired features.
+    output_states = self.pool.imap(builder, input_states)
     # Look up the activity values for the output layer, and convert them all to
     # a single vector.
-    return [ util.ArrayListToVector(state[self.layer.id])
-        for state in output_states ]
+    features = ( util.ArrayListToVector(state[self.layer.id])
+        for state in output_states )
+    if block:
+      try:
+        features = list(features)  # wait for results
+      except InputSourceLoadException, e:
+        logging.error("Failed to read image from disk: %s" % e.source.image_path)
+        sys.exit(-1)
+      except InsufficientSizeException, e:
+        logging.error("Failed to process image (%s): image too small" % \
+            e.source.image_path)
+        sys.exit(-1)
+    return features
 
   def _ReadCorpusDir(self, corpus_dir, classes = None):
     if classes == None:
@@ -364,7 +365,7 @@ class Experiment(object):
     # Compute features for all images.
     input_states = map(self.model.MakeStateFromFilename, images)
     start_time = time.time()
-    features = self.ComputeFeaturesFromInputStates(input_states)
+    features = self.ComputeFeaturesFromInputStates(input_states, block = True)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
     train_features, test_features = util.SplitList(features, [train_size])
@@ -451,14 +452,18 @@ def SetPool(pool):
   logging.info("Using pool type: %s" % type(pool).__name__)
   __POOL = pool
 
+def GetPool():
+  """Get the current worker pool used for new experiments."""
+  global __POOL
+  if __POOL == None:
+    __POOL = pools.MakePool()
+  return __POOL
+
 def MakeClusterPool(config_file = None, chunksize = None):
-  from glimpse.pools.gearman_cluster import ClusterConfig, ClusterPool
-  if config_file == None:
-    if 'GLIMPSE_CLUSTER_CONFIG' not in os.environ:
-      raise ValueError("Please specify a cluster configuration file.")
-    config_file = os.environ['GLIMPSE_CLUSTER_CONFIG']
-  config = ClusterConfig(config_file)
-  return ClusterPool(config, chunksize = chunksize)
+  if config_file != None or chunksize != None:
+    logging.warn("MakeClusterPool: Ignoring config_file and/or chunksize arguments")
+  from glimpse.pools.ipython_cluster import ClusterPool
+  return ClusterPool()
 
 def UseCluster(config_file = None, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.
@@ -531,9 +536,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
   layer -- (LayerSpec or str) the layer activity to use for features vectors
   scaler -- feature scaling algorithm
   """
-  global __EXP, __POOL
-  if __POOL == None:
-    __POOL = pools.MakePool()
+  global __EXP
   if model == None:
     model = MakeModel()
   if layer == None:
@@ -542,7 +545,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
     layer = model.Layer.FromName(layer)
   if scaler == None:
     scaler = SpheringFeatureScaler()
-  __EXP = Experiment(model, layer, pool = __POOL, scaler = scaler)
+  __EXP = Experiment(model, layer, pool = GetPool(), scaler = scaler)
 
 def ImprintS2Prototypes(num_prototypes):
   """Imprint a set of S2 prototypes from a set of training images.
@@ -673,6 +676,7 @@ def LoadExperiment(root_path):
   """Load the experiment from disk."""
   global __EXP
   __EXP = Experiment.Load(root_path)
+  __EXP.pool = GetPool()
   return __EXP
 
 def Verbose(flag):

@@ -244,6 +244,8 @@ class LayerBuilder(object):
   transformation, computing the value of some network layer and any required
   dependencies."""
 
+  __name__ = "LayerBuilder"  # needed for use with IPython.parallel
+
   def __init__(self, model, output_layer_id, save_all = True):
     """Create a new object.
     model -- (Model) the model to use when computing layer activity
@@ -272,6 +274,8 @@ class C1PatchSampler(object):
   transformation for feedforward S->C layer networks. This function computes C1
   activity and then extracts patches from randomly-sampled locations and
   scales."""
+
+  __name__ = "C1PatchSampler"  # needed for use with IPython.parallel
 
   def __init__(self, model, num_patches, normalize = False):
     """Create new object.
