@@ -70,12 +70,15 @@ class SpheringFeatureScaler(object):
     std -- (float) standard deviation of feature values
     """
     self.omean, self.ostd = mean, std
+    self.imean = None
+    self.istd = None
 
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
     to the range [-1, 1].
     features -- (2D array-like)
     """
+    assert np.ndim(features) == 2
     self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
 
   def Apply(self, features):
@@ -85,7 +88,13 @@ class SpheringFeatureScaler(object):
     features -- (2D array-like)
     RETURN (2D ndarray) new array with scaled features
     """
+    if len(features) == 0:
+      return features
     features = np.array(features)  # copy feature values
+    assert features.ndim == 2
+    assert features.shape[1] == self.imean.shape[0], \
+        "Expected %d features, got %d" % (self.imean.shape[0],
+        features.shape[1])
     features -= self.imean  # map to mean zero
     features /= self.istd  # map to unit variance
     features *= self.ostd  # map to output standard deviation
@@ -113,8 +122,8 @@ def PrepareLibSvmInput(features_per_class):
 class Svm(object):
   """The LIBSVM classifier."""
 
-  def __init__(self):
-    self.classifier = None
+  def __init__(self, classifier = None):
+    self.classifier = classifier
 
   def Train(self, features):
     """Train an SVM classifier.
@@ -136,17 +145,18 @@ class Svm(object):
     """Test an existing classifier.
     features -- (3D array-like) test instances: indexed by class, instance, and
                 then feature offset.
-    RETURN (float) accuracy in the range [0, 1]
+    RETURN (dict) results from svmutil.svm_predict, as a dictionary.
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
     import svmutil
     if self.classifier == None:
       raise ValueError("Must train classifier before testing")
-    if not all(isinstance(f, np.ndarray) for f in features):
-      raise ValueError("Expected list of arrays for features")
-    if not all(f.ndim == 2 for f in features):
-      raise ValueError("Expected list of 2D arrays for features")
+    for f in features:
+      if not( (isinstance(f, np.ndarray) and f.ndim == 2) or \
+          (isinstance(f, list) and len(f) == 0) ):
+        raise ValueError("Features for a given class should be a 2D array or "
+            "an empty list")
     svm_labels, svm_features = PrepareLibSvmInput(features)
     options = ''  # can't disable writing to stdout
     predicted_labels, acc, decision_values = SuppressStdout(svmutil.svm_predict,
@@ -161,8 +171,8 @@ class Svm(object):
 class ScaledSvm(Svm):
   """A LIBSVM solver, which automatically scales feature values."""
 
-  def __init__(self, scaler = None):
-    super(ScaledSvm, self).__init__()
+  def __init__(self, classifier = None, scaler = None):
+    super(ScaledSvm, self).__init__(classifier)
     if scaler == None:
       scaler = SpheringFeatureScaler()
     self.scaler = scaler
@@ -182,7 +192,7 @@ class ScaledSvm(Svm):
     """Test an existing classifier.
     features -- (3D array-like) test instances: indexed by class, instance, and
                 then feature offset.
-    RETURN (float) accuracy in the range [0, 1]
+    RETURN (dict) results from svmutil.svm_predict, as a dictionary.
     """
     scaled_features = map(self.scaler.Apply, features)
     return super(ScaledSvm, self).Test(scaled_features)
@@ -274,7 +284,7 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
     test_features = [ splits[test_idx] for splits in splits_per_class ]
     svm = ScaledSvm(scaler)
     svm.Train(train_features)
-    test_accuracy = svm.Test(test_features)
+    test_accuracy = svm.Test(test_features)['accuracy']
     return test_accuracy
 
   def cross_validate():
