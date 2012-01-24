@@ -2,34 +2,67 @@
 
 set -e
 
-if [[ "$#" < 1 ]]; then
-  echo "usage: $0 START|KILL|STATUS [RUN-NUM]" 1>&2
-  exit -1
-fi
-
-CMD=$1
-NUM=1
-#NUM_PROCS=2  # number of processes to run per worker
-NUM_PROCS=  # number of processes to run per worker
-if [[ "$#" > 1 ]]; then
-  NUM=$2
-fi
-if [[ "$#" > 2 ]]; then
-  NUM_PROCS=$3
-fi
-GLIMPSE_HOME=$(dirname $0)/..
-HOST=$(hostname -f)
-
-cd $GLIMPSE_HOME
-JOBDIR=run/glimpse-cluster/${HOST}/workers
-mkdir -p $JOBDIR
-
 if [[ "$BASHPID" == "" ]]; then
   # Workaround for old versions of bash
   BASHPID=$$
 fi
 
-function Run {
+####### Functions ####################
+
+function KillByPgidFile {
+  PGIDFILE=$1
+  pkill -g $(cat $PGIDFILE)
+}
+
+function StatusForPidFile {
+  PIDFILE=$1
+  if [ -f $PIDFILE ]; then
+    PID=$(cat $PIDFILE)
+    T=$(ps --pid $PID | wc -l)
+    if [[ "$T" == 2 ]]; then
+      echo "RUNNING"
+      exit 0
+    fi
+  fi
+  echo "NOT-RUNNING"
+  exit 0
+}
+
+function BrokerStart {
+  # Log the process ID of the script.
+  echo $$ > $JOBDIR/broker.pid
+  # Log the process group ID if possible.
+  if [[ -d /proc ]]; then
+    # Get current script's PGID
+    echo $(ps -p $BASHPID h -o pgid) > $JOBDIR/broker.pgid
+    # Kill the command with
+    #   pkill -g $(cat $JOBDIR/broker.pgid)
+    # Note: this does not work on OSX.
+  fi
+
+  # Decrease our priority.
+  renice 10 $$
+
+  # Run the worker, relaunching if it dies with an error.
+  CMD="ipcontroller --reuse $@"
+  ALIVE=1
+  while [[ "$ALIVE" == 1 ]]; do
+    # This is a hackish way to communicate a restart signal from the ipython engine to the wrapper script.
+    # Note that all engines on this host write to the same file (thus creating it multiple times), which is fine.
+    rm -f $JOBDIR/restart
+    $CMD
+    echo "GLIMPSE-CLUSTER-WRAPPER: broker command exited." 1>&2
+    if [ -e $JOBDIR/restart ]; then
+      echo "GLIMPSE-CLUSTER-WRAPPER: caught restart signal, restarting..." 1>&2
+      sleep 1
+    else
+      echo "GLIMPSE-CLUSTER-WRAPPER: quiting." 1>&2
+      ALIVE=0
+    fi
+  done 1>$JOBDIR/broker.log 2>$JOBDIR/broker.err
+}
+
+function WorkerStart {
   # Log the process ID of the script.
   echo $$ > $JOBDIR/$NUM.pid
   # Log the process group ID if possible.
@@ -63,32 +96,68 @@ function Run {
   done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
 }
 
-function Kill {
-  pkill -g $(cat $JOBDIR/$NUM.pgid)
-}
+####### Command-line Parsing ####################
 
-function Status {
-  if [ -f $JOBDIR/$NUM.pid ]; then
-    PID=$(cat $JOBDIR/$NUM.pid)
-    T=$(ps --pid $PID | wc -l)
-    if [[ "$T" == 2 ]]; then
-      echo "RUNNING"
-      exit 0
-    fi
+if [[ "$#" < 1 ]]; then
+  echo "usage: $0 [BROKER|WORKER]" 1>&2
+  exit -1
+fi
+MOD=$1
+GLIMPSE_HOME=$(dirname $0)/..
+HOST=$(hostname -f)
+cd $GLIMPSE_HOME
+
+if [[ "$MOD" == "BROKER" ]]; then
+  if [[ "$#" < 2 ]]; then
+    echo "usage: $0 BROKER START|KILL|STATUS" 1>&2
+    exit -1
   fi
-  echo "NOT-RUNNING"
-  exit 0
-}
+  CMD=$2
+  JOBDIR=run/glimpse-cluster/${HOST}
+  mkdir -p $JOBDIR
+  if [[ "$CMD" == "START" ]]; then
+    $BASH_SOURCE BROKER START-INNER 1>$JOBDIR/broker-launcher.log 2>$JOBDIR/broker-launcher.err &
+  elif [[ "$CMD" == "START-INNER" ]]; then
+    BrokerStart
+  elif [[ "$CMD" == "KILL" ]]; then
+    KillByPgidFile $JOBDIR/broker.pgid
+  elif [[ "$CMD" == "STATUS" ]]; then
+    StatusForPidFile $JOBDIR/broker.pid
+  else
+    echo "Unknown $MOD command: $CMD" 1>&2
+    exit -1
+  fi
 
-if [[ "$CMD" == "START-INNER" ]]; then
-  Run
-elif [[ "$CMD" == "START" ]]; then
-  $BASH_SOURCE START-INNER $NUM $NUM_PROCS 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
-elif [[ "$CMD" == "KILL" ]]; then
-  Kill
-elif [[ "$CMD" == "STATUS" ]]; then
-  Status
+elif [[ "$MOD" == "WORKER" ]]; then
+  if [[ "$#" < 2 ]]; then
+    echo "usage: $0 WORKER START|KILL|STATUS [RUN-NUM]" 1>&2
+    exit -1
+  fi
+  CMD=$2
+  NUM=1
+  NUM_PROCS=  # number of processes to run per worker
+  if [[ "$#" > 2 ]]; then
+    NUM=$3
+  fi
+  if [[ "$#" > 3 ]]; then
+    NUM_PROCS=$4
+  fi
+  JOBDIR=run/glimpse-cluster/${HOST}/workers
+  mkdir -p $JOBDIR
+  if [[ "$CMD" == "START" ]]; then
+    $BASH_SOURCE WORKER START-INNER $NUM $NUM_PROCS 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
+  elif [[ "$CMD" == "START-INNER" ]]; then
+    WorkerStart
+  elif [[ "$CMD" == "KILL" ]]; then
+    KillByPgidFile $JOBDIR/$NUM.pgid
+  elif [[ "$CMD" == "STATUS" ]]; then
+    StatusForPidFile $JOBDIR/$NUM.pid
+  else
+    echo "Unknown $MOD command: $CMD" 1>&2
+    exit -1
+  fi
+
 else
-  echo "Unknown command: $CMD" 1>&2
+  echo "Unknown module: $MOD" 1>&2
   exit -1
 fi
