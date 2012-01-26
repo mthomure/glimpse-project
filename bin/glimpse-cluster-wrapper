@@ -44,13 +44,13 @@ function BrokerStart {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  CMD="ipcontroller --reuse $@"
   ALIVE=1
   while [[ "$ALIVE" == 1 ]]; do
     # This is a hackish way to communicate a restart signal from the ipython engine to the wrapper script.
     # Note that all engines on this host write to the same file (thus creating it multiple times), which is fine.
     rm -f $JOBDIR/restart
-    $CMD
+    # Start the broker
+    $BROKER_CMD
     echo "GLIMPSE-CLUSTER-WRAPPER: broker command exited." 1>&2
     if [ -e $JOBDIR/restart ]; then
       echo "GLIMPSE-CLUSTER-WRAPPER: caught restart signal, restarting..." 1>&2
@@ -78,13 +78,13 @@ function WorkerStart {
   renice 10 $$
 
   # Run the worker, relaunching if it dies with an error.
-  CMD="ipcluster engines"
   ALIVE=1
   while [[ "$ALIVE" == 1 ]]; do
     # This is a hackish way to communicate a restart signal from the ipython engine to the wrapper script.
     # Note that all engines on this host write to the same file (thus creating it multiple times), which is fine.
     rm -f $JOBDIR/restart
-    $CMD
+    # Start the worker(s)
+    $WORKER_CMD
     echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited." 1>&2
     if [ -e $JOBDIR/restart ]; then
       echo "GLIMPSE-CLUSTER-WRAPPER: caught restart signal, restarting..." 1>&2
@@ -106,6 +106,12 @@ MOD=$1
 GLIMPSE_HOME=$(dirname $0)/..
 HOST=$(hostname -f)
 cd $GLIMPSE_HOME
+
+if [[ "$IPYTHON_PROFILE" != "" ]]; then
+  IPYTHON_PROFILE="--profile=$IPYTHON_PROFILE"
+fi
+BROKER_CMD="ipcontroller $IPYTHON_PROFILE --reuse"
+WORKER_CMD="ipcluster engines $IPYTHON_PROFILE"
 
 if [[ "$MOD" == "BROKER" ]]; then
   if [[ "$#" < 2 ]]; then
