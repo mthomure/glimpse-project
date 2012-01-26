@@ -33,22 +33,26 @@ def PingWorkers(client):
 
 def main():
   methods = map(eval, ("KillWorkers", "RestartWorkers", "PingWorkers"))
+  profile = None
   try:
-    opts, args = util.GetOptions("v")
+    opts, args = util.GetOptions("p:v")
     for opt, arg in opts:
-      if opt == '-v':
+      if opt == '-p':
+        profile = arg
+      elif opt == '-v':
         import logging
         logging.getLogger().setLevel(logging.INFO)
     if len(args) < 1:
       raise util.UsageException
     method = eval(args[0])
-    client = Client()
+    client = Client(profile = profile)
 #    dview = client.direct_view()
     method(client, *args[1:])
   except util.UsageException, e:
     method_info = [ "  %s -- %s" % (m.func_name, m.__doc__.splitlines()[0])
         for m in methods ]
     util.Usage("[options] CMD [ARGS]\n"
+        "  -p PROF   Set the IPython profile\n"
         "  -v        Be verbose with logging\n"
         "CMDs include:\n" + "\n".join(method_info),
         e)
