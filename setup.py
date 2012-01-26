@@ -91,6 +91,6 @@ setup(
   packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend',
       'glimpse.models', 'glimpse.models.viz2', 'glimpse.models.ml',
       'glimpse.pools', 'glimpse.pools.zmq_cluster', 'glimpse.pools.gearman_cluster',
-      'glimpse.util' ],
+      'glimpse.pools.ipython_cluster', 'glimpse.util' ],
   include_dirs = [ numpy.get_include() ],
 )
