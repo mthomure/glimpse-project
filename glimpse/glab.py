@@ -506,7 +506,7 @@ def SetLayer(layer = None):
   if layer == None:
     layer = __MODEL_CLASS.Layer.IT
   elif isinstance(layer, str):
-    layer = model.Layer.FromName(layer)
+    layer = __MODEL_CLASS.Layer.FromName(layer)
   __LAYER = layer
   return __LAYER
 
