@@ -144,7 +144,10 @@ class Experiment(object):
       values['train_accuracy'] = None
     else:
       values['train_accuracy'] = self.train_results['accuracy']
-    values['test_accuracy'] = self.test_results['accuracy']
+    if self.test_results == None:
+      values['test_accuracy'] = None
+    else:
+      values['test_accuracy'] = self.test_results['accuracy']
     return """Experiment:
   corpus: %(corpus)s
   classes: %(classes)s
