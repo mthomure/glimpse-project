@@ -80,6 +80,8 @@ class Client(gearman.GearmanClient):
     results = [ r.result for r in job_requests ]
     return list(util.UngroupIterator(results))
 
+  imap = map  # imap is not implemented yet
+
 class ClusterPool(Client):
 
   def __init__(self, config, chunksize = None):
