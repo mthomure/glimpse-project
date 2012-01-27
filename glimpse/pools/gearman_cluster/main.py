@@ -6,7 +6,6 @@
 
 # A command-line interface for managing a cluster of Glimpse workers.
 
-import ConfigParser
 from . import pool
 from glimpse import util
 from glimpse.util.zmq_cluster import MakeSocket
@@ -22,13 +21,6 @@ class ConfigException(Exception):
   """This exception indicates that an error occurred while reading the cluster
   configuration."""
   pass
-
-def ReadClusterConfig(*config_files):
-  config = ConfigParser.SafeConfigParser()
-  read_files = config.read(config_files)
-  if len(read_files) == 0:
-    raise ConfigException("Unable to read any socket configuration files.")
-  return config
 
 def LaunchBroker(config):
   """Start a set of intermediate devices for the cluster on this machine.
@@ -139,14 +131,14 @@ def PingWorkers(config, wait_time = None):
       fields = [ str(f).ljust(w) for f, w in zip(fields, widths) ]
       print " ".join(fields)
 
-def main():
+def main(args = None):
   methods = map(eval, ("LaunchBroker", "LaunchWorker", "KillWorkers",
       "RestartWorkers", "PingWorkers"))
   try:
     config_files = list()
     if 'GLIMPSE_CLUSTER_CONFIG' in os.environ:
       config_files.append(os.environ['GLIMPSE_CLUSTER_CONFIG'])
-    opts, args = util.GetOptions("c:v")
+    opts, args = util.GetOptions("c:v", args = args)
     for opt, arg in opts:
       if opt == '-c':
         config_files.append(arg)
@@ -158,7 +150,7 @@ def main():
     if len(config_files) == 0:
       raise util.UsageException("Must specify a socket configuration file.")
     method = eval(args[0])
-    config = ReadClusterConfig(*config_files)
+    config = pool.ReadClusterConfig(*config_files)
     method(config, *args[1:])
   except ConfigException, e:
     sys.exit("Configuration error: %s" % e)

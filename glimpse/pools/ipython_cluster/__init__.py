@@ -1,2 +1,2 @@
 
-from .pool import ClusterPool
+from .pool import ClusterPool, MakePool

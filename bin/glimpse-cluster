@@ -6,6 +6,13 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.pools.ipython_cluster.main import main
+from glimpse import util
+from glimpse import pools
+import os
+import sys
+
+def main():
+  _, inner_main = pools.GetClusterPackage()
+  inner_main()
 
 main()

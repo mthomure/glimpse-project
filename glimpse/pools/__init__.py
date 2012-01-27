@@ -4,4 +4,4 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from misc import MulticorePool, SinglecorePool, MakePool
+from misc import MulticorePool, SinglecorePool, MakePool, GetClusterPackage

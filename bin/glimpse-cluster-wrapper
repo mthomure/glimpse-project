@@ -62,7 +62,7 @@ function BrokerStart {
   done 1>$JOBDIR/broker.log 2>$JOBDIR/broker.err
 }
 
-function WorkerStart {
+function IPythonWorkerStart {
   # Log the process ID of the script.
   echo $$ > $JOBDIR/$NUM.pid
   # Log the process group ID if possible.
@@ -96,6 +96,28 @@ function WorkerStart {
   done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
 }
 
+function WorkerStart {
+  # Log the process ID of the script.
+  echo $$ > $JOBDIR/$NUM.pid
+  # Log the process group ID if possible.
+  if [[ -d /proc ]]; then
+    # Get current script's PGID
+    echo $(ps -p $BASHPID h -o pgid) > $JOBDIR/$NUM.pgid
+    # Kill the command with
+    #   pkill -g $(cat $JOBDIR/$NUM.pgid)
+    # Note: this does not work on OSX.
+  fi
+
+  # Decrease our priority.
+  renice 10 $$
+
+  # Run the worker, relaunching if it dies with an error.
+  until $WORKER_CMD; do
+    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited with status $?, restarting.." 1>&2
+    sleep 1
+  done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
+}
+
 ####### Command-line Parsing ####################
 
 if [[ "$#" < 1 ]]; then
@@ -107,11 +129,34 @@ GLIMPSE_HOME=$(dirname $0)/..
 HOST=$(hostname -f)
 cd $GLIMPSE_HOME
 
-if [[ "$IPYTHON_PROFILE" != "" ]]; then
-  IPYTHON_PROFILE="--profile=$IPYTHON_PROFILE"
+# Set the type of worker and broker (one of ipython, gearman, or zmq)
+if [[ "$GLIMPSE_CLUSTER_TYPE" == "" ]]; then
+  GLIMPSE_CLUSTER_TYPE=ipython
 fi
-BROKER_CMD="ipcontroller $IPYTHON_PROFILE --reuse"
-WORKER_CMD="ipcluster engines $IPYTHON_PROFILE"
+export GLIMPSE_CLUSTER_TYPE
+if [[ "$VERBOSE" != "" ]]; then
+  VERBOSE="-v"
+fi
+if [[ "$GLIMPSE_CLUSTER_TYPE" == ipython ]]; then
+  if [[ "$IPYTHON_PROFILE" != "" ]]; then
+    IPYTHON_PROFILE="--profile=$IPYTHON_PROFILE"
+  fi
+  BROKER_CMD="ipcontroller $IPYTHON_PROFILE --reuse"
+  WORKER_CMD="ipcluster engines $IPYTHON_PROFILE"
+  WORKER_FUNC=IPythonWorkerStart
+elif [[ "$GLIMPSE_CLUSTER_TYPE" == gearman ]]; then
+#  BROKER_CMD="gearmand -vvvvvvvvvvv -l $GLIMPSE_HOME/run/glimpse-cluster/belmont.cs.pdx.edu/broker.gearmand.log -d"
+  BROKER_CMD="bin/glimpse-cluster $VERBOSE LaunchBroker"
+  WORKER_CMD="bin/glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
+  WORKER_FUNC=WorkerStart
+elif [[ "$GLIMPSE_CLUSTER_TYPE" == zmq ]]; then
+  BROKER_CMD="glimpse-cluster $VERBOSE LaunchBroker"
+  WORKER_CMD="glimpes-cluster $VERBOSE LaunchWorker"
+  WORKER_FUNC=WorkerStart
+else
+  echo "unknown cluster type: $GLIMPSE_CLUSTER_TYPE" 1>&2
+  exit -1
+fi
 
 if [[ "$MOD" == "BROKER" ]]; then
   if [[ "$#" < 2 ]]; then
@@ -153,7 +198,7 @@ elif [[ "$MOD" == "WORKER" ]]; then
   if [[ "$CMD" == "START" ]]; then
     $BASH_SOURCE WORKER START-INNER $NUM $NUM_PROCS 1>$JOBDIR/$NUM-launcher.log 2>$JOBDIR/$NUM-launcher.err &
   elif [[ "$CMD" == "START-INNER" ]]; then
-    WorkerStart
+    $WORKER_FUNC
   elif [[ "$CMD" == "KILL" ]]; then
     KillByPgidFile $JOBDIR/$NUM.pgid
   elif [[ "$CMD" == "STATUS" ]]; then

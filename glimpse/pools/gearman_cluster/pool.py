@@ -1,5 +1,12 @@
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
 import logging
 import gearman
+import ConfigParser
 import cPickle
 from glimpse import pools
 from glimpse.util.zmq_cluster import FutureSocket, InitSocket
@@ -82,6 +89,23 @@ class ClusterPool(Client):
     super(ClusterPool, self).__init__([job_server_url])
     self.chunksize = chunksize
 
+def ReadClusterConfig(*config_files):
+  config = ConfigParser.SafeConfigParser()
+  read_files = config.read(config_files)
+  if len(read_files) == 0:
+    raise ConfigException("Unable to read any socket configuration files.")
+  return config
+
+def MakePool(config_file = None, chunksize = None):
+  config_files = list()
+  if config_file != None:
+    config_files.append(config_file)
+  config_file = os.environ.get('GLIMPSE_CLUSTER_CONFIG', None)
+  if config_file != None:
+    config_files.append(config_file)
+  config = ReadClusterConfig(*config_files)
+  return ClusterPool(config, chunksize)
+
 def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
   logging.info("Gearman command handler starting")
   context = zmq.Context()
@@ -156,6 +180,3 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
   worker.work(poll_timeout = 2.0)
   worker.shutdown()
   return worker.exit_status
-
-# start job server as
-#   gearmand -vvvvvvvv -l gearmand.log -d

@@ -31,11 +31,11 @@ def PingWorkers(client):
   except NoEnginesRegistered:
     print "--None--"
 
-def main():
+def main(args = None):
   methods = map(eval, ("KillWorkers", "RestartWorkers", "PingWorkers"))
   profile = None
   try:
-    opts, args = util.GetOptions("p:v")
+    opts, args = util.GetOptions("p:v", args = args)
     for opt, arg in opts:
       if opt == '-p':
         profile = arg

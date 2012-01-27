@@ -4,7 +4,7 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from config import ClusterConfig, ConfigException
-from manager import ClusterManager
-from misc import LaunchBrokers, LaunchWorker, PingWorkers, KillWorkers, RestartWorkers
-from pool import ClusterPool
+from .config import ClusterConfig, ConfigException
+from .manager import ClusterManager
+from .misc import LaunchBrokers, LaunchWorker, PingWorkers, KillWorkers, RestartWorkers
+from .pool import ClusterPool, MakePool

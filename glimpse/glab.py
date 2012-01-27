@@ -460,10 +460,8 @@ def GetPool():
   return __POOL
 
 def MakeClusterPool(config_file = None, chunksize = None):
-  if config_file != None or chunksize != None:
-    logging.warn("MakeClusterPool: Ignoring config_file and/or chunksize arguments")
-  from glimpse.pools.ipython_cluster import ClusterPool
-  return ClusterPool()
+  MakePool, _ = pools.GetClusterPackage()
+  return MakePool(config_file, chunksize)
 
 def UseCluster(config_file = None, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.

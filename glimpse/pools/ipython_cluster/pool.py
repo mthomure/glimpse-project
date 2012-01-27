@@ -30,3 +30,8 @@ class ClusterPool(object):
   def imap_unordered(self, func, args, chunksize = None):
     map = self.lbview.map
     return iter(map(func, args, chunksize = chunksize or self.chunksize, block = False, ordered = False))
+
+def MakePool(config_file = None, chunksize = None):
+  if config_file != None or chunksize != None:
+    logging.warn("ipython_cluster.MakePool: Ignoring config_file and/or chunksize arguments")
+  return ClusterPool()

@@ -58,3 +58,17 @@ def MakePool():
   RETURN a serializable worker pool
   """
   return MulticorePool()
+
+def GetClusterPackage(cluster_type = None):
+  """
+  cluster_type -- (str) type of cluster to create (e.g., "ipython" or "gearman")
+  RETURN (callable) MakePool, (callable) main
+  """
+  import os
+  if cluster_type == None:
+    cluster_type = os.environ.get('GLIMPSE_CLUSTER_TYPE', 'ipython')
+    if cluster_type == None:
+      raise Exception('Must specify pool type')
+  cluster_mod = __import__("glimpse.pools.%s_cluster" % cluster_type, globals(), locals(), ["MakePool"], 0)
+  main_mod = __import__("glimpse.pools.%s_cluster.main" % cluster_type, globals(), locals(), ["main"], 0)
+  return cluster_mod.MakePool, main_mod.main
