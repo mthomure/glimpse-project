@@ -104,11 +104,10 @@ class Experiment(object):
     self.svm_test_time = None
     self.debug = False
 
-  @property
-  def features(self):
+  def GetFeatures(self):
     """The full set of features for each class, without training/testing splits.
-    RETURN (list of 2D float ndarray) indexed by class, image, and then feature
-    offset.
+    RETURN (list of 2D float ndarray) copy of feature data, indexed by class,
+    image, and then feature offset.
     """
     if self.train_features == None:
       return None
@@ -118,10 +117,10 @@ class Experiment(object):
     features = map(np.vstack, features)
     return features
 
-  @property
-  def images(self):
+  def GetImages(self):
     """The full set of images, without training/testing splits.
-    RETURN (list of string lists) indexed by class, and then image.
+    RETURN (list of string lists) copy of image paths, indexed by class, and
+    then image.
     """
     if self.train_images == None:
       return None
@@ -394,7 +393,7 @@ class Experiment(object):
       self.ComputeFeatures()
     start_time = time.time()
     if cross_validate:
-      test_accuracy = SvmCrossValidate(self.features, num_repetitions = 10,
+      test_accuracy = SvmCrossValidate(self.GetFeatures(), num_repetitions = 10,
           num_splits = 10, scaler = self.scaler)
       train_accuracy = None
       self.train_results = None
@@ -436,10 +435,17 @@ class Experiment(object):
     """Load the experiment from disk."""
     experiment = util.Load(root_path)
     if experiment.classifier != None:
-      # Use delayed import of LIBSVM library, so non-SVM methods are always
-      # available.
-      import svmutil
-      experiment.classifier = svmutil.svm_load_model(root_path + '.svm')
+      if not isinstance(root_path, basestring):
+        logging.warn("Failed to load SVM model for experiment.")
+      else:
+        model_path = root_path + '.svm'
+        if not os.path.exists(model_path):
+          logging.warn("SVM model not found")
+        else:
+          # Use delayed import of LIBSVM library, so non-SVM methods are always
+          # available.
+          import svmutil
+          experiment.classifier = svmutil.svm_load_model(model_path)
     return experiment
 
 __POOL = None
@@ -645,6 +651,9 @@ def ComputeFeatures():
   call this method yourself, as it will be called automatically by RunSvm()."""
   GetExperiment().ComputeFeatures()
 
+def TrainSvm():
+  return GetExperiment().TrainSvm()
+
 def RunSvm(cross_validate = False):
   """Train and test an SVM classifier from the set of images in the corpus.
   cross_validate -- (bool) if true, perform 10x10-way cross-validation.
@@ -657,7 +666,7 @@ def RunSvm(cross_validate = False):
   if cross_validate:
     if __VERBOSE:
       print "Computing cross-validated SVM performance on %d images" % \
-          sum(map(len, e.images))
+          sum(map(len, e.GetImages()))
   else:
     if __VERBOSE:
       print "Train SVM on %d images" % sum(map(len, e.train_images))
