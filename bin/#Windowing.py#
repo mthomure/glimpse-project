@@ -17,8 +17,6 @@ def main_iterable(options,xform_dir, image_dir, spacing):
   image.load
   image_copy = image.convert('L')
 
-
-
   # build amap of confidence values over position and scale
   image_confidence_map = []
 
@@ -38,7 +36,7 @@ def main_iterable(options,xform_dir, image_dir, spacing):
 
   crops = imap(crop_image, boxes)
 
-  img_states = imap(modeXnl.MakeStateFromImage, crops)
+  img_states = imap(model.MakeStateFromImage, crops)
   print "states generated"
 
   if options == '-d':
