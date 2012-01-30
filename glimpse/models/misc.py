@@ -7,7 +7,9 @@
 # General functions that are applicable to multiple models.
 
 from glimpse.util import ImageToArray
+from glimpse.backends import InsufficientSizeException
 import Image
+import logging
 import numpy as np
 import random
 
@@ -57,18 +59,33 @@ class InputSource(object):
 
   # Path to an image file.
   image_path = None
+  # Size of minimum dimension when resizing
+  resize = None
 
-  def __init__(self, image_path = None):
+  def __init__(self, image_path = None, resize = None):
     if image_path != None and not isinstance(image_path, basestring):
       raise ValueError("Image path must be a string")
+    if resize != None:
+      resize = int(resize)
+      if resize <= 0:
+        raise ValueError("Resize value must be positive")
     self.image_path = image_path
+    self.resize = resize
 
   def CreateImage(self):
     """Create a new PIL.Image object for this input source."""
     try:
-      return Image.open(self.image_path)
+      img = Image.open(self.image_path)
     except IOError:
       raise InputSourceLoadException(self)
+    if self.resize != None:
+      w, h = img.size
+      ratio = float(self.resize) / min(w, h)
+      new_size = int(w * ratio), int(h * ratio)
+      logging.info("Resize image %s from (%d, %d) to %s" % (self.image_path, w,
+          h, new_size))
+      img = img.resize(new_size, Image.BICUBIC)
+    return img
 
   def __str__(self):
     return self.image_path

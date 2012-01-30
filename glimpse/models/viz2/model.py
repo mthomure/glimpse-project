@@ -168,19 +168,21 @@ class Model(ModelOps, AbstractNetwork):
   def SampleC1PatchesCallback(self, num_patches, normalize = False):
     return C1PatchSampler(self, num_patches, normalize)
 
-  def MakeStateFromFilename(self, filename):
+  def MakeStateFromFilename(self, filename, resize = None):
     """Create a model state with a single SOURCE layer.
     filename -- (str) path to an image file
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()
-    state[self.Layer.SOURCE.id] = InputSource(filename)
+    state[self.Layer.SOURCE.id] = InputSource(filename, resize = resize)
     return state
 
   def MakeStateFromImage(self, image):
     """Create a model state with a single IMAGE layer.
     image -- Image or (2-D) array of input data. If array, values should lie in
              the range [0, 1].
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()
