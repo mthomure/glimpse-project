@@ -75,7 +75,7 @@ class Client(gearman.GearmanClient):
       else:
         buff = ""
       raise Exception("Failed to process %d of %d tasks, %d timed out.%s" % \
-          (len(filter((lambda x: not x), completed)), len(completed),
+          (len(failed_requests), len(completed),
           len(filter((lambda x: x.timed_out), job_requests)), buff))
     results = [ r.result for r in job_requests ]
     return list(util.UngroupIterator(results))
