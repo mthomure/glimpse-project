@@ -44,8 +44,8 @@ class LayerSpec(object):
 class InputSourceLoadException(Exception):
   """Thrown when an input source can not be loaded."""
 
-  def __init__(self, source = None):
-    super(Exception, self).__init__()
+  def __init__(self, msg = None, source = None):
+    super(Exception, self).__init__(msg)
     self.source = source
 
   def __self__(self):
@@ -77,7 +77,7 @@ class InputSource(object):
     try:
       img = Image.open(self.image_path)
     except IOError:
-      raise InputSourceLoadException(self)
+      raise InputSourceLoadException("I/O error while loading image", source = self)
     if self.resize != None:
       w, h = img.size
       ratio = float(self.resize) / min(w, h)
