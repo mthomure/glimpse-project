@@ -174,12 +174,20 @@ class Experiment(object):
       prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
           input_states, normalize = True, pool = self.pool)
     except InputSourceLoadException, e:
+      if e.source != None:
+        path = e.source.image_path
+      else:
+        path = '<unknown>'
       logging.error("Failed to process image (%s): image read error" % \
-          e.source.image_path)
+          path)
       sys.exit(-1)
     except InsufficientSizeException, e:
+      if e.source != None:
+        path = e.source.image_path
+      else:
+        path = '<unknown>'
       logging.error("Failed to process image (%s): image too small" % \
-          e.source.image_path)
+          path)
       sys.exit(-1)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
