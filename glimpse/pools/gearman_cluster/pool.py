@@ -160,8 +160,8 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
       stats['ELAPSED_TIME'] += elapsed_time
       stats['NUM_REQUESTS'] += 1
       return results
-    except Exception, e:
-      logging.warn("\tcaught exception: %s" % e)
+    except Exception:
+      logging.exception("Caught exception in worker")
       raise
 
   worker = Worker([job_server_url])
