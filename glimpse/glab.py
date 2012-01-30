@@ -297,21 +297,6 @@ class Experiment(object):
         sys.exit(-1)
     return features
 
-  def _ReadCorpusDir(self, corpus_dir, classes = None):
-    if classes == None:
-      classes = os.listdir(corpus_dir)
-    try:
-      def image_filter(img):
-        # Ignore "hidden" files in corpus directory.
-        return not img.startswith('.')
-      def read_class(cls):
-        class_dir = os.path.join(corpus_dir, cls)
-        return [ os.path.join(class_dir, img) for img in os.listdir(class_dir)
-            if image_filter(img) ]
-      return map(read_class, classes)
-    except OSError, e:
-      sys.exit("Failed to read corpus directory: %s" % e)
-
   def SetCorpus(self, corpus_dir, classes = None):
     """Read images from the corpus directory, and choose training and testing
     subsets automatically. Use this instead of SetTrainTestSplit().
@@ -320,12 +305,27 @@ class Experiment(object):
                the SVM classes. When applying a binary SVM, the first class is
                treated as positive and the second class is treated as negative.
     """
+    corpus_subdirs = [ os.path.join(corpus_dir, cls) for cls in os.listdir(corpus_dir) ]
+    return self.SetCorpusSubdirs(corpus_subdirs, corpus_dir, classes)
+
+  def SetCorpusSubdirs(self, corpus_subdirs, corpus = None, classes = None):
     if classes == None:
-      classes = os.listdir(corpus_dir)
+      classes = map(os.path.basename, corpus_subdirs)
     self.classes = classes
-    self.corpus = corpus_dir
+    self.corpus = corpus
     self.train_test_split = 'automatic'
-    images_per_class = self._ReadCorpusDir(corpus_dir, classes)
+
+    def image_filter(img):
+      # Ignore "hidden" files in corpus directory.
+      return not img.startswith('.')
+
+    def read_subdir(path):
+      return [ os.path.join(path, img) for img in os.listdir(path) if image_filter(img) ]
+
+    try:
+      images_per_class = map(read_subdir, corpus_subdirs)
+    except OSError, e:
+      sys.exit("Failed to read corpus directory: %s" % e)
     # Randomly reorder image lists.
     for images in images_per_class:
       np.random.shuffle(images)
@@ -644,6 +644,9 @@ def SetCorpus(corpus_dir, classes = None):
   """
   return GetExperiment().SetCorpus(corpus_dir, classes)
 
+def SetCorpusSubdirs(corpus_subdirs, classes = None):
+  return GetExperiment().SetCorpusSubdirs(corpus_subdirs, classes = classes)
+
 def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
   """Read images from the corpus directories, setting the training and testing
   subsets manually. Use this instead of SetCorpus().
@@ -769,9 +772,11 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
 
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
-    cross_validate = False, verbose = 0, **opts):
+    cross_validate = False, verbose = 0, corpus_subdirs = None, **opts):
   if corpus != None:
     SetCorpus(corpus)
+  elif corpus_subdirs:  # must be not None and not empty list
+    SetCorpusSubdirs(corpus_subdirs)
   num_prototypes = int(num_prototypes)
   if prototypes != None:
     SetS2Prototypes(prototypes)
@@ -809,10 +814,11 @@ def main():
   try:
     opts = dict()
     opts['verbose'] = 0
+    opts['corpus_subdirs'] = []
     result_path = None
     verbose = 0
-    cli_opts, cli_args = util.GetOptions('c:C:del:m:n:o:p:P:r:st:vx',
-        ['corpus=', 'cluster-config=', 'compute-features', 'debug',
+    cli_opts, cli_args = util.GetOptions('c:C:el:m:n:o:p:P:r:R:st:vx',
+        ['corpus=', 'corpus-subdir=', 'cluster-config=', 'compute-features',
         'edit-options', 'layer=', 'model=', 'num-prototypes=', 'options=',
         'prototype-algorithm=', 'prototypes=', 'results=', 'svm',
         'svm-decision-values', 'svm-predicted-labels', 'pool-type=', 'verbose',
@@ -820,13 +826,13 @@ def main():
     for opt, arg in cli_opts:
       if opt in ('-c', '--corpus'):
         opts['corpus'] = arg
-      elif opt in ('-C', '--cluster-config'):
+      elif opt in ('-C', '--corpus-subdir'):
+        opts['corpus_subdirs'].append(arg)
+      elif opt in ('--cluster-config'):
         # Use a cluster of worker nodes
         opts['cluster_config'] = arg
       elif opt in ('--compute-features'):
         opts['compute_features'] = True
-      elif opt in ('-d', '--debug'):
-        opts['debug'] = True
       elif opt in ('-e', '--edit-options'):
         opts['edit_params'] = True
       elif opt in ('-l', '--layer'):
@@ -862,11 +868,11 @@ def main():
   except util.UsageException, e:
     util.Usage("[options]\n"
         "  -c, --corpus=DIR                Use corpus directory DIR\n"
-        "  -C, --cluster-config=FILE       Read cluster configuration from "
+        "  -C, --corpus-subdir=DIR         Specify subdirectories (with specifying -C repeatedly) instead of single parent corpus directory (with -c)\n"
+        "      --cluster-config=FILE       Read cluster configuration from "
         "FILE\n"
         "      --compute-features          Compute feature vectors (implied "
         "by -s)\n"
-        "  -d, --debug                     Enable debugging\n"
         "  -e, --edit-options              Edit model options with a GUI\n"
         "  -l, --layer=LAYR                Compute feature vectors from LAYR "
         "activity\n"
