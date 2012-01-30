@@ -129,6 +129,8 @@ def SampleC1Patches(c1s, kwidth):
     scale = random.randint(0, num_scales - 1)
     c1 = c1s[scale]
     height, width = c1.shape[-2:]
+    if height <= kwidth or width <= kwidth:
+      raise InsufficientSizeException()
     y = random.randint(0, height - kwidth)
     x = random.randint(0, width - kwidth)
     patch = c1[ :, y : y + kwidth, x : x + kwidth ]

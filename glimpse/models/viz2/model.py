@@ -151,8 +151,15 @@ class Model(ModelOps, AbstractNetwork):
     """
     state = self.BuildLayer(self.Layer.C1, state)
     c1s = state[self.Layer.C1.id]
-    patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
-    patches = list(itertools.islice(patch_it, num_patches))
+    try:
+      patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
+      patches = list(itertools.islice(patch_it, num_patches))
+    except InsufficientSizeException, e:
+      # Try to annotate exception with source information.
+      source = state.get(self.Layer.SOURCE.id, None)
+      if source == None:
+        raise
+      raise InsufficientSizeException(source = source)
     # TEST CASE: single state with uniform C1 activity and using normalize=True,
     # check that result does not contain NaNs.
     if normalize:
