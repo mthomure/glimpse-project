@@ -125,6 +125,15 @@ if [[ "$#" < 1 ]]; then
   exit -1
 fi
 MOD=$1
+CMD=$2
+NUM=1
+NUM_PROCS=  # number of processes to run per worker
+if [[ "$#" > 2 ]]; then
+  NUM=$3
+fi
+if [[ "$#" > 3 ]]; then
+  NUM_PROCS=$4
+fi
 GLIMPSE_HOME=$(dirname $0)/..
 HOST=$(hostname -f)
 cd $GLIMPSE_HOME
@@ -151,7 +160,7 @@ elif [[ "$GLIMPSE_CLUSTER_TYPE" == gearman ]]; then
   WORKER_FUNC=WorkerStart
 elif [[ "$GLIMPSE_CLUSTER_TYPE" == zmq ]]; then
   BROKER_CMD="glimpse-cluster $VERBOSE LaunchBroker"
-  WORKER_CMD="glimpes-cluster $VERBOSE LaunchWorker"
+  WORKER_CMD="glimpes-cluster $VERBOSE LaunchWorker $NUM_PROCS"
   WORKER_FUNC=WorkerStart
 else
   echo "unknown cluster type: $GLIMPSE_CLUSTER_TYPE" 1>&2
@@ -183,15 +192,6 @@ elif [[ "$MOD" == "WORKER" ]]; then
   if [[ "$#" < 2 ]]; then
     echo "usage: $0 WORKER START|KILL|STATUS [RUN-NUM]" 1>&2
     exit -1
-  fi
-  CMD=$2
-  NUM=1
-  NUM_PROCS=  # number of processes to run per worker
-  if [[ "$#" > 2 ]]; then
-    NUM=$3
-  fi
-  if [[ "$#" > 3 ]]; then
-    NUM_PROCS=$4
   fi
   JOBDIR=run/glimpse-cluster/${HOST}/workers
   mkdir -p $JOBDIR
