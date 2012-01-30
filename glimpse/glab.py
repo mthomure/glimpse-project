@@ -301,19 +301,22 @@ class Experiment(object):
         sys.exit(-1)
     return features
 
-  def SetCorpus(self, corpus_dir, classes = None):
+  def SetCorpus(self, corpus_dir, classes = None, balance = False):
     """Read images from the corpus directory, and choose training and testing
     subsets automatically. Use this instead of SetTrainTestSplit().
     corpus_dir -- (str) path to corpus directory
     classes -- (list) set of class names. Use this to ensure a given order to
                the SVM classes. When applying a binary SVM, the first class is
                treated as positive and the second class is treated as negative.
+    balance -- (bool) ensure an equal number of images from each class (by
+               random selection).
     """
     corpus_subdirs = [ os.path.join(corpus_dir, cls)
         for cls in os.listdir(corpus_dir) ]
-    return self.SetCorpusSubdirs(corpus_subdirs, corpus_dir, classes)
+    return self.SetCorpusSubdirs(corpus_subdirs, corpus_dir, classes, balance)
 
-  def SetCorpusSubdirs(self, corpus_subdirs, corpus = None, classes = None):
+  def SetCorpusSubdirs(self, corpus_subdirs, corpus = None, classes = None,
+      balance = False):
     if classes == None:
       classes = map(os.path.basename, corpus_subdirs)
     self.classes = classes
@@ -335,6 +338,12 @@ class Experiment(object):
     # Randomly reorder image lists.
     for images in images_per_class:
       np.random.shuffle(images)
+    if balance:
+      # Make sure each class has the same number of images
+      num_images = map(len, images_per_class)
+      size = min(num_images)
+      if not all(n == size for n in num_images):
+        images_per_class = [ images[:size] for images in images_per_class ]
     # Use first half of images for training, and second half for testing.
     self.train_images = [ images[ : len(images)/2 ]
         for images in images_per_class ]
@@ -641,7 +650,7 @@ def SetS2Prototypes(prototypes):
         "file.")
   GetExperiment().SetS2Prototypes(prototypes)
 
-def SetCorpus(corpus_dir, classes = None):
+def SetCorpus(corpus_dir, classes = None, balance = False):
   """Read images from the corpus directory, and choose training and testing
   subsets automatically. Use this instead of SetTrainTestSplit().
   corpus_dir -- (str) path to corpus directory
@@ -649,10 +658,11 @@ def SetCorpus(corpus_dir, classes = None):
              the SVM classes. When applying a binary SVM, the first class is
              treated as positive and the second class is treated as negative.
   """
-  return GetExperiment().SetCorpus(corpus_dir, classes)
+  return GetExperiment().SetCorpus(corpus_dir, classes, balance = balance)
 
-def SetCorpusSubdirs(corpus_subdirs, classes = None):
-  return GetExperiment().SetCorpusSubdirs(corpus_subdirs, classes = classes)
+def SetCorpusSubdirs(corpus_subdirs, classes = None, balance = False):
+  return GetExperiment().SetCorpusSubdirs(corpus_subdirs, classes = classes,
+      balance = balance)
 
 def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
   """Read images from the corpus directories, setting the training and testing
@@ -781,11 +791,12 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
 
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
-    cross_validate = False, verbose = 0, corpus_subdirs = None, **opts):
+    cross_validate = False, verbose = 0, balance = False, corpus_subdirs = None,
+    **opts):
   if corpus != None:
-    SetCorpus(corpus)
+    SetCorpus(corpus, balance = balance)
   elif corpus_subdirs:  # must be not None and not empty list
-    SetCorpusSubdirs(corpus_subdirs)
+    SetCorpusSubdirs(corpus_subdirs, balance = balance)
   num_prototypes = int(num_prototypes)
   if prototypes != None:
     SetS2Prototypes(prototypes)
@@ -826,14 +837,16 @@ def main():
     opts['corpus_subdirs'] = []
     result_path = None
     verbose = 0
-    cli_opts, cli_args = util.GetOptions('c:C:el:m:n:o:p:P:r:R:st:vx',
-        ['corpus=', 'corpus-subdir=', 'cluster-config=', 'compute-features',
-        'edit-options', 'layer=', 'model=', 'num-prototypes=', 'options=',
-        'prototype-algorithm=', 'prototypes=', 'results=', 'resize=', 'svm',
-        'svm-decision-values', 'svm-predicted-labels', 'pool-type=', 'verbose',
-        'cross-validate'])
+    cli_opts, cli_args = util.GetOptions('bc:C:el:m:n:o:p:P:r:R:st:vx',
+        ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
+        'compute-features', 'edit-options', 'layer=', 'model=',
+        'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
+        'results=', 'resize=', 'svm', 'svm-decision-values',
+        'svm-predicted-labels', 'pool-type=', 'verbose', 'cross-validate'])
     for opt, arg in cli_opts:
-      if opt in ('-c', '--corpus'):
+      if opt in ('-b', '--balance'):
+        opts['balance'] = True
+      elif opt in ('-c', '--corpus'):
         opts['corpus'] = arg
       elif opt in ('-C', '--corpus-subdir'):
         opts['corpus_subdirs'].append(arg)
@@ -878,6 +891,8 @@ def main():
     CLI(**opts)
   except util.UsageException, e:
     util.Usage("[options]\n"
+        "  -b, --balance                   Choose equal number of images per "
+        "class\n"
         "  -c, --corpus=DIR                Use corpus directory DIR\n"
         "  -C, --corpus-subdir=DIR         Specify subdirectories (using -C"
         " repeatedly)\n"
