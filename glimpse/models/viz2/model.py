@@ -151,8 +151,15 @@ class Model(ModelOps, AbstractNetwork):
     """
     state = self.BuildLayer(self.Layer.C1, state)
     c1s = state[self.Layer.C1.id]
-    patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
-    patches = list(itertools.islice(patch_it, num_patches))
+    try:
+      patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
+      patches = list(itertools.islice(patch_it, num_patches))
+    except InsufficientSizeException, e:
+      # Try to annotate exception with source information.
+      source = state.get(self.Layer.SOURCE.id, None)
+      if source == None:
+        raise
+      raise InsufficientSizeException(source = source)
     # TEST CASE: single state with uniform C1 activity and using normalize=True,
     # check that result does not contain NaNs.
     if normalize:
@@ -168,19 +175,21 @@ class Model(ModelOps, AbstractNetwork):
   def SampleC1PatchesCallback(self, num_patches, normalize = False):
     return C1PatchSampler(self, num_patches, normalize)
 
-  def MakeStateFromFilename(self, filename):
+  def MakeStateFromFilename(self, filename, resize = None):
     """Create a model state with a single SOURCE layer.
     filename -- (str) path to an image file
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()
-    state[self.Layer.SOURCE.id] = InputSource(filename)
+    state[self.Layer.SOURCE.id] = InputSource(filename, resize = resize)
     return state
 
   def MakeStateFromImage(self, image):
     """Create a model state with a single IMAGE layer.
     image -- Image or (2-D) array of input data. If array, values should lie in
              the range [0, 1].
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()

@@ -7,7 +7,9 @@
 # General functions that are applicable to multiple models.
 
 from glimpse.util import ImageToArray
+from glimpse.backends import InsufficientSizeException
 import Image
+import logging
 import numpy as np
 import random
 
@@ -42,14 +44,14 @@ class LayerSpec(object):
 class InputSourceLoadException(Exception):
   """Thrown when an input source can not be loaded."""
 
-  def __init__(self, source = None):
-    super(Exception, self).__init__()
+  def __init__(self, msg = None, source = None):
+    super(Exception, self).__init__(msg)
     self.source = source
 
-  def __self__(self):
+  def __str__(self):
     return "InputSourceLoadException(%s)" % self.source
 
-  __repr__ = __self__
+  __repr__ = __str__
 
 class InputSource(object):
   """Describes the input to a hierarchical model. Examples include the path to a
@@ -57,18 +59,33 @@ class InputSource(object):
 
   # Path to an image file.
   image_path = None
+  # Size of minimum dimension when resizing
+  resize = None
 
-  def __init__(self, image_path = None):
+  def __init__(self, image_path = None, resize = None):
     if image_path != None and not isinstance(image_path, basestring):
       raise ValueError("Image path must be a string")
+    if resize != None:
+      resize = int(resize)
+      if resize <= 0:
+        raise ValueError("Resize value must be positive")
     self.image_path = image_path
+    self.resize = resize
 
   def CreateImage(self):
     """Create a new PIL.Image object for this input source."""
     try:
-      return Image.open(self.image_path)
+      img = Image.open(self.image_path)
     except IOError:
-      raise InputSourceLoadException(self)
+      raise InputSourceLoadException("I/O error while loading image", source = self)
+    if self.resize != None:
+      w, h = img.size
+      ratio = float(self.resize) / min(w, h)
+      new_size = int(w * ratio), int(h * ratio)
+      logging.info("Resize image %s from (%d, %d) to %s" % (self.image_path, w,
+          h, new_size))
+      img = img.resize(new_size, Image.BICUBIC)
+    return img
 
   def __str__(self):
     return self.image_path
@@ -112,6 +129,8 @@ def SampleC1Patches(c1s, kwidth):
     scale = random.randint(0, num_scales - 1)
     c1 = c1s[scale]
     height, width = c1.shape[-2:]
+    if height <= kwidth or width <= kwidth:
+      raise InsufficientSizeException()
     y = random.randint(0, height - kwidth)
     x = random.randint(0, width - kwidth)
     patch = c1[ :, y : y + kwidth, x : x + kwidth ]

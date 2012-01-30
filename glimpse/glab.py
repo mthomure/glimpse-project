@@ -94,6 +94,7 @@ class Experiment(object):
     self.train_test_split = None
     self.train_features = None  # (list of 2D array) indexed by class, image,
                                 # and then feature offset
+    self.resize = None  # (int) scale minimum edge to fixed length
     self.test_features = None  # (list of 2D array) indexed as in train_features
     self.train_results = None
     self.test_results = None
@@ -153,6 +154,7 @@ class Experiment(object):
   train_test_split: %(train_test_split)s
   model: %(model)s
   layer: %(layer)s
+  resize: %(resize)s
   prototype_source: %(prototype_source)s
   train_accuracy: %(train_accuracy)s
   test_accuracy: %(test_accuracy)s""" % values
@@ -169,17 +171,26 @@ class Experiment(object):
     start_time = time.time()
     image_files = util.UngroupLists(self.train_images)
     # Represent each image file as an empty model state.
-    input_states = map(self.model.MakeStateFromFilename, image_files)
+    input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
+        for f in image_files ]
     try:
       prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
           input_states, normalize = True, pool = self.pool)
     except InputSourceLoadException, e:
+      if e.source != None:
+        path = e.source.image_path
+      else:
+        path = '<unknown>'
       logging.error("Failed to process image (%s): image read error" % \
-          e.source.image_path)
+          path)
       sys.exit(-1)
     except InsufficientSizeException, e:
+      if e.source != None:
+        path = e.source.image_path
+      else:
+        path = '<unknown>'
       logging.error("Failed to process image (%s): image too small" % \
-          e.source.image_path)
+          path)
       sys.exit(-1)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
@@ -281,7 +292,8 @@ class Experiment(object):
       try:
         features = list(features)  # wait for results
       except InputSourceLoadException, e:
-        logging.error("Failed to read image from disk: %s" % e.source.image_path)
+        logging.error("Failed to read image from disk: %s" % \
+            e.source.image_path)
         sys.exit(-1)
       except InsufficientSizeException, e:
         logging.error("Failed to process image (%s): image too small" % \
@@ -289,38 +301,49 @@ class Experiment(object):
         sys.exit(-1)
     return features
 
-  def _ReadCorpusDir(self, corpus_dir, classes = None):
-    if classes == None:
-      classes = os.listdir(corpus_dir)
-    try:
-      def image_filter(img):
-        # Ignore "hidden" files in corpus directory.
-        return not img.startswith('.')
-      def read_class(cls):
-        class_dir = os.path.join(corpus_dir, cls)
-        return [ os.path.join(class_dir, img) for img in os.listdir(class_dir)
-            if image_filter(img) ]
-      return map(read_class, classes)
-    except OSError, e:
-      sys.exit("Failed to read corpus directory: %s" % e)
-
-  def SetCorpus(self, corpus_dir, classes = None):
+  def SetCorpus(self, corpus_dir, classes = None, balance = False):
     """Read images from the corpus directory, and choose training and testing
     subsets automatically. Use this instead of SetTrainTestSplit().
     corpus_dir -- (str) path to corpus directory
     classes -- (list) set of class names. Use this to ensure a given order to
                the SVM classes. When applying a binary SVM, the first class is
                treated as positive and the second class is treated as negative.
+    balance -- (bool) ensure an equal number of images from each class (by
+               random selection).
     """
+    corpus_subdirs = [ os.path.join(corpus_dir, cls)
+        for cls in os.listdir(corpus_dir) ]
+    return self.SetCorpusSubdirs(corpus_subdirs, corpus_dir, classes, balance)
+
+  def SetCorpusSubdirs(self, corpus_subdirs, corpus = None, classes = None,
+      balance = False):
     if classes == None:
-      classes = os.listdir(corpus_dir)
+      classes = map(os.path.basename, corpus_subdirs)
     self.classes = classes
-    self.corpus = corpus_dir
+    self.corpus = corpus
     self.train_test_split = 'automatic'
-    images_per_class = self._ReadCorpusDir(corpus_dir, classes)
+
+    def image_filter(img):
+      # Ignore "hidden" files in corpus directory.
+      return not img.startswith('.')
+
+    def read_subdir(path):
+      return [ os.path.join(path, img)
+          for img in os.listdir(path) if image_filter(img) ]
+
+    try:
+      images_per_class = map(read_subdir, corpus_subdirs)
+    except OSError, e:
+      sys.exit("Failed to read corpus directory: %s" % e)
     # Randomly reorder image lists.
     for images in images_per_class:
       np.random.shuffle(images)
+    if balance:
+      # Make sure each class has the same number of images
+      num_images = map(len, images_per_class)
+      size = min(num_images)
+      if not all(n == size for n in num_images):
+        images_per_class = [ images[:size] for images in images_per_class ]
     # Use first half of images for training, and second half for testing.
     self.train_images = [ images[ : len(images)/2 ]
         for images in images_per_class ]
@@ -365,7 +388,8 @@ class Experiment(object):
     test_images = util.UngroupLists(self.test_images)
     images = train_images + test_images
     # Compute features for all images.
-    input_states = map(self.model.MakeStateFromFilename, images)
+    input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
+        for f in images ]
     start_time = time.time()
     features = self.ComputeFeaturesFromInputStates(input_states, block = True)
     self.compute_feature_time = time.time() - start_time
@@ -626,7 +650,7 @@ def SetS2Prototypes(prototypes):
         "file.")
   GetExperiment().SetS2Prototypes(prototypes)
 
-def SetCorpus(corpus_dir, classes = None):
+def SetCorpus(corpus_dir, classes = None, balance = False):
   """Read images from the corpus directory, and choose training and testing
   subsets automatically. Use this instead of SetTrainTestSplit().
   corpus_dir -- (str) path to corpus directory
@@ -634,7 +658,11 @@ def SetCorpus(corpus_dir, classes = None):
              the SVM classes. When applying a binary SVM, the first class is
              treated as positive and the second class is treated as negative.
   """
-  return GetExperiment().SetCorpus(corpus_dir, classes)
+  return GetExperiment().SetCorpus(corpus_dir, classes, balance = balance)
+
+def SetCorpusSubdirs(corpus_subdirs, classes = None, balance = False):
+  return GetExperiment().SetCorpusSubdirs(corpus_subdirs, classes = classes,
+      balance = balance)
 
 def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
   """Read images from the corpus directories, setting the training and testing
@@ -706,7 +734,7 @@ def CLIGetModel(model_name):
 
 def CLIInit(pool_type = None, cluster_config = None, model_name = None,
     params = None, edit_params = False, layer = None, debug = False,
-    verbose = 0, **opts):
+    verbose = 0, resize = None, **opts):
   if verbose > 0:
     Verbose(True)
     if verbose > 1:
@@ -729,6 +757,8 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
   SetLayer(layer)
   if edit_params:
     GetParams().configure_traits()
+  # At this point, all parameters needed to create Experiment object are set.
+  GetExperiment().resize = resize
   GetExperiment().debug = debug
 
 def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
@@ -761,9 +791,12 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
 
 def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, svm = False, compute_features = False, result_path = None,
-    cross_validate = False, verbose = 0, **opts):
+    cross_validate = False, verbose = 0, balance = False, corpus_subdirs = None,
+    **opts):
   if corpus != None:
-    SetCorpus(corpus)
+    SetCorpus(corpus, balance = balance)
+  elif corpus_subdirs:  # must be not None and not empty list
+    SetCorpusSubdirs(corpus_subdirs, balance = balance)
   num_prototypes = int(num_prototypes)
   if prototypes != None:
     SetS2Prototypes(prototypes)
@@ -801,24 +834,27 @@ def main():
   try:
     opts = dict()
     opts['verbose'] = 0
+    opts['corpus_subdirs'] = []
     result_path = None
     verbose = 0
-    cli_opts, cli_args = util.GetOptions('c:C:del:m:n:o:p:P:r:st:vx',
-        ['corpus=', 'cluster-config=', 'compute-features', 'debug',
-        'edit-options', 'layer=', 'model=', 'num-prototypes=', 'options=',
-        'prototype-algorithm=', 'prototypes=', 'results=', 'svm',
-        'svm-decision-values', 'svm-predicted-labels', 'pool-type=', 'verbose',
-        'cross-validate'])
+    cli_opts, cli_args = util.GetOptions('bc:C:el:m:n:o:p:P:r:R:st:vx',
+        ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
+        'compute-features', 'edit-options', 'layer=', 'model=',
+        'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
+        'results=', 'resize=', 'svm', 'svm-decision-values',
+        'svm-predicted-labels', 'pool-type=', 'verbose', 'cross-validate'])
     for opt, arg in cli_opts:
-      if opt in ('-c', '--corpus'):
+      if opt in ('-b', '--balance'):
+        opts['balance'] = True
+      elif opt in ('-c', '--corpus'):
         opts['corpus'] = arg
-      elif opt in ('-C', '--cluster-config'):
+      elif opt in ('-C', '--corpus-subdir'):
+        opts['corpus_subdirs'].append(arg)
+      elif opt in ('--cluster-config'):
         # Use a cluster of worker nodes
         opts['cluster_config'] = arg
       elif opt in ('--compute-features'):
         opts['compute_features'] = True
-      elif opt in ('-d', '--debug'):
-        opts['debug'] = True
       elif opt in ('-e', '--edit-options'):
         opts['edit_params'] = True
       elif opt in ('-l', '--layer'):
@@ -838,6 +874,8 @@ def main():
         opts['prototypes'] = util.Load(arg)
       elif opt in ('-r', '--results'):
         opts['result_path'] = arg
+      elif opt in ('-R', '--resize'):
+        opts['resize'] = int(arg)
       elif opt in ('-s', '--svm'):
         opts['svm'] = True
       elif opt == '--svm-decision-values':
@@ -853,12 +891,17 @@ def main():
     CLI(**opts)
   except util.UsageException, e:
     util.Usage("[options]\n"
+        "  -b, --balance                   Choose equal number of images per "
+        "class\n"
         "  -c, --corpus=DIR                Use corpus directory DIR\n"
-        "  -C, --cluster-config=FILE       Read cluster configuration from "
+        "  -C, --corpus-subdir=DIR         Specify subdirectories (using -C"
+        " repeatedly)\n"
+        "                                  instead of single corpus directory"
+        " (with -c)\n"
+        "      --cluster-config=FILE       Read cluster configuration from "
         "FILE\n"
         "      --compute-features          Compute feature vectors (implied "
         "by -s)\n"
-        "  -d, --debug                     Enable debugging\n"
         "  -e, --edit-options              Edit model options with a GUI\n"
         "  -l, --layer=LAYR                Compute feature vectors from LAYR "
         "activity\n"
@@ -873,6 +916,9 @@ def main():
         "  -P, --prototypes=FILE           Read S2 prototypes from FILE "
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"
+        "  -R, --resize=NUM                Resize the minimum dimension of "
+        "images to NUM\n"
+        "                                  pixels\n"
         "  -s, --svm                       Train and test an SVM classifier\n"
         "      --svm-decision-values       Print the pre-thresholded SVM "
         "decision values\n"
