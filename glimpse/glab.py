@@ -47,8 +47,7 @@ from glimpse.models import viz2
 from glimpse import pools
 from glimpse import util
 from glimpse.util.grandom import HistogramSampler
-from glimpse.util.svm import SpheringFeatureScaler, PrepareLibSvmInput, \
-    SvmForSplit, SvmCrossValidate
+from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
 import itertools
 import logging
@@ -59,12 +58,13 @@ import sys
 import time
 
 __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
-    'MakeParams', 'MakeModel', 'GetExperiment', 'SetExperiment',
-    'ImprintS2Prototypes', 'MakeUniformRandomS2Prototypes',
-    'MakeShuffledRandomS2Prototypes', 'MakeHistogramRandomS2Prototypes',
-    'MakeNormalRandomS2Prototypes', 'SetS2Prototypes', 'SetCorpus',
-    'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'ComputeFeatures',
-    'RunSvm', 'LoadExperiment', 'StoreExperiment', 'Verbose')
+    'MakeModel', 'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
+    'MakeUniformRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
+    'MakeHistogramRandomS2Prototypes', 'MakeNormalRandomS2Prototypes',
+    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit',
+    'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'CrossValidateSvm',
+    'TrainSvm', 'TestSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment',
+    'Verbose')
 
 class Experiment(object):
 
@@ -104,6 +104,7 @@ class Experiment(object):
     self.svm_train_time = None
     self.svm_test_time = None
     self.debug = False
+    self.cross_validated = False
 
   def GetFeatures(self):
     """The full set of features for each class, without training/testing splits.
@@ -384,6 +385,7 @@ class Experiment(object):
     train_sizes = map(len, self.train_images)
     train_size = sum(train_sizes)
     test_sizes = map(len, self.test_images)
+    test_size = sum(test_sizes)
     train_images = util.UngroupLists(self.train_images)
     test_images = util.UngroupLists(self.test_images)
     images = train_images + test_images
@@ -394,7 +396,7 @@ class Experiment(object):
     features = self.ComputeFeaturesFromInputStates(input_states, block = True)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
-    train_features, test_features = util.SplitList(features, [train_size])
+    train_features, test_features = util.SplitList(features, [train_size, test_size])
     # Split training set by class
     train_features = util.SplitList(train_features, train_sizes)
     # Split testing set by class
@@ -404,6 +406,35 @@ class Experiment(object):
         for f in train_features ]
     self.test_features = [ np.array(f, util.ACTIVATION_DTYPE)
         for f in test_features ]
+
+  def TrainSvm(self):
+    """Construct an SVM classifier from the set of training images.
+    RETURN (float) training accuracy
+    """
+    if self.train_features == None:
+      self.ComputeFeatures()
+    start_time = time.time()
+    svm_model = svm.ScaledSvm(self.scaler)
+    svm_model.Train(self.train_features)
+    self.scaler = svm_model.scaler  # scaler has been trained. save it.
+    self.classifier = svm_model.classifier
+    self.train_results = svm_model.Test(self.train_features)
+    return self.train_results['accuracy']
+
+  def TestSvm(self):
+    """"""
+    svm_model = svm.ScaledSvm(classifier = self.classifier,
+        scaler = self.scaler)
+    self.test_results = svm_model.Test(self.test_features)
+    return self.test_results['accuracy']
+
+  def CrossValidateSvm(self):
+    test_accuracy = svm.SvmCrossValidate(self.GetFeatures(),
+        num_repetitions = 10, num_splits = 10, scaler = self.scaler)
+    self.train_results = None
+    self.test_results = dict(accuracy = test_accuracy)
+    self.cross_validated = True
+    return test_accuracy
 
   def RunSvm(self, cross_validate = False):
     """Train and test an SVM classifier from the set of training images.
@@ -417,17 +448,12 @@ class Experiment(object):
       self.ComputeFeatures()
     start_time = time.time()
     if cross_validate:
-      test_accuracy = SvmCrossValidate(self.GetFeatures(), num_repetitions = 10,
-          num_splits = 10, scaler = self.scaler)
+      self.CrossValidateSvm()
       train_accuracy = None
-      self.train_results = None
-      self.test_results = dict(accuracy = test_accuracy)
     else:
-      self.classifier, self.train_results, self.test_results = \
-          SvmForSplit(self.train_features, self.test_features,
-              scaler = self.scaler)
+      self.TrainSvm()
+      self.TestSvm()
       train_accuracy = self.train_results['accuracy']
-    self.cross_validated = cross_validate
     self.svm_time = time.time() - start_time
     return train_accuracy, self.test_results['accuracy']
 
@@ -575,7 +601,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
   elif isinstance(layer, str):
     layer = model.Layer.FromName(layer)
   if scaler == None:
-    scaler = SpheringFeatureScaler()
+    scaler = svm.SpheringFeatureScaler()
   __EXP = Experiment(model, layer, pool = GetPool(), scaler = scaler)
 
 def ImprintS2Prototypes(num_prototypes):
@@ -679,8 +705,14 @@ def ComputeFeatures():
   call this method yourself, as it will be called automatically by RunSvm()."""
   GetExperiment().ComputeFeatures()
 
+def CrossValidateSvm():
+  return GetExperiment().CrossValidateSvm()
+
 def TrainSvm():
   return GetExperiment().TrainSvm()
+
+def TestSvm():
+  return GetExperiment().TestSvm()
 
 def RunSvm(cross_validate = False):
   """Train and test an SVM classifier from the set of images in the corpus.
