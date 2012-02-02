@@ -17,9 +17,9 @@ def main_iterable(options,xform_dir, image_dir,step_size,bbox_size):
   exp = LoadExperiment(os.path.join(xform_dir, "exp.dat"))
   model = exp.model
   image = Image.open(image_dir)
-  image.load
-  image_copy = image.convert('L')
-
+  image_copy = image.copy()
+  # some variables to hold the origional size of the image for computation of scales later on
+  orig_width, orig_height = image.size
   scale_layers = downsample(image_copy,100)
 
   print "Number of scales %d" % len(scale_layers)
@@ -28,14 +28,15 @@ def main_iterable(options,xform_dir, image_dir,step_size,bbox_size):
   results = list()
   for scale in scale_layers:
 
-    # downsample the image
+    # scale the image down given a scale tuple from scale_layers
     layer = []
-    image_copy.thumbnail(scale,Image.ANTIALIAS)
+    image_copy.resize(scale,Image.ANTIALIAS)
     layer.append(image_copy)
 
     # convert entire image over to c1 space
     image_layer = model.MakeStateFromImage(layer[0])
     s = model.BuildLayer(model.Layer.C1,image_layer,save_all = False)
+
     print "Layer processed"
     c1_layer = np.array(s['c1'])
 
@@ -62,6 +63,8 @@ def main_iterable(options,xform_dir, image_dir,step_size,bbox_size):
         # call process window
     if options == '-d':
         start_time = time.clock()
+
+
     for box in windows:
       # add the results of this layer to the results main list
       results.append(process_window(box,model,c1_layer,exp))
@@ -71,13 +74,13 @@ def main_iterable(options,xform_dir, image_dir,step_size,bbox_size):
         taken = end_time - start_time
         print "Time Taken: ", (taken/60)
 
-  print "The results are:",len(results)
-  crop = results[1]
+  crop = results[0]
   box = crop[2]
   box = map_to_image(exp,box)
   print box
   draw = ImageDraw.Draw(image)
-  draw.rectangle(box,outline="green")
+  draw.rectangle(box,outline="red")
+  print image.size
   image.show()
 
   #function to take an image and downsample it at some fixed amount given by command line argument at some point
@@ -90,7 +93,7 @@ def downsample(image_copy,scale_amount):
     width,height = image_copy.size
     width = width - x
     height = width * .75
-    size = (width,height)
+    size = (int(width),int(height))
     layers.append(size)
   return layers
 
@@ -102,7 +105,6 @@ def process_window(bbox,model,c1_layer,exp):
     w = c1_layer[:,:,bbox[0]:bbox[1],bbox[2]:bbox[3]]
     w_flat = w.flatten()
 
-
     # classify with trained svm passing in w_flat
     model = svm.ScaledSvm(classifier = exp.classifier, scaler = exp.scaler)
 
@@ -112,11 +114,12 @@ def process_window(bbox,model,c1_layer,exp):
                                           # per-instance measures, get the first
                                           # measure
 
-    #store in results[i][b] which holds the decision d for a given classifier
+    #store in results[i][b][bbox] which holds the decision d for a given classifier
     results.append(1)
     results.append(decision_values)
     results.append(bbox)
-    return results
+    r_array = np.array(results,dtype=object)
+    return r_array
 
 # map c1_layer bounding box back to image layer
 def map_to_image(exp, bbox):
