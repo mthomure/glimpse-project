@@ -9,6 +9,7 @@
 
 import copy
 import logging
+from glimpse.backends import InsufficientSizeException
 from glimpse.models.misc import LayerSpec, InputSource, SampleC1Patches, \
     DependencyError, AbstractNetwork
 from glimpse import pools, util
@@ -119,7 +120,14 @@ class Model(ModelOps, AbstractNetwork):
     state = copy.copy(state)  # get a shallow copy of the model state
     if isinstance(output_layer, LayerSpec):
       output_layer = output_layer.id
-    state = self.BuildNode(output_layer, state)
+    try:
+      output_state = self.BuildNode(output_layer, state)
+    except InsufficientSizeException, e:
+      # Try to annotate exception with source information.
+      source = state.get(self.Layer.SOURCE.id, None)
+      if source == None:
+        raise
+      raise InsufficientSizeException(source = source)
     if not save_all:
       state_ = State()
       # Keep output layer data
@@ -143,8 +151,15 @@ class Model(ModelOps, AbstractNetwork):
     """
     state = self.BuildLayer(self.Layer.C1, state)
     c1s = state[self.Layer.C1.id]
-    patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
-    patches = list(itertools.islice(patch_it, num_patches))
+    try:
+      patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
+      patches = list(itertools.islice(patch_it, num_patches))
+    except InsufficientSizeException, e:
+      # Try to annotate exception with source information.
+      source = state.get(self.Layer.SOURCE.id, None)
+      if source == None:
+        raise
+      raise InsufficientSizeException(source = source)
     # TEST CASE: single state with uniform C1 activity and using normalize=True,
     # check that result does not contain NaNs.
     if normalize:
@@ -160,19 +175,21 @@ class Model(ModelOps, AbstractNetwork):
   def SampleC1PatchesCallback(self, num_patches, normalize = False):
     return C1PatchSampler(self, num_patches, normalize)
 
-  def MakeStateFromFilename(self, filename):
+  def MakeStateFromFilename(self, filename, resize = None):
     """Create a model state with a single SOURCE layer.
     filename -- (str) path to an image file
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()
-    state[self.Layer.SOURCE.id] = InputSource(filename)
+    state[self.Layer.SOURCE.id] = InputSource(filename, resize = resize)
     return state
 
   def MakeStateFromImage(self, image):
     """Create a model state with a single IMAGE layer.
     image -- Image or (2-D) array of input data. If array, values should lie in
              the range [0, 1].
+    resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
     state = self.State()
@@ -202,14 +219,16 @@ class Model(ModelOps, AbstractNetwork):
     sampler = self.SampleC1PatchesCallback(patches_per_image,
         normalize = normalize)
     # Compute C1 activity, and sample patches.
-    values_per_image = pool.imap_unordered(sampler, input_states)
+    values_per_image = pool.map(sampler, input_states)
     # We now have a iterator over (prototype,location) pairs for each image.
     # Evaluate the iterator, and store the result as a list. Note that we must
     # evaluate before concatenating (below) to ensure we don't leave requests
     # sitting on the worker pool.
     values_per_image = map(list, values_per_image)
     # Add input state index to locations.
-    assert len(input_states) == len(values_per_image)
+    assert len(input_states) == len(values_per_image), \
+        "Expected %d C1 patch sets, but got %d" % (len(input_states),
+            len(values_per_image))
     for idx in range(len(input_states)):
       values = values_per_image[idx]
       # Locations are tuples of (scale, y, x). Prepend input state index.
@@ -233,6 +252,8 @@ class LayerBuilder(object):
   """Represents a serializable function that computes a network state
   transformation, computing the value of some network layer and any required
   dependencies."""
+
+  __name__ = "LayerBuilder"  # needed for use with IPython.parallel
 
   def __init__(self, model, output_layer_id, save_all = True):
     """Create a new object.
@@ -262,6 +283,8 @@ class C1PatchSampler(object):
   transformation for feedforward S->C layer networks. This function computes C1
   activity and then extracts patches from randomly-sampled locations and
   scales."""
+
+  __name__ = "C1PatchSampler"  # needed for use with IPython.parallel
 
   def __init__(self, model, num_patches, normalize = False):
     """Create new object.

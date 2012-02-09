@@ -5,6 +5,19 @@
 
 # Interface for filter operations.
 
+class InsufficientSizeException(Exception):
+  """Exception indicating that the input array was too small (spatially) to
+  support the requested operation."""
+
+  def __init__(self, source = None):
+    super(Exception, self).__init__()
+    self.source = source
+
+  def __str__(self):
+    return "InsufficientSizeException(%s)" % self.source
+
+  __repr__ = __str__
+
 class IBackend(object):
 
   def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):

@@ -26,7 +26,7 @@ class WorkerException(Exception):
 
   worker_exception = None  # the exception object thrown in the worker process
 
-class Connect(object):
+class FutureSocket(object):
   """Describes the options needed to connect/bind a ZMQ socket to an
   end-point."""
 
@@ -79,11 +79,13 @@ class Connect(object):
       pre_delay = self.pre_delay
     if post_delay == None:
       post_delay = self.post_delay
+    assert type is not None
     socket = context.socket(type)
     for k, v in options.items():
       socket.setsockopt(k, v)
     if pre_delay != None:
       time.sleep(pre_delay)
+    assert url is not None
     if bind:
       logging.info("Binding %s socket to %s with context %s" % (
           SocketTypeToString(type), url, hash(context)))
@@ -95,6 +97,22 @@ class Connect(object):
     if post_delay != None:
       time.sleep(post_delay)
     return socket
+
+Connect = FutureSocket
+
+def InitSocket(context, connect_or_socket, type = None, **kwargs):
+  if isinstance(connect_or_socket, FutureSocket):
+    connect_or_socket = connect_or_socket(context, type = type, **kwargs)
+  else:
+    if type != None and connect_or_socket.socket_type != type:
+      raise ValueError("Expected socket of type %s, but got type %s" % (
+          SocketTypeToString(type),
+          SocketTypeToString(connect_or_socket.socket_type)))
+  return connect_or_socket
+
+def MakeSocket(context, url, type, bind = False, options = None):
+  return FutureSocket(url = url, type = type, bind = bind, options = options) \
+      .MakeSocket(context)
 
 class BasicVentilator(object):
   """Push tasks to worker nodes on the cluster."""

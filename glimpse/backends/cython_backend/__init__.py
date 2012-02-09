@@ -6,6 +6,7 @@
 # Implementation of filter operations using custom C++ code.
 
 import filter
+from glimpse.backends.backend import InsufficientSizeException
 from glimpse.util import ACTIVATION_DTYPE
 
 class CythonBackend(object):
@@ -86,6 +87,8 @@ class CythonBackend(object):
     """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
+    if not all(s > 0 for s in data.shape):
+      raise InsufficientSizeException()
     return data.reshape(data.shape[0], -1).max(1, out = out)
 
   def OutputMapShapeForInput(self, kheight, kwidth, scaling, iheight, iwidth):
@@ -98,8 +101,11 @@ class CythonBackend(object):
     iwidth -- (positive int) input map width
     RETURNS (tuple) output map height and width, in that order
     """
-    return filter.OutputMapShapeForInput(kheight, kwidth, scaling, iheight,
-        iwidth)
+    oheight, owidth = filter.OutputMapShapeForInput(kheight, kwidth, scaling,
+        iheight, iwidth)
+    if oheight < 1 or owidth < 1:
+      raise InsufficientSizeException
+    return oheight, owidth
 
   def InputMapShapeForOutput(self, kheight, kwidth, scaling, oheight, owidth):
     """The inverse of OutputMapShapeForInput(). Given an output map with the

@@ -80,6 +80,27 @@ def UngroupLists(groups):
   """Concatenate several sequences to form a single list."""
   return list(UngroupIterator(groups))
 
+def SplitList(data, sizes = []):
+  """Break a list into unequal-sized sublists.
+  data -- (list) input data
+  sizes -- (int list) size of each chunk. if sum of sizes is less than entire
+           size of input array, the remaining elements are returned as an extra
+           sublist in the result.
+  RETURN (list of lists) sublists of requested size
+  """
+  assert(all([ s >= 0 for s in sizes ]))
+  if len(sizes) == 0:
+    return data
+  if sum(sizes) < len(data):
+    sizes = list(sizes)
+    sizes.append(len(data) - sum(sizes))
+  out = list()
+  last = 0
+  for s in sizes:
+    out.append(data[last : last+s])
+    last += s
+  return out
+
 def ToArray(obj):
   if isinstance(obj, numpy.ndarray):
     return obj
@@ -101,25 +122,6 @@ def Show(obj, fname = None):
   """Display an (array or image) object on the screen.
   fname - Attempt to use this string as the name of the temporary image file."""
   ToImage(obj).show(fname)
-
-def Distribute(total, nbins):
-  """Segment a list of objects into seperate bins, such that the distribution of
-  objects is as even as possible."""
-  bins = numpy.zeros([nbins], numpy.int)
-  bins[:] = total / nbins
-  remainder = total % nbins
-  bins[:remainder] += 1
-  return bins
-
-def SplitList(values, num_lists):
-  """Split a list of values into equal-width (or as equal width as possible)
-  sub-lists."""
-  idx = 0
-  results = []
-  for size in Distribute(len(values), num_lists):
-    results.append(values[idx : idx + size])
-    idx += size
-  return results
 
 class UsageException(Exception):
   """An exception indicating that a program was called inappropriately --- for

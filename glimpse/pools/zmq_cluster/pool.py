@@ -104,6 +104,9 @@ class ClusterPool(object):
     # unchunk result groups
     return util.UngroupIterator(result_groups)
 
+def MakePool(config = None, chunksize = None):
+  return ClusterPool(config, chunksize)
+
 class PoolWorker(BasicWorker):
 
   def __init__(self, context, config, receiver_timeout = None, pool = None):

@@ -28,7 +28,7 @@ def Summarize(data):
   return np.array(results).T
 
 def main():
-  opts, args = util.GetOptions('a:c:eHi:l:o:s:t:x:y:')
+  opts, args = util.GetOptions('a:c:eHi:l:o:s:St:x:y:')
   input_encoding = util.ENCODING_PICKLE
   ofname = None
   # Parse arguments needed early
@@ -52,6 +52,7 @@ def main():
   axis = None
   error_bars = False
   histogram = False
+  scatter = False
 
   def add_line_arg(key, arg):
     array = arg.split(",")
@@ -75,6 +76,8 @@ def main():
       show_legend = True
     elif opt == '-s':
       set_styles = add_line_arg('linestyle', arg)
+    elif opt == '-S':
+      scatter = True
     elif opt == '-t':
       plot.title(arg)
     elif opt == '-x':
@@ -88,6 +91,10 @@ def main():
       plot.errorbar(data[0], data[1], yerr = data[2], **line_arg)
     elif histogram:
       plot.hist(data.flat, 100, **line_arg)
+    elif scatter:
+      data = data.T
+      data.sort(0)
+      plot.scatter(data[0], data[1], **line_arg)
     else:
       data.sort(0)
       data = data.T
@@ -119,6 +126,7 @@ if __name__ == '__main__':
       "  -o FNAME        Write plot to image file FNAME.\n" + \
       "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-', \n" + \
       "                  dashed, '--'.\n" + \
+      "  -S              Show 2D datasets as a scatterplot.\n" + \
       "  -t TITLE        Set chart title.\n" + \
       "  -x LABEL        Set label on x-axis.\n" + \
       "  -y LABEL        Set label on y-axis.\n" + \
