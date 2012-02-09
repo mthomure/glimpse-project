@@ -11,14 +11,15 @@ def GetDirContents(dir_path):
 def main(xform_dir, pos_image_dir, neg_image_dir):
   exp = LoadExperiment(os.path.join(xform_dir, "exp.dat"))
   pos_fnames = GetDirContents(pos_image_dir)
-  pos_features = exp.ComputeFeaturesFromInputStates(map(
-      exp.model.MakeStateFromFilename, pos_fnames))
+  print pos_fnames
+  pos_features = exp.ComputeFeaturesFromInputStates(map( exp.model.MakeStateFromFilename, pos_fnames))
   neg_fnames = GetDirContents(neg_image_dir)
   neg_features = exp.ComputeFeaturesFromInputStates(map(
       exp.model.MakeStateFromFilename, neg_fnames))
   model = svm.ScaledSvm(classifier = exp.classifier, scaler = exp.scaler)
   predicted_labels, acc, decision_values = model.Test((pos_features,
       neg_features))
+
   print "FILE PREDICTED-LABEL CONFIDENCE"
   for f, pl, dv in zip(pos_fnames + neg_fnames, predicted_labels,
       decision_values):
