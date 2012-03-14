@@ -28,9 +28,10 @@ def Summarize(data):
   return np.array(results).T
 
 def main():
-  opts, args = util.GetOptions('a:c:eHi:l:o:s:St:x:y:')
+  opts, args = util.GetOptions('a:c:C:eHi:l:o:s:St:x:y:')
   input_encoding = util.ENCODING_PICKLE
   ofname = None
+  cmd = None
   # Parse arguments needed early
   for opt,arg in opts:
     if opt == '-o':
@@ -67,6 +68,8 @@ def main():
       axis = map(float, arg.split(","))
     elif opt == '-c':
       set_colors = add_line_arg('color', arg)
+    elif opt == '-C':
+      cmd = arg
     elif opt == '-e':
       error_bars = True
     elif opt == '-H':
@@ -101,7 +104,10 @@ def main():
       plot.plot(data[0], data[1], **line_arg)
   if axis != None:
     plot.axis(axis)
+  if cmd != None:
+    eval(cmd, globals(), locals())
   if show_legend:
+    plot.rcParams['legend.loc'] = 'best'
     plot.legend()
   if ofname == None:
     plot.show()
@@ -117,19 +123,22 @@ if __name__ == '__main__':
     util.Usage(
       "[options] [DATA ...]\n" + \
       "options:\n"
-      "  -a X0,X1,Y0,Y1  Set range of X and Y axes to [X0,X1] and [Y0,Y1].\n" + \
-      "  -c COLORS       Specify comma-separated line colors. Ex: r, g, b.\n" + \
-      "  -e              Plot 2D datasets with repeated X values by showing error bars.\n" + \
-      "  -H              Plot histogram of 1D datasets.\n" + \
+      "  -a X0,X1,Y0,Y1  Set range of X and Y axes to [X0,X1] and [Y0,Y1].\n"
+      "  -c COLORS       Specify comma-separated line colors. Ex: r, g, b.\n"
+      "  -C COMMAND      Specify a command to evaluate after plotting the data.\n"
+      "  -e              Plot 2D datasets with repeated X values by showing error bars.\n"
+      "  -H              Plot histogram of 1D datasets.\n"
       "  -i TYPE         Set input encoding type [one of: %s, default: %s].\n" % (", ".join(util.INPUT_ENCODINGS), util.ENCODING_PICKLE) + \
       "  -l LABELS       Specify comma-separated line names.\n"
-      "  -o FNAME        Write plot to image file FNAME.\n" + \
-      "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-', \n" + \
-      "                  dashed, '--'.\n" + \
-      "  -S              Show 2D datasets as a scatterplot.\n" + \
-      "  -t TITLE        Set chart title.\n" + \
-      "  -x LABEL        Set label on x-axis.\n" + \
-      "  -y LABEL        Set label on y-axis.\n" + \
-      "For more option values, see:\n" + \
-      "  http://matplotlib.sourceforge.net/api/pyplot_api.html#matplotlib.pyplot.plot"
+      "  -o FNAME        Write plot to image file FNAME.\n"
+      "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-', \n"
+      "                  dashed, '--'.\n"
+      "  -S              Show 2D datasets as a scatterplot.\n"
+      "  -t TITLE        Set chart title.\n"
+      "  -x LABEL        Set label on x-axis.\n"
+      "  -y LABEL        Set label on y-axis.\n"
+      "For more option values, see:\n"
+      "  http://matplotlib.sourceforge.net/api/pyplot_api.html#matplotlib.pyplot.plot\n"
+      "To use log scale on the X-axis:\n"
+      "  -C 'plot.gca().set_xscale(\"log\")'"
     )
