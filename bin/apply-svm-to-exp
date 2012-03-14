@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+from glimpse import util
+import numpy as np
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import Scaler
+from sklearn.cross_validation import ShuffleSplit
+import sys
+
+def main(ifname):
+  exp = util.Load(ifname)
+  all_features = exp.GetFeatures()
+  assert len(all_features) == 2
+  X = np.vstack(all_features)
+  y = np.array([1] * len(all_features[0]) + [-1] * len(all_features[1]))
+  del exp, all_features
+  all_splits = ShuffleSplit(len(X), n_iterations = 10, test_fraction = 0.5)
+  num_features = X.shape[1]
+  for train_split, test_split in all_splits:
+    acc = TestSplit(LinearSVC, X[train_split], y[train_split], X[test_split], y[test_split], use_scaler = True)
+    print num_features, acc
+
+def TestSplit(algorithm, X_train, y_train, X_test, y_test, use_scaler = False):
+  if use_scaler:
+    scaler = Scaler()
+    X_train = scaler.fit_transform(X_train)
+    X_test = scaler.transform(X_test)
+  alg = algorithm()
+  alg.fit(X_train, y_train)
+  y_test_predict = alg.predict(X_test)
+  acc = len(filter(None, y_test == y_test_predict)) / float(len(y_test))
+  return acc
+
+if __name__ == '__main__':
+  if len(sys.argv) < 2:
+    sys.exit("usage: %s EXP.dat" % sys.argv[0])
+  main(sys.argv[1])
