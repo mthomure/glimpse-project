@@ -805,19 +805,21 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
     if svm_decision_values:
       if 'decision_values' not in test_results:
         logging.warn("Decision values are unavailable.")
-      decision_values = test_results['decision_values']
-      print "Decision Values:"
-      for cls in range(len(test_images)):
-        print "\n".join("%s %s" % _
-            for _ in zip(test_images[cls], decision_values[cls]))
+      else:
+        decision_values = test_results['decision_values']
+        print "Decision Values:"
+        for cls in range(len(test_images)):
+          print "\n".join("%s %s" % _
+              for _ in zip(test_images[cls], decision_values[cls]))
     if svm_predicted_labels:
       if 'predicted_labels' not in test_results:
-        logging.warn("Decision values are unavailable.")
-      predicted_labels = test_results['predicted_labels']
-      print "Predicted Labels:"
-      for cls in range(len(test_images)):
-        print "\n".join("%s %s" % _
-            for _ in zip(test_images[cls], predicted_labels[cls]))
+        logging.warn("Predicted labels are unavailable.")
+      else:
+        predicted_labels = test_results['predicted_labels']
+        print "Predicted Labels:"
+        for cls in range(len(test_images)):
+          print "\n".join("%s %s" % _
+              for _ in zip(test_images[cls], predicted_labels[cls]))
   else:
     print "No results available."
 
@@ -912,8 +914,12 @@ def main():
         opts['svm'] = True
       elif opt == '--svm-decision-values':
         opts['svm_decision_values'] = True
+        opts['verbose'] = max(1, opts['verbose'])
+        opts['svm'] = True
       elif opt == '--svm-predicted-labels':
         opts['svm_predicted_labels'] = True
+        opts['verbose'] = max(1, opts['verbose'])
+        opts['svm'] = True
       elif opt in ('-t', '--pool-type'):
         opts['pool_type'] = arg.lower()
       elif opt in ('-v', '--verbose'):
@@ -954,9 +960,10 @@ def main():
         "  -s, --svm                       Train and test an SVM classifier\n"
         "      --svm-decision-values       Print the pre-thresholded SVM "
         "decision values\n"
-        "                                  for each test image\n"
+        "                                  for each test image (implies -vs)\n"
         "      --svm-predicted-labels      Print the predicted labels for each "
         "test image\n"
+        "                                  (implies -vs)\n"
         "  -t, --pool-type=TYPE            Set the worker pool type (one of "
         "'multicore',\n"
         "                                  'singlecore', or 'cluster')\n"
