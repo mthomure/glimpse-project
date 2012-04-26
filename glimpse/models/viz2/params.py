@@ -19,6 +19,15 @@ class KWidth(traits.BaseInt):
       return value
     self.error(object, name, value)
 
+class SLayerOperation(traits.Enum):
+  """A trait type corresponding to an S-unit filter operation."""
+
+  info_text = 'S-unit filter type'
+
+  def __init__(self, value, **metadata):
+    super(SLayerOperation, self).__init__(value, ("DotProduct",
+        "NormDotProduct", "Rbf", "NormRbf"), **metadata)
+
 class Params(traits.HasStrictTraits):
 
   retina_bias = traits.Range(low = 0., value = 1., label = "Retina Bias",
@@ -46,6 +55,7 @@ class Params(traits.HasStrictTraits):
       "-- of the input array)")
   s1_shift_orientations = traits.Bool(True, label = "Shift Orientations",
       desc = "rotate Gabors by a small positive angle")
+  s1_operation = SLayerOperation("NormRbf", label = "S1 Operation")
 
   c1_kwidth = KWidth(5, label = "C1 Kernel Width",
       desc = "spatial width of input neighborhood for C1 units")
@@ -64,6 +74,7 @@ class Params(traits.HasStrictTraits):
       desc = "spatial width of input neighborhood for S2 units")
   s2_scaling = traits.Range(low = 1, value = 2, label = "S2 Scaling",
       desc = "subsampling factor")
+  s2_operation = SLayerOperation("NormRbf", label = "S2 Operation")
 
   c2_kwidth = KWidth(3, label = "C2 Kernel Width",
       desc = "spatial width of input neighborhood for C2 units")

@@ -50,12 +50,13 @@ class ModelOps(BaseModelOps):
     # Reshape kernel array to be 3-D: index, 1, y, x
     s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     s1s = []
+    backend_op = getattr(self.backend, p.s1_operation)
     for scale in range(p.num_scales):
       # Reshape retina to be 3D array
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
-      s1_ = self.backend.NormRbf(retina_, s1_kernels, bias = p.s1_bias,
-          beta = p.s1_beta, scaling = p.s1_scaling)
+      s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
+          scaling = p.s1_scaling)
       # Reshape S1 to be 4D array
       s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
           s1_.shape[-2:])
@@ -78,9 +79,10 @@ class ModelOps(BaseModelOps):
           "were specified.")
     p = self.params
     s2s = []
+    backend_op = getattr(self.backend, p.s2_operation)
     for scale in range(p.num_scales):
       c1 = c1s[scale]
-      s2 = self.backend.NormRbf(c1, self.s2_kernels, bias = p.s2_bias,
+      s2 = backend_op(c1, self.s2_kernels, bias = p.s2_bias,
           beta = p.s2_beta, scaling = p.s2_scaling)
       s2s.append(s2)
     return s2s

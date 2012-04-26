@@ -46,6 +46,7 @@ class Params(traits.HasStrictTraits):
       "-- of the input array)")
   s1_shift_orientations = traits.Bool(True, label = "Shift Orientations",
       desc = "rotate Gabors by a small positive angle")
+  s1_operation = SLayerOperation("NormRbf", label = "S1 Operation")
 
   c1_kwidth = KWidth(5, label = "C1 Kernel Width",
       desc = "spatial width of input neighborhood for C1 units")
@@ -64,6 +65,7 @@ class Params(traits.HasStrictTraits):
       desc = "spatial width of input neighborhood for S2 units")
   s2_scaling = traits.Range(low = 1, value = 2, label = "S2 Scaling",
       desc = "subsampling factor")
+  s2_operation = SLayerOperation("NormRbf", label = "S2 Operation")
 
   c2_kwidth = KWidth(3, label = "C2 Kernel Width",
       desc = "spatial width of input neighborhood for C2 units")

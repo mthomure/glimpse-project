@@ -82,13 +82,14 @@ class ScipyBackend(object):
     result = (data - mu) / sigma
     return PruneArray(result, kshape, scaling)
 
-  def DotProduct(self, data, kernels, scaling, out = None):
+  def DotProduct(self, data, kernels, scaling = None, out = None, **ignore):
     """Convolve an array with a set of kernels.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert scaling != None
     assert data.ndim == 3
     assert kernels.ndim == 4
     output_bands = np.empty((kernels.shape[0],) + data.shape[-2:], data.dtype)
@@ -97,7 +98,8 @@ class ScipyBackend(object):
     output_bands = PruneArray(output_bands, kernels.shape, scaling)
     return output_bands
 
-  def NormDotProduct(self, data, kernels, bias, scaling, out = None):
+  def NormDotProduct(self, data, kernels, bias = None, scaling = None,
+      out = None, **ignore):
     """Convolve an array with a set of kernels, normalizing the response by the
     vector length of the input neighborhood.
     data -- (3-D) array of input data
@@ -107,6 +109,8 @@ class ScipyBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert bias != None
+    assert scaling != None
     assert data.ndim == 3
     assert kernels.ndim == 4
     assert np.allclose(np.array(map(np.linalg.norm, kernels)), 1), \
@@ -129,7 +133,8 @@ class ScipyBackend(object):
       return out
     return output_bands
 
-  def Rbf(self, data, kernels, beta, scaling, out = None):
+  def Rbf(self, data, kernels, beta = None, scaling = None, out = None,
+      **ignore):
     """Compare kernels to input data using the RBF activation function.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
@@ -137,6 +142,8 @@ class ScipyBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert beta != None
+    assert scaling != None
     assert data.ndim == 3
     assert kernels.ndim == 4
     def Op(k, o):
@@ -161,7 +168,8 @@ class ScipyBackend(object):
       return out
     return output_bands
 
-  def NormRbf(self, data, kernels, bias, beta, scaling, out = None):
+  def NormRbf(self, data, kernels, bias = None, beta = None, scaling = None,
+      out = None, **ignore):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
     data -- (3-D) array of input data
@@ -172,6 +180,9 @@ class ScipyBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert bias != None
+    assert beta != None
+    assert scaling != None
     nd = self.NormDotProduct(data, kernels, bias, scaling)
     y = np.exp(-2 * beta * (1 - nd))
     if out != None:

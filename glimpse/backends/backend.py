@@ -29,7 +29,7 @@ class IBackend(object):
     out -- (2-D) array in which to store result
     """
 
-  def DotProduct(self, data, kernels, scaling, out = None):
+  def DotProduct(self, data, kernels, scaling = None, out = None, **ignore):
     """Convolve an array with a set of kernels.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
@@ -37,7 +37,8 @@ class IBackend(object):
     out -- (2-D) array in which to store result
     """
 
-  def NormDotProduct(self, data, kernels, bias, scaling, out = None):
+  def NormDotProduct(self, data, kernels, bias = None, scaling = None,
+      out = None, **ignore):
     """Convolve an array with a set of kernels, normalizing the response by the
     vector length of the input neighborhood.
     data -- (3-D) array of input data
@@ -48,7 +49,8 @@ class IBackend(object):
     out -- (2-D) array in which to store result
     """
 
-  def Rbf(self, data, kernels, beta, scaling, out = None):
+  def Rbf(self, data, kernels, beta = None, scaling = None, out = None,
+      **ignore):
     """Compare kernels to input data using the RBF activation function.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
@@ -57,7 +59,8 @@ class IBackend(object):
     out -- (2-D) array in which to store result
     """
 
-  def NormRbf(self, data, kernels, bias, beta, scaling, out = None):
+  def NormRbf(self, data, kernels, bias = None, beta = None, scaling = None,
+      out = None, **ignore):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
     data -- (3-D) array of input data

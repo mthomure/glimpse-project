@@ -23,16 +23,18 @@ class CythonBackend(object):
     return filter.ContrastEnhance(data, kwidth, kwidth, bias = bias,
         out_data = out)
 
-  def DotProduct(self, data, kernels, scaling, out = None):
+  def DotProduct(self, data, kernels, scaling = None, out = None, **ignore):
     """Convolve an array with a set of kernels.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert scaling != None
     return filter.DotProduct(data, kernels, out_data = out, scaling = scaling)
 
-  def NormDotProduct(self, data, kernels, bias, scaling, out = None):
+  def NormDotProduct(self, data, kernels, bias = None, scaling = None,
+      out = None, **ignore):
     """Convolve an array with a set of kernels, normalizing the response by the
     vector length of the input neighborhood.
     data -- (3-D) array of input data
@@ -42,10 +44,13 @@ class CythonBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert bias != None
+    assert scaling != None
     return filter.NormDotProduct(data, kernels, out_data = out, bias = bias,
         scaling = scaling)
 
-  def Rbf(self, data, kernels, beta, scaling, out = None):
+  def Rbf(self, data, kernels, beta = None, scaling = None, out = None,
+      **ignore):
     """Compare kernels to input data using the RBF activation function.
     data -- (3-D) array of input data
     kernels -- (4-D) array of (3-D) kernels
@@ -53,10 +58,13 @@ class CythonBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert beta != None
+    assert scaling != None
     return filter.Rbf(data, kernels, out_data = out, beta = beta,
         scaling = scaling)
 
-  def NormRbf(self, data, kernels, bias, beta, scaling, out = None):
+  def NormRbf(self, data, kernels, bias = None, beta = None, scaling = None,
+      out = None, **ignore):
     """Compare kernels to input data using the RBF activation function with
        normed inputs.
     data -- (3-D) array of input data
@@ -67,6 +75,9 @@ class CythonBackend(object):
     scaling -- (positive int) subsampling factor
     out -- (2-D) array in which to store result
     """
+    assert bias != None
+    assert beta != None
+    assert scaling != None
     return filter.NormRbf(data, kernels, out_data = out, bias = bias,
         beta = beta, scaling = scaling)
 

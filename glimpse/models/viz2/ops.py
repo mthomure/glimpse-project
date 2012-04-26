@@ -98,8 +98,9 @@ class ModelOps(object):
           " (*, %s, %s, %s), got %s" % (self.s2_kernel_shape + \
           [kernels.shape]))
     # Check kernel values
-    if not np.allclose(np.array(map(np.linalg.norm, kernels)), 1):
-      raise ValueError("S2 kernels are not normalized")
+    if self.params.s2_operation in ('NormDotProduct', 'NormRbf'):
+      if not np.allclose(np.array(map(np.linalg.norm, kernels)), 1):
+        raise ValueError("S2 kernels are not normalized")
     if np.isnan(kernels).any():
       raise ValueError("S2 kernels contain NaN")
     self._s2_kernels = kernels.astype(ACTIVATION_DTYPE)
@@ -130,8 +131,9 @@ class ModelOps(object):
     retina_ = retina.reshape((1,) + retina.shape)
     # Reshape kernel array to be 4-D: scale, index, 1, y, x
     s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
-    s1_ = self.backend.NormRbf(retina_, s1_kernels, bias = p.s1_bias,
-        beta = p.s1_beta, scaling = p.s1_scaling)
+    backend_op = getattr(self.backend, p.s1_operation)
+    s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
+        scaling = p.s1_scaling)
     # Reshape S1 to be 5D array
     s1 = s1_.reshape((p.num_scales, p.s1_num_orientations, p.s1_num_phases) + \
         s1_.shape[-2:])
@@ -175,10 +177,11 @@ class ModelOps(object):
     # Get the shape of the full S2 activity array
     s2_shape = (p.num_scales, len(self.s2_kernels)) + s2_shape
     s2s = np.empty(s2_shape, ACTIVATION_DTYPE)
+    backend_op = getattr(self.backend, p.s2_operation)
     for scale in range(p.num_scales):
       c1 = c1s[scale]
       s2 = s2s[scale]
-      self.backend.NormRbf(c1, self.s2_kernels, bias = p.s2_bias,
+      backend_op(c1, self.s2_kernels, bias = p.s2_bias,
           beta = p.s2_beta, scaling = p.s2_scaling, out = s2)
     return s2s
 
