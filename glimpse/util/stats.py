@@ -25,17 +25,17 @@ def Pca(X):
   error. Returns the transform, the standard deviation for each axis, and the mean of
   the training data.
   Usage:
-    T, S, M = Pca(X)
+    T, S = Pca(X)
   where X is a matrix of training data, T is the transformation matrix, S is the
-  array of standard devations, and M is the mean of the training data. To
-  transform a data point W given as an array, use
+  array of standard devations. To transform a data point W given as an array,
+  use
     Y = numpy.dot(T, W)
   """
   if len(X.shape) != 2:
     raise Exception("Training data must be a matrix")
   mean = X.mean(0)
   X = X - mean
-  # Find covariance matrix X - mu
+  # Find covariance matrix of X - mu
   cov = numpy.dot(X, X.T)
   # Find eigenvectors of symmetric covariance matrix
   eigenvalues, eigenvectors = numpy.linalg.eigh(cov)
@@ -44,9 +44,11 @@ def Pca(X):
   # Reorder transformation by descending eigenvalue.
   order = numpy.argsort(eigenvalues)[::-1]
   transform = transform[ order ]
+  # Any negative eigenvalues are zero, and negative sign is caused by numerical
+  # approximation error.
+  eigenvalues[ eigenvalues < 0 ] = 0
   stdev = numpy.sqrt(eigenvalues)[ order ]
-  mean = mean[ order ]
-  return transform, stdev, mean
+  return transform, stdev
 
 def CalculateRoc(target_labels, predicted_labels):
   """Calculate the points of the ROC curve from a set of labels and evaluations
