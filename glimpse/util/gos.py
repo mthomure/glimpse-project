@@ -75,6 +75,7 @@ class Cmd(object):
 
   def TieStderrToStdout(self):
     self.popen_stderr = subprocess.STDOUT
+    return self
 
   def Run(self):
     if self.verbose:
