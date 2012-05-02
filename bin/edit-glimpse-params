@@ -1,5 +1,11 @@
 #!/usr/bin/env python
 
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
 # Read and write glimpse parameter files using a GUI.
 
 from glimpse import glab, util
