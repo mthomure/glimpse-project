@@ -71,8 +71,12 @@ class ModelOps(object):
     if kernels.shape != self.s1_kernel_shape:
       raise ValueError("S1 kernels have wrong shape: expected %s, got %s" % \
           (self.s1_kernel_shape, kernels.shape))
-    else:
-      self._s1_kernels = kernels.astype(ACTIVATION_DTYPE)
+    if self.params.s1_operation in ('NormDotProduct', 'NormRbf'):
+      if not np.allclose(np.array(map(np.linalg.norm, kernels)), 1):
+        raise ValueError("S1 kernels are not normalized")
+    if np.isnan(kernels).any():
+      raise ValueError("S1 kernels contain NaN")
+    self._s1_kernels = kernels.astype(ACTIVATION_DTYPE)
 
   @property
   def s2_kernel_shape(self):
