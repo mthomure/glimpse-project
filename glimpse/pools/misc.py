@@ -69,6 +69,6 @@ def GetClusterPackage(cluster_type = None):
     cluster_type = os.environ.get('GLIMPSE_CLUSTER_TYPE', 'ipython')
     if cluster_type == None:
       raise Exception('Must specify pool type')
-  cluster_mod = __import__("glimpse.pools.%s_cluster" % cluster_type, globals(), locals(), ["MakePool"], 0)
-  main_mod = __import__("glimpse.pools.%s_cluster.main" % cluster_type, globals(), locals(), ["main"], 0)
-  return cluster_mod.MakePool, main_mod.main
+  cluster_mod = __import__("glimpse.pools.%s_cluster" % cluster_type, globals(),
+    locals(), ["MakePool", "RunMain"], 0)
+  return cluster_mod

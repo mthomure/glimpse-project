@@ -6,5 +6,7 @@
 
 from .config import ClusterConfig, ConfigException
 from .manager import ClusterManager
-from .misc import LaunchBrokers, LaunchWorker, PingWorkers, KillWorkers, RestartWorkers
+from .misc import LaunchBrokers, LaunchWorker, PingWorkers, KillWorkers, \
+    RestartWorkers
 from .pool import ClusterPool, MakePool
+from .main import main as RunMain

@@ -518,15 +518,13 @@ def GetPool():
     __POOL = pools.MakePool()
   return __POOL
 
-def MakeClusterPool(config_file = None, chunksize = None):
-  MakePool, _ = pools.GetClusterPackage()
-  return MakePool(config_file, chunksize)
-
 def UseCluster(config_file = None, chunksize = None):
   """Use a cluster of worker nodes for any following experiment commands.
   config_file -- (str) path to the cluster configuration file
   """
-  SetPool(MakeClusterPool(config_file, chunksize))
+  pkg = pools.GetClusterPackage()
+  pool = pkg.MakePool(config_file, chunksize)
+  SetPool(pool)
 
 def SetModelClass(model_class = None):
   """Set the model type.

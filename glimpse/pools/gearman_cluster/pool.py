@@ -82,21 +82,10 @@ class Client(gearman.GearmanClient):
 
   imap = map  # imap is not implemented yet
 
-class ClusterPool(Client):
-
-  def __init__(self, config, chunksize = None):
-    if chunksize == None:
-      chunksize = Client.chunksize
-    job_server_url = config.get('client', 'job_server_url')
-    super(ClusterPool, self).__init__([job_server_url])
-    self.chunksize = chunksize
-
-def ReadClusterConfig(*config_files):
-  config = ConfigParser.SafeConfigParser()
-  read_files = config.read(config_files)
-  if len(read_files) == 0:
-    raise ConfigException("Unable to read any socket configuration files.")
-  return config
+class ConfigException(Exception):
+  """Indicates that an error occurred while reading the cluster
+  configuration."""
+  pass
 
 def MakePool(config_file = None, chunksize = None):
   config_files = list()
@@ -105,8 +94,15 @@ def MakePool(config_file = None, chunksize = None):
   config_file = os.environ.get('GLIMPSE_CLUSTER_CONFIG', None)
   if config_file != None:
     config_files.append(config_file)
-  config = ReadClusterConfig(*config_files)
-  return ClusterPool(config, chunksize)
+  config = ConfigParser.SafeConfigParser()
+  read_files = config.read(config_files)
+  if len(read_files) == 0:
+    raise ConfigException("Unable to read any socket configuration files.")
+  job_server_url = config.get('client', 'job_server_url')
+  client = ClusterPool([job_server_url])
+  if chunksize != None:
+    client.chunksize = chunksize
+  return client
 
 def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
   logging.info("Gearman command handler starting")

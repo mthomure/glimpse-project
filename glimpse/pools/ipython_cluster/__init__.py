@@ -1,2 +1,3 @@
 
-from .pool import ClusterPool, MakePool
+from .pool import MakePool
+from .main import main as RunMain

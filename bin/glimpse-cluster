@@ -12,7 +12,7 @@ import os
 import sys
 
 def main():
-  _, inner_main = pools.GetClusterPackage()
-  inner_main()
+  pkg = pools.GetClusterPackage()
+  pkg.RunMain()
 
 main()

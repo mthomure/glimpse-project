@@ -17,11 +17,6 @@ import threading
 import time
 import zmq
 
-class ConfigException(Exception):
-  """This exception indicates that an error occurred while reading the cluster
-  configuration."""
-  pass
-
 def LaunchBroker(config):
   """Start a set of intermediate devices for the cluster on this machine.
   RETURN This method does not return."""
@@ -152,7 +147,7 @@ def main(args = None):
     method = eval(args[0])
     config = pool.ReadClusterConfig(*config_files)
     method(config, *args[1:])
-  except ConfigException, e:
+  except pool.ConfigException, e:
     sys.exit("Configuration error: %s" % e)
   except util.UsageException, e:
     method_info = [ "  %s -- %s" % (m.func_name, m.__doc__.splitlines()[0])
