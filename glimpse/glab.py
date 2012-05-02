@@ -30,7 +30,7 @@ __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
     'MakeModel', 'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
     'MakeUniformRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
     'MakeHistogramRandomS2Prototypes', 'MakeNormalRandomS2Prototypes',
-    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit',
+    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'SetLayer',
     'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'CrossValidateSvm',
     'TrainSvm', 'TestSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment',
     'Verbose')
@@ -682,9 +682,9 @@ def SetLayer(layer = None):
   """
   global __LAYER, __MODEL_CLASS
   if layer == None:
-    layer = __MODEL_CLASS.LayerClass.IT
+    layer = GetModelClass().LayerClass.IT
   elif isinstance(layer, str):
-    layer = __MODEL_CLASS.LayerClass.FromName(layer)
+    layer = GetModelClass().LayerClass.FromName(layer)
   __LAYER = layer
   return __LAYER
 
