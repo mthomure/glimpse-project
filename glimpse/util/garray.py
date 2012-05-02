@@ -1,17 +1,15 @@
+"""Miscellaneous functions for dealing with numpy arrays."""
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-#
-# Functions for dealing with N-dimensional arrays.
-#
-
 import Image
 import math
 import numpy
 
+#: Element type for an array of Glimpse activation values.
 ACTIVATION_DTYPE = numpy.float32
 
 def ArgMax(array):
@@ -33,8 +31,11 @@ def ScaleUnitNorm(x):
   return x
 
 def ArrayToGreyscaleImage(array, normalize = True):
-  """Create a greyscale image from a 2D numpy array. Assumes range of input
-     values contains 0."""
+  """Create a greyscale image from a 2D numpy array.
+
+  This function assumes range of input values contains 0.
+
+  """
   if array.dtype != numpy.float32:
     array = array.astype(numpy.float32)
   if len(array.shape) > 2:
@@ -54,10 +55,20 @@ def ArrayToGreyscaleImage(array, normalize = True):
   return Image.fromarray(array, 'L')
 
 def ArrayToRGBImage(array):
+  """Create a color image from an array.
+
+  :rtype: PIL.Image
+
+  """
   return Image.fromarray(array, 'RGB')
 
 def ArrayListToVector(arrays):
-  """Convert list of numpy arrays to a single numpy vector."""
+  """Flatten a list of numpy arrays to a single numpy vector.
+
+  :type arrays: list of ndarray
+  :rtype: ndarray
+
+  """
   assert len(arrays) > 0
   out_size = sum(a.size for a in arrays)
   out = numpy.empty((out_size,), arrays[0].dtype)
@@ -79,9 +90,13 @@ def PadArray(data, out_shape, cval):
 
 def CropArray(data, out_shape):
   """Remove the border of an array.
-  data -- input array
-  out_shape -- shape of central region to return
-  RETURNS view of the central region of input array.
+
+  :param ndarray data: Input array.
+  :param out_shape: Shape of central region to return.
+  :type out_shape: list of int
+  :rtype: ndarray
+  :returns: View of the central region of input array.
+
   """
   assert numpy.all(numpy.array(data.shape) >= numpy.array(out_shape))
   out_shape = numpy.array(out_shape)

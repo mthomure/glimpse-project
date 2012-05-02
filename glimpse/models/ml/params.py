@@ -8,6 +8,10 @@ from glimpse.util import traits
 from glimpse.models.viz2.params import KWidth, SLayerOperation
 
 class Params(traits.HasStrictTraits):
+  """Parameter container for the :class:`ml model
+  <glimpse.models.ml.model.Model>`.
+
+  """
 
   retina_bias = traits.Range(low = 0., value = 1., label = "Retina Bias",
       desc = "term added to standard deviation of local window")

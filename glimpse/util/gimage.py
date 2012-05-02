@@ -1,12 +1,9 @@
+"""Miscellaneous functions related to images and image processing."""
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
-
-#
-# Functions for dealing with images, and image processing
-#
 
 from garray import ACTIVATION_DTYPE, PadArray
 import numpy
@@ -15,9 +12,18 @@ from scipy import fftpack
 import sys
 
 def ImageToArray(img, array = None, transpose = True):
-  """Load image data into a 2D numpy array. If array is unspecified, then one
-  will be generated automatically. Note that this array may not be contiguous.
-  The array holding image data is returned."""
+  """Load image data into a 2D numpy array.
+
+  :param img: Image to read.
+  :type img: PIL.Image
+  :param ndarray array: Output array. If unspecified, one will be generated
+     automatically.
+  :param bool transpose: Whether image data should be transposed before
+     returning.
+  :returns: Array containing image data. Note that this may be non-contiguous.
+  :rtype: ndarray
+
+  """
   def MakeBuffer():
     if img.mode == 'L':
       return numpy.empty(img.size, dtype = numpy.uint8)
@@ -57,12 +63,14 @@ def ImageToArray(img, array = None, transpose = True):
   assert False, "Internal logic error!"
 
 def ShowImage(img, fname = None):
+  """Display an image to the user."""
   if sys.platform == "darwin":
     img.show()
   else:
     ShowImageOnLinux(img, fname)
 
 def ShowImageOnLinux(img, fname = None):
+  """Display an image to the user under Linux."""
   dir = TempDir()
   if not fname or '..' in fname:
     fname = 'img.png'
@@ -72,8 +80,12 @@ def ShowImageOnLinux(img, fname = None):
 
 def PowerSpectrum2d(image):
   """Compute the 2-D power spectrum for an image.
-  image -- (2-D array) image data
-  RETURNS (2-D array) squared amplitude from FFT of image
+
+  :param image: Image data.
+  :type image: 2D ndarray
+  :returns: Squared amplitude from FFT of image.
+  :rtype: 2D ndarray
+
   """
   from scipy.fftpack import fftshift, fft2
   return np.abs(fftshift(fft2(image))) ** 2
@@ -82,11 +94,14 @@ def PowerSpectrum(image, width = None):
   """Get the 1-D power spectrum (squared-amplitude at each frequency) for a
   given input image. This is computed from the 2-D power spectrum via a
   rotational average.
-  image -- input data
-  width -- (optional int) width of image to use for FFT (i.e., image width plus
-           padding)
-  RETURNS (2-D) array whose rows contain the value, sum, and count of bins in
-          the power histogram.
+
+  :param image: Image data.
+  :type image: 2D ndarray
+  :param int width: Width of image to use for FFT (i.e., image width plus
+     padding). By default, this is the width of the image.
+  :returns: Array whose rows contain the value, sum, and count of bins in the
+     power histogram.
+
   """
   # from: http://www.astrobetter.com/fourier-transforms-of-images-in-python/
   assert image.ndim == 2

@@ -1,12 +1,9 @@
+"""Miscellaneous functions related to ASCII and pickled-binary file I/O."""
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
-
-#
-# Functions related to ASCII and pickled-binary file I/O.
-#
 
 import cPickle
 from cStringIO import StringIO
@@ -17,7 +14,7 @@ import sys
 from misc import IsIterable, IsString
 
 def ReadLines(fname_or_fh):
-  """Returns lines of file as array."""
+  """Returns lines of file as an array."""
   if isinstance(fname_or_fh, str):
     fh = open(fname_or_fh)
     lines = [ s.strip() for s in fh ]
@@ -28,24 +25,51 @@ def ReadLines(fname_or_fh):
   return lines
 
 def WriteLines(lines, fname):
+  """Write an array as lines of a file.
+
+  Any existing file data is destroyed.
+
+  """
   fh = open(fname, 'w')
   for l in lines:
     print >>fh, l
   fh.close()
 
 def WriteString(string, fname):
+  """Write a string to a file.
+
+  Any existing file data is destroyed.
+
+  """
   fh = open(fname, 'w')
   print >>fh, string
   fh.close()
 
 def ReadMatrix(fname, sep=" "):
+  """Read CSV data from a file.
+
+  .. deprecated:: 0.1
+     Use :func:`numpy.loadtxt` instead.
+
+  """
   return [ s.split(sep) for s in ReadLines(fname) ]
 
 def WriteMatrix(matrix, fname, sep=" "):
+  """Write CSV data to a file.
+
+  .. deprecated:: 0.1
+     Use :func:`numpy.savetxt` instead.
+
+  """
   WriteLines(sep.join(matrix), fname)
 
 def ReadGTiffFile(fname):
-  """Read a file in GTiff format as a 3D numpy array."""
+  """Read a file in GTiff format as an array.
+
+  :param str fname: Path to input file.
+  :rtype: 3D ndarray
+
+  """
   ## Assumes elements have type float32
   from osgeo import gdal
   from osgeo.gdalconst import GA_ReadOnly, GDT_Float32
@@ -71,15 +95,28 @@ def ReadGTiffFile(fname):
 
 ### Serialization ###
 
+#: Encoding ID for pickled data.
 ENCODING_PICKLE = "p"
-ENCODING_CSV = "c"   # CSV-formatted numeric data
+#: Encoding ID for CSV-formatted text data.
+ENCODING_CSV = "c"
+#: Encoding ID for free-formatted text data (used for output).
 ENCODING_FREE_TEXT = "s"
+#: The set of all input encodings.
 INPUT_ENCODINGS = (ENCODING_PICKLE, ENCODING_CSV)
+#: The set of all output encodings.
 OUTPUT_ENCODINGS = (ENCODING_PICKLE, ENCODING_CSV, ENCODING_FREE_TEXT)
-CSV_DELIM = None  # Use any whitespace string
+#: The CSV delimiter (defaults to any whitespace)
+CSV_DELIM = None
 
 def LoadAll(fnames, encoding = ENCODING_PICKLE):
-  """Return an iterator over all objects in a set of files."""
+  """Read all objects in a set of files.
+
+  :param fnames: Set of files to read.
+  :type fnames: list of str
+  :param encoding: Encoding of input files.
+  :returns: Iterator over the set of all objects read.
+
+  """
   if not IsIterable(fnames) or IsString(fnames):
     fnames = (fnames,)
   for fh in fnames:
@@ -95,7 +132,8 @@ def LoadAll(fnames, encoding = ENCODING_PICKLE):
         except EOFError:
           break
         except cPickle.UnpicklingError:
-          raise Exception("Caught exception (cPickle.UnpicklingError): maybe input encoding should not be \"%s\"?" % ENCODING_PICKLE)
+          raise Exception("Caught exception (cPickle.UnpicklingError): maybe "
+              "input encoding should not be \"%s\"?" % ENCODING_PICKLE)
     elif encoding == ENCODING_CSV:
       try:
         data = []
@@ -109,7 +147,8 @@ def LoadAll(fnames, encoding = ENCODING_PICKLE):
           data.append(record)
         yield numpy.array(data)
       except ValueError, e:
-        raise Exception("Caught exception (ValueError): maybe input encoding should not be \"%s\"?" % ENCODING_CSV)
+        raise Exception("Caught exception (ValueError): maybe input encoding "
+            "should not be \"%s\"?" % ENCODING_CSV)
     else:
       raise Exception("Invalid encoding: %s" % encoding)
     if do_close:
@@ -117,7 +156,11 @@ def LoadAll(fnames, encoding = ENCODING_PICKLE):
 
 def LoadPython(fname):
   """Load a file of Python source as a dictionary.
-  fname -- name of file from which to load options
+
+  :param str fname: Path to file from which to read script.
+  :returns: All global variables set by the script.
+  :rtype: dict
+
   """
   d = {}
   # Evaluate python source file, using d as namespace.
@@ -125,9 +168,14 @@ def LoadPython(fname):
   return d
 
 def LoadByFileName(fname, *args):
-  """Load data either from a python source file (if fname ends in ".py"), or a
-  file containing a single pickled variable.
-  fname -- name of file from which to load options
+  """Load data from a file.
+
+  If the filename ends in ".py", then this function treats the file as
+  python source. Otherwise, the file is treated as a pickled data object.
+
+  :param str fname: Path to file from which to read script.
+  :param args: The file encoding (for files not ending in ".py").
+
   """
   if IsString(fname) and fname.endswith('.py'):
     return LoadPython(fname)
@@ -138,6 +186,7 @@ def Load(fname = sys.stdin, encoding = ENCODING_PICKLE):
   return LoadAll((fname,), encoding).next()
 
 def Store(obj, fname = sys.stdout, encoding = ENCODING_PICKLE):
+  """Store a single object to a file."""
   if hasattr(fname, 'write'):
     fh = fname
   else:
@@ -160,8 +209,16 @@ def Store(obj, fname = sys.stdout, encoding = ENCODING_PICKLE):
     fh.close()
 
 def SuppressStdout(callback, *args, **vargs):
-  """Evaluate a function, ignoring the data written to stdout. This works even
-  if the code emitting data to stdout is in a compiled extension.
+  """Evaluate a function, ignoring the data written to stdout.
+
+  This works even if the code emitting data to stdout is in a compiled
+  extension.
+
+  :param callback: Function to call.
+  :param args: Positional arguments to pass to function.
+  :param vargs: Keyword arguments to pass to function.
+  :returns: Value returned by callback function.
+
   """
   # Copied from http://stackoverflow.com/questions/4178614/suppressing-output-
   # of-module-calling-outside-library

@@ -1,19 +1,18 @@
+"""Classes and functions for computing random sets of numbers."""
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-#
-# Classes and functions for computing random sets of numbers.
-#
-
 import numpy as np
 
 class HistogramSampler(object):
-  """Given repeated observations of a single random variable, first model the
-  probability distribution governing the variable using a histogram, and then
-  generate new variates according to this distribution.
+  """Random number generator based on a modelled distribution.
+
+  Given repeated observations of a single random variable, this object first
+  models the probability distribution that governs the variable using a
+  histogram. It then generates new variates according to this distribution.
 
   This sampler trades space for time by approximating the cumulative
   histogram as a single linear array in memory, where the value of a histogram
@@ -24,24 +23,26 @@ class HistogramSampler(object):
   elements in the cumulative distribution (cum-dist) array.
   """
 
-  # Relative drop in range of values between observed and generated variates.
+  #: Relative drop in range of values between observed and generated variates.
   range_error = 0
 
   def __init__(self, data, bins = 100, resolution = 0.0025):
-    """
-    Construct a new sampler object.
-    data -- (1-D) array of observations for a single random variable
-    bins -- (positive int) number of bins to use when generating the histogram
-    resolution -- (float in [0,1)) resolution of each element of the cum-dist
-                  array. For example, a resolution of 0.25 means that a
-                  histogram bin is represented in the cum-dist array only when
-                  its magnitude is at least 25% of the total mass (i.e., that at
-                  least 1/4 of the total observations fell in the bin's
-                  interval). In this case, the cum-dist array requires only four
-                  elements. On the other hand, a resolution of 0.0025 means that
-                  a histogram bin needs to contain only 0.25% of the total mass
-                  to be represented in the cum-dist array, which now requires
-                  400 elements.
+    """Construct a new sampler object.
+
+    :param data: Observations for a single random variable.
+    :type data: 1D ndarray
+    :param bins: Number of bins to use when generating the histogram.
+    :type bins: positive int
+    :param resolution: Resolution of each element of the cum-dist array. For
+       example, a resolution of 0.25 means that a histogram bin is represented
+       in the cum-dist array only when its magnitude is at least 25% of the
+       total mass (i.e., that at least 1/4 of the total observations fell in the
+       bin's interval). In this case, the cum-dist array requires only four
+       elements. On the other hand, a resolution of 0.0025 means that a
+       histogram bin needs to contain only 0.25% of the total mass to be
+       represented in the cum-dist array, which now requires 400 elements.
+    :type resolution: float in [0, 1]
+
     """
     # Bin the data.
     magnitudes, edges = np.histogram(data, bins)
@@ -79,7 +80,12 @@ class HistogramSampler(object):
 
   def Sample(self, size = 1):
     """Generate variates according to the modelled distribution.
-    size -- (int or tuple of int) the number of variates to generate
+
+    :param size: Number of variates to generate.
+    :type size: int, or tuple of int
+    :returns: Generated variates.
+    :rtype: ndarray
+
     """
     # Sample uniformly from the cumulative distribution array.
     cum_dist_indices = np.random.randint(0, len(self.cum_dist), size = size)

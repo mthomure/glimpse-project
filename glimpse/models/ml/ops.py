@@ -11,23 +11,28 @@ from params import Params
 from scipy.ndimage.interpolation import zoom
 
 class ModelOps(BaseModelOps):
-  """Base class for a Glimpse model based on Mutch & Lowe (2008). This class
-  implements all single-layer transformations."""
+  """Base class for a Glimpse model based on Mutch & Lowe (2008).
 
-  # The parameters type associated with this model.
+  This class implements all single-layer transformations.
+
+  """
+
+  #: The parameters type associated with this model.
   ParamsClass = Params
 
   @property
   def s1_kernel_shape(self):
-    """Get the expected shape of the S1 kernels array (i.e., includes band
-    structure).
-    RETURN (tuple) expected shape"""
+    """The expected shape of the S1 kernels array, including band structure.
+
+    :rtype: tuple of int
+
+    """
     p = self.params
     return p.s1_num_orientations, p.s1_num_phases, p.s1_kwidth, p.s1_kwidth
 
   @property
   def s1_kernels(self):
-    """Get the S1 kernels array, generating it if unset."""
+    """The S1 kernels array, which are generated if not set."""
     # if kernels array is empty, then generate it using current model parameters
     if self._s1_kernels == None:
       p = self.params
@@ -40,8 +45,17 @@ class ModelOps(BaseModelOps):
 
   def BuildS1FromRetina(self, retina):
     """Apply S1 processing to some existing retinal layer data.
-    retina -- (2-D array) result of retinal layer processing
-    RETURNS list of (4-D) S1 activity arrays, with one array per scale
+
+    .. note::
+
+       This method pools over phase, so the output has only scale and
+       orientation bands.
+
+    :param retina: Result of retinal layer processing.
+    :type retina: 2D ndarray of float
+    :return: S1 activity arrays, with one array per scale
+    :rtype: list of 3D ndarray of float
+
     """
     # Create scale pyramid of retinal map
     p = self.params
@@ -62,10 +76,19 @@ class ModelOps(BaseModelOps):
           s1_.shape[-2:])
       # Pool over phase.
       s1 = s1.max(1)
+      # Append 3D array to list
       s1s.append(s1)
     return s1s
 
   def BuildC1FromS1(self, s1s):
+    """Compute the C1 layer activity from multi-scale S1 activity.
+
+    :param s1s: S1 activity for each scale.
+    :type s1s: list of 3D ndarray of float, or 4D ndarray of float
+    :returns: C1 activity, with one array per scale.
+    :rtype: list of 3D ndarray of float
+
+    """
     p = self.params
     c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
         scaling = p.c1_scaling) for s1 in s1s ]
@@ -74,6 +97,14 @@ class ModelOps(BaseModelOps):
     return c1s
 
   def BuildS2FromC1(self, c1s):
+    """Compute the S2 layer activity from multi-scale C1 activity.
+
+    :param c1s: C1 activity
+    :type c1s: 4D ndarray of float, or list of 3D ndarray of float
+    :returns: S2 activity for each scale
+    :rtype: list of 3D ndarray of float
+
+    """
     if self.s2_kernels == None:
       raise Exception("Need S2 kernels to compute S2 layer activity, but none "
           "were specified.")
@@ -84,5 +115,6 @@ class ModelOps(BaseModelOps):
       c1 = c1s[scale]
       s2 = backend_op(c1, self.s2_kernels, bias = p.s2_bias,
           beta = p.s2_beta, scaling = p.s2_scaling)
+      # Append 3D array to list
       s2s.append(s2)
     return s2s

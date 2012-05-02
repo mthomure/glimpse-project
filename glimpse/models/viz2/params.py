@@ -7,7 +7,8 @@
 from glimpse.util import traits
 
 class KWidth(traits.BaseInt):
-  """A trait type corresponding to a kernel width (a positive, odd integer)."""
+  """A trait type corresponding to a Glimpse kernel width (a positive, odd
+  integer)."""
 
   default_value = 1
 
@@ -20,7 +21,7 @@ class KWidth(traits.BaseInt):
     self.error(object, name, value)
 
 class SLayerOperation(traits.Enum):
-  """A trait type corresponding to an S-unit filter operation."""
+  """A trait type corresponding to a Glimpse S-unit filter operation."""
 
   info_text = 'S-unit filter type'
 
@@ -29,6 +30,10 @@ class SLayerOperation(traits.Enum):
         "NormDotProduct", "Rbf", "NormRbf"), **metadata)
 
 class Params(traits.HasStrictTraits):
+  """Parameter container for the :class:`viz2 model
+  <glimpse.models.viz2.model.Model>`.
+
+  """
 
   retina_bias = traits.Range(low = 0., value = 1., label = "Retina Bias",
       desc = "term added to standard deviation of local window")

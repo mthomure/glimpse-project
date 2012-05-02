@@ -1,9 +1,9 @@
+"""Functions for dealing with the kernel matrices of linear filters."""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
-
-# Functions for dealing with kernel matrices of filter operations.
 
 from garray import ScaleUnitNorm, ACTIVATION_DTYPE
 from gimage import ImageToArray
@@ -13,18 +13,24 @@ import numpy as np
 def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
     lambda_ = None, scale_norm = True):
   """Create a kernel matrix by evaluating the 2-D Gabor function.
-  kwidth - width of the kernel (should be odd)
-  theta - orientation of the (normal to the) preferred frequency
-  gamma - aspect ratio of Gaussian window (gamma = 1 means a circular window,
-          0 < gamma < 1 means the window is elongated)
-  sigma - standard deviation of Gaussian window (1/4 wavelength is good choice,
-          so that the window covers approximately two full wavelengths of the
-          sine function)
-  phi - phase offset (phi = 0 detects white edge on black background, phi = PI
-        detects black edge on white background)
-  lambda_ - wavelength of sine function (2/5 * kwidth is good choice, so that
-            the kernel can fit 2 1/2 wavelengths total)
-  scale_norm - if true, then rescale kernel vector to have unit norm
+
+  :param kwidth: Width of the kernel.
+  :type kwidth: odd int
+  :param float theta: Orientation of the (normal to the) preferred frequency.
+  :param float gamma: Aspect ratio of Gaussian window (*gamma* = 1 means a
+     circular window, while 0 < *gamma* < 1 means the window is elongated).
+  :param float sigma: Standard deviation of Gaussian window (1/4 the wavelength
+     is a good choice, so that the window covers approximately two full
+     wavelengths of the sine function).
+  :param float phi: Phase offset (*phi* = 0 detects white edge on black
+     background, *phi* = :math:`\pi` detects black edge on white background).
+  :param float lambda_: Wavelength of sine function (2/5 * *kwidth* is a good
+     choice, so that the kernel can fit 2 1/2 wavelengths total).
+  :param bool scale_norm: If true, the kernel vector will be scaled to have unit
+     norm.
+  :returns: kernel matrix
+  :rtype: 2D ndarray of float
+
   """
   from numpy import sin, cos, exp, mgrid
   from math import pi
@@ -47,17 +53,22 @@ def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
 
 def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
     **args):
-  """Create a set of 2-D square kernel arrays whose components are chosen
+  """Create a set of 2-D square kernel arrays, whose components are chosen
   according to the Gabor function.
-  kwidth - width of kernel (should be odd)
-  num_orientations - number of edge orientations (orientations will be spread
-                     between 0 and pi)
-  num_phases - number of Gabor phases (a value of 2 matches a white edge on a
-               black background, and vice versa)
-  shift_orientations - whether to rotate Gabor through a small angle (a value of
-                       True helps compensate for aliasing)
-  scale_norm - if true, then rescale kernel vector to have unit norm
-  RETURNS: 4-D array of kernel values
+
+  :param kwidth: Width of kernel.
+  :type kwidth: odd int
+  :param int num_orientations: Number of edge orientations (orientations will be
+     spread between 0 and :math:`\pi`).
+  :param int num_phases: Number of Gabor phases (a value of 2 matches a white
+     edge on a black background, and vice versa).
+  :param bool shift_orientations: Whether to rotate Gabor through a small angle
+     (a value of True helps compensate for aliasing).
+  :param bool scale_norm: If true, then the kernel vector is scaled to have unit
+     norm.
+  :returns: kernel arrays
+  :rtype: 4D ndarray of float
+
   """
   from math import pi
   if shift_orientations:
@@ -118,12 +129,16 @@ def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
 
 def DrawGaborAsLine(orient, num_orientations = 8, kwidth = 11,
     shift_orientations = False, line_width = 1):
-  """Draw the line corresponding to a given Gabor. The generated line is phase
-  independent.
-  norientations - number of edge orientations
-  kwidth - width of kernel in pixels
-  shift_orientations - whether to rotate Gabor through a small angle
-  line_width - width of drawn line in pixels
+  """Draw the line corresponding to a given Gabor.
+
+  The generated line is phase independent.
+
+  :param int norientations: Number of edge orientations.
+  :param int kwidth: Width of kernel in pixels.
+  :param bool shift_orientations: Whether to rotate Gabor through a small angle.
+  :param int line_width: Width of drawn line in pixels.
+  :rtype: 2D ndarray of float
+
   """
   from math import pi, tan
   assert orient < num_orientations, "Expected orientation in [0, %s]: got %s" %\
@@ -159,12 +174,18 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
     std = 0.15):
   """Create a set of N-dimensional kernel arrays whose components are sampled
   independently from the normal distribution.
-  nkernels - number of kernels to create
-  kshape - dimensions of each kernel
-  normalize - whether the resulting kernels should be scaled to have unit norm
-  mean - center of the component-wise normal distribution
-  std - standard deviation of the component-wise normal distribution
-  RETURNS: N-D array of kernel values [where N = len(kshape)+1]
+
+  :param int nkernels: Number of kernels to create.
+  :param kshape: Dimensions of each kernel.
+  :type kshape: list of int
+  :param bool normalize: Whether the resulting kernels should be scaled to have
+     unit norm.
+  :param float mean: Center of the component-wise normal distribution.
+  :param float std: Standard deviation of the component-wise normal
+     distribution.
+  :returns: Array of kernel values [with N dimensions, where N = len(kshape)+1].
+  :rtype: ndarray
+
   """
   shape = (nkernels,) + kshape
   kernels = np.random.normal(mean, std, shape).astype(np.float32)
@@ -176,10 +197,19 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
 
 def MakeLanczosKernel():
   """Construct a smoothing filter based on the Lanczos window.
-  RETURNS (2-d array) fixed-size, square kernel
-  http://en.wikipedia.org/wiki/Lanczos_resampling
-  http://stackoverflow.com/questions/1854146/what-is-the-idea-behind-scaling-an-
-  image-using-lanczos
+
+  .. seealso::
+     For more information image resampling using the Lanczos kernel, see the
+     `Wikipedia article`_ or the `StackOverflow discussion`_.
+
+  .. _StackOverflow discussion: http://stackoverflow.com/questions/1854146/
+     what-is-the-idea-behind-scaling-an-image-using-lanczos
+
+  .. _Wikipedia article: http://en.wikipedia.org/wiki/Lanczos_resampling
+
+  :returns: Fixed-size, square kernel.
+  :rtype: 2D ndarray
+
   """
   from numpy import arange, sinc, outer
   a = 3.0

@@ -16,14 +16,14 @@ import random
 class LayerSpec(object):
   """Describes a single layer in a model."""
 
-  # A unique (within a given model) identifier for the layer. Not necessarily
-  # numeric.
+  #: A unique (within a given model) identifier for the layer. Not necessarily
+  #: numeric.
   id = 0
 
-  # A user-friendly name for the layer.
+  #: A user-friendly name for the layer.
   name = ""
 
-  # Parents whose data is required to compute this layer.
+  #: Parents whose data is required to compute this layer.
   depends = []
 
   def __init__(self, id, name = None, *depends):
@@ -54,12 +54,16 @@ class InputSourceLoadException(Exception):
   __repr__ = __str__
 
 class InputSource(object):
-  """Describes the input to a hierarchical model. Examples include the path to a
-  single image, or the path and frame of a video."""
+  """Describes the input to a hierarchical model.
 
-  # Path to an image file.
+  Examples include the path to a single image, or the path and frame of a video.
+
+  """
+
+  #: Path to an image file.
   image_path = None
-  # Size of minimum dimension when resizing
+
+  #: Size of minimum dimension when resizing
   resize = None
 
   def __init__(self, image_path = None, resize = None):
@@ -73,7 +77,11 @@ class InputSource(object):
     self.resize = resize
 
   def CreateImage(self):
-    """Create a new PIL.Image object for this input source."""
+    """Reads image from this input source.
+
+    :rtype: PIL.Image
+
+    """
     try:
       img = Image.open(self.image_path)
     except IOError:
@@ -102,9 +110,12 @@ class InputSource(object):
 
 def ImageLayerFromInputArray(input_, backend):
   """Create the initial image layer from some input.
-  input_ -- Image or (2-D) array of input data. If array, values should lie in
-            the range [0, 1].
-  RETURNS (2-D) array containing image layer data
+
+  :param input_: Input data. If array, values should lie in the range [0, 1].
+  :type input_: PIL.Image or 2D ndarray of float
+  :returns: Image layer data.
+  :rtype: 2D ndarray of float
+
   """
   if isinstance(input_, Image.Image):
     input_ = input_.convert('L')
@@ -117,10 +128,13 @@ def ImageLayerFromInputArray(input_, backend):
 def SampleC1Patches(c1s, kwidth):
   """
   Sample patches from a layer of C1 activity.
-  c1s - (4-D array, or list of 3-D arrays) C1 activity maps, one map per scale.
-  RETURNS: infinite iterator over prototype arrays and corresponding locations
-           (i.e., iterator elements are 2-tuples). Prototype location gives
-           top-left corner of C1 region.
+
+  :param c1s: C1 activity maps, one map per scale.
+  :type c1s: 4D ndarray, or list of 3D ndarray
+  :returns: Infinite iterator over prototype arrays and corresponding locations
+     (i.e., iterator elements are 2-tuples). Prototype location gives top-left
+     corner of C1 region.
+
   """
   assert (np.array(len(c1s[0].shape)) == 3).all()
   num_scales = len(c1s)
@@ -141,32 +155,47 @@ class DependencyError(Exception):
   unavailable."""
 
 class AbstractNetwork(object):
+  """An abstract base class for a Glimpse model.
+
+  This class provides the scafolding for recursive dependency satisfaction.
+
+  """
 
   def BuildSingleNode(self, output_id, state):
     """Constructs a given node from one or more pre-computed input nodes.
-    output_id -- unique (at least in this network) identifier for output node
-    input_values -- (dict) set of node data for inputs (will not be modified)
-    RETURN scalar output value for node
+
+    :param output_id: Unique (at least in this network) identifier for output
+       node.
+    :param dict input_values: Node data for inputs (will not be modified).
+    :returns: Scalar output value for node.
+
     """
     raise NotImplemented
 
   def GetDependencies(self, output_id):
-    """Encodes the dependency structure for each node in the network, providing
-    identifiers for the set of inputs required to build a given output node.
-    output_id -- unique identifier for output node
-    RETURN (list) identifiers of required input nodes
+    """Encodes the dependency structure for each node in the network.
+
+    :param output_id: Unique identifier for output node.
+    :returns: Identifiers of nodes required to build the given output node.
+    :rtype: list
+
     """
     raise NotImplemented
 
   def BuildNode(self, output_id, state):
-    """Construct the given output value, recursively building required
-    dependencies. A node is considered to be "built" if the node's key is set in
-    the state dictionary, even if the corresponding value is None.
-    output_id -- unique identifier for the node to compute
-    state -- (dict) current state of the network, which may be used to store the
-             updated network state.
-    RETURN (dict) the final state of the network, which is guaranteed to
-           contain a value for the output node.
+    """Construct the given output value.
+
+    The output value is built by recursively building required dependencies. A
+    node is considered to be *built* if the node's key is set in the state
+    dictionary, even if the corresponding value is None.
+
+    :param output_id: Unique identifier for the node to compute.
+    :param dict state: Current state of the network, which may be used to store
+       the updated network state.
+    :returns: The final state of the network, which is guaranteed to contain a
+       value for the output node.
+    :rtype: dict
+
     """
     # Short-circuit computation if data exists
     if output_id not in state:

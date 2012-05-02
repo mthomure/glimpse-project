@@ -8,14 +8,25 @@
 import scipy
 from scipy.ndimage import maximum_filter
 import numpy as np
+from glimpse.util import docstring
+from glimpse.backends.backend import IBackend
 
 def Correlate(data, kernel, output = None):
-  """Apply a multi-band filter to a set of 2-D arrays, by applying Scipy's
-  correlate() to each 2-D input array and then summing across bands.
-  data -- (N-D) input array
-  kernel -- (N-D) kernel array
-  output -- (2-D) output array
-  RETURN (2-D) array containing output of correlation
+  """Apply a multi-band filter to a set of 2D arrays.
+
+  This is done by applying Scipy's :func:`scipy.ndimage.correlate` to each 2D
+  input array and then summing across bands.
+
+  :param data: Input data.
+  :type data: ndarray of float
+  :param kernel: Kernel array.
+  :type kernel: ndarray of float
+  :param output: Array in which to store result. If None, a new array will be
+     created.
+  :type output: ndarray of float
+  :return: Output of correlation.
+  :rtype: ndarray of float
+
   """
   assert data.ndim >= 2
   assert data.shape[:-2] == kernel.shape[:-2]
@@ -35,15 +46,24 @@ def Correlate(data, kernel, output = None):
   return output
 
 def PruneArray(data, kernel_shape, scaling):
-  """Scipy's correlate() applies kernel to border units (in last two
-  dimensions), and performs no subsampling. This function returns a cropped view
-  of the result array, in which border units have been removed, and subsampling
-  has been performed.
-  data -- (N-dim) result array from one or more correlate() calls
-  kernel_shape -- (tuple) shape of the kernel passed to correlate(). If None,
-                  then cropping is disabled and only subsampling is performed.
-  scaling -- (positive int) subsampling factor
-  RETURN cropped, sampled view (not copy) of the input data
+  """Crop correlation results.
+
+  Scipy's :func:`scipy.ndimage.correlate` applies kernel to border units (in the
+  last two dimensions), and performs no subsampling. This function returns a
+  cropped view of the result array, in which border units have been removed, and
+  subsampling has been performed.
+
+  :param data: Result from one or more :func:`scipy.ndimage.correlate` calls
+  :type data: ndarray of float
+  :param kernel_shape: Shape of the kernel passed to
+     :func:`scipy.ndimage.correlate`. If None, then cropping is disabled and
+     only subsampling is performed.
+  :type kernel_shape: tuple of int
+  :param scaling: Subsampling factor.
+  :type scaling: positive int
+  :return: Cropped, sampled view (not copy) of the input data.
+  :rtype: ndarray of float
+
   """
   if kernel_shape == None:
     # Keep all bands
@@ -62,15 +82,10 @@ def PruneArray(data, kernel_shape, scaling):
   return data[band_indices + map_indices]
 
 class ScipyBackend(object):
+  """:class:`IBackend` implementation using calls to :mod:`scipy` functions."""
 
+  @docstring.copy(IBackend.ContrastEnhance)
   def ContrastEnhance(self, data, kwidth, bias, scaling, out = None):
-    """Apply local contrast stretch to an array.
-    data -- (2-D) array of input data
-    kwidth -- (int) kernel width
-    bias -- (float) additive term in denominator
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert data.ndim == 2
     kshape = (kwidth, kwidth)
     # x - mu / std
@@ -82,13 +97,8 @@ class ScipyBackend(object):
     result = (data - mu) / sigma
     return PruneArray(result, kshape, scaling)
 
+  @docstring.copy(IBackend.DotProduct)
   def DotProduct(self, data, kernels, scaling = None, out = None, **ignore):
-    """Convolve an array with a set of kernels.
-    data -- (3-D) array of input data
-    kernels -- (4-D) array of (3-D) kernels
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert scaling != None
     assert data.ndim == 3
     assert kernels.ndim == 4
@@ -98,17 +108,9 @@ class ScipyBackend(object):
     output_bands = PruneArray(output_bands, kernels.shape, scaling)
     return output_bands
 
+  @docstring.copy(IBackend.NormDotProduct)
   def NormDotProduct(self, data, kernels, bias = None, scaling = None,
       out = None, **ignore):
-    """Convolve an array with a set of kernels, normalizing the response by the
-    vector length of the input neighborhood.
-    data -- (3-D) array of input data
-    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
-              have unit vector length
-    bias -- (float) additive term in denominator
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert bias != None
     assert scaling != None
     assert data.ndim == 3
@@ -133,15 +135,9 @@ class ScipyBackend(object):
       return out
     return output_bands
 
+  @docstring.copy(IBackend.Rbf)
   def Rbf(self, data, kernels, beta = None, scaling = None, out = None,
       **ignore):
-    """Compare kernels to input data using the RBF activation function.
-    data -- (3-D) array of input data
-    kernels -- (4-D) array of (3-D) kernels
-    beta -- (positive float) tuning parameter for radial basis function
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert beta != None
     assert scaling != None
     assert data.ndim == 3
@@ -168,18 +164,9 @@ class ScipyBackend(object):
       return out
     return output_bands
 
+  @docstring.copy(IBackend.NormRbf)
   def NormRbf(self, data, kernels, bias = None, beta = None, scaling = None,
       out = None, **ignore):
-    """Compare kernels to input data using the RBF activation function with
-       normed inputs.
-    data -- (3-D) array of input data
-    kernels -- (4-D) array of (3-D) kernels, where each kernel is expected to
-        have unit length
-    bias -- (float) additive term in denominator
-    beta -- (positive float) tuning parameter for radial basis function
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert bias != None
     assert beta != None
     assert scaling != None
@@ -190,13 +177,8 @@ class ScipyBackend(object):
       return out
     return y
 
+  @docstring.copy(IBackend.LocalMax)
   def LocalMax(self, data, kwidth, scaling, out = None):
-    """Convolve maps with local 2-D max filter.
-    data -- (3-D) array of input data
-    kwidth -- (positive int) kernel width
-    scaling -- (positive int) subsampling factor
-    out -- (2-D) array in which to store result
-    """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     kshape = (kwidth, kwidth)
@@ -209,44 +191,25 @@ class ScipyBackend(object):
       return out
     return output_bands
 
+  @docstring.copy(IBackend.GlobalMax)
   def GlobalMax(self, data, out = None):
-    """Find the per-band maxima.
-    data -- (3-D) array of input data
-    out -- (2-D) array in which to store result
-    """
     assert len(data.shape) == 3, \
         "Unsupported shape for input data: %s" % (data.shape,)
     return data.reshape(data.shape[0], -1).max(1, out)
 
+  @docstring.copy(IBackend.OutputMapShapeForInput)
   def OutputMapShapeForInput(self, kheight, kwidth, scaling, iheight, iwidth):
-    """Given an input map with the given dimensions, compute the shape of the
-    corresponding output map.
-    kheight -- (positive int) kernel height
-    kwidth -- (positive int) kernel width
-    scaling -- (positive int) subsampling factor
-    iheight -- (positive int) input map height
-    iwidth -- (positive int) input map width
-    RETURNS (tuple) output map height and width, in that order
-    """
     oheight = iheight / scaling - kheight + 1
     owidth = iwdith / scaling - kheight + 1
 
+  @docstring.copy(IBackend.InputMapShapeForOutput)
   def InputMapShapeForOutput(self, kheight, kwidth, scaling, oheight, owidth):
-    """The inverse of OutputMapShapeForInput(). Given an output map with the
-    given dimensions, compute the shape of the corresponding input map.
-    kheight -- (positive int) kernel height
-    kwidth -- (positive int) kernel width
-    scaling -- (positive int) subsampling factor
-    oheight -- (positive int) output map height
-    owidth -- (positive int) output map width
-    RETURNS (tuple) input map height and width, in that order
-    """
     iheight = oheight * scaling + kheight - 1
     iwidth = owidth * scaling + kwidth - 1
     return iheight, iwidth
 
+  @docstring.copy(IBackend.PrepareArray)
   def PrepareArray(self, array):
-    """Prepare array to be passed to backend methods."""
     return array
 
 def ContrastEnhance(data, kwidth, bias, scaling):

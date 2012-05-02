@@ -1,3 +1,5 @@
+"""Classes and functions for managing a cluster of compute nodes via SSH."""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
@@ -7,21 +9,30 @@ import os
 import random
 import subprocess
 import time
+from glimpse.util import docstring
 
-STATE_FREE = "free"  # resource is ready for use
-STATE_BUSY = "busy"  # resource is not ready, in use
-STATE_DONE = "done"  # single-use resource has been consumed
-STATE_UNKNOWN = "unknown"  # resource is in unknown state, usually treated as an
-                           # error
-STATE_ERROR = "error" # resource is not ready, error occured
+#: Resource is ready for use.
+STATE_FREE = "free"
+#: Resource is in use (not ready).
+STATE_BUSY = "busy"
+#: A single-use resource has been consumed.
+STATE_DONE = "done"
+#: Resource is in an unknown state. This is usually treated as an error.
+STATE_UNKNOWN = "unknown"
+#: Resource is not ready because an error occured.
+STATE_ERROR = "error"
+#: Set of all resource states.
 STATES = [ STATE_FREE, STATE_BUSY, STATE_DONE, STATE_UNKNOWN, STATE_ERROR ]
 
 class Queue(object):
   """Maintains the state for each element in a fixed list of objects."""
 
   def __init__(self, states, objects):
-    """Create new Queue object with given states. Initially, all objects are
-    assigned to state[0]."""
+    """Create new Queue object with given states.
+
+    Initially, all objects are assigned to state[0].
+
+    """
     states = list(states)
     assert(len(states) > 0)
     self.states = states
@@ -32,6 +43,12 @@ class Queue(object):
     self.objects = list(objects)
 
   def SetState(self, obj, state):
+    """Set the state of an object.
+
+    :param obj: The resource.
+    :param state: The new state of the object.
+
+    """
     assert(state in self.states)
     assert(obj in self.objects)
     for s in self.states:
@@ -74,16 +91,20 @@ class Network(object):
 
   def __init__(self, results_dir, clusters, verbose = False):
     """Create new network object.
-    results_dir -- Directory on remote machines in which to store results
-    clusters -- (dictionary) mapping from a management node for a cluster to a
-                list of worker nodes. The management node is used only to check
-                job status, while worker nodes actually run those jobs.
+
+    :param str results_dir: Directory on remote machines in which to store
+       results.
+    :param dict clusters: Mapping from a management node for a cluster to a list
+       of worker nodes. The management node is used only to check job status,
+       while worker nodes actually run those jobs.
+
     """
     self.results_dir = results_dir
     self.clusters = clusters
     self.verbose = verbose
 
   def GetHosts(self):
+    """Get the set of hosts in the network."""
     hosts = []
     for member_hosts in self.clusters.values():
       hosts.extend(member_hosts)
@@ -97,10 +118,15 @@ class Network(object):
 
   def _GetClusterStatus(self, cluster_host, jobs):
     """Get the status of all jobs running on the given cluster.
-    cluster_host -- (string) maintenance node for cluster
-    jobs -- (JobSpec list) specs for jobs of interest
-    Requires that the command 'local-job-status' be on the remote path of the
-    maintenance node, and that 'ssh' be on the local path.
+
+    :param str cluster_host: Maintenance node for the cluster.
+    :param jobs: Specifications for jobs of interest.
+    :type jobs: list of JobSpec
+
+    .. note::
+       This function requires that the command 'local-job-status' be on the
+       remote path of the maintenance node, and that 'ssh' be on the local path.
+
     """
     cmds = [ "cd %s" % self.results_dir ]
     cmds += [ "gjob local status %s" % job.id_ for job in jobs ]
@@ -155,17 +181,21 @@ class Network(object):
     return results
 
   def GetStderr(self, job):
+    """Get job data that was written to the standard error stream."""
     return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(
         self.results_dir, job.id_, "err")], verbose = self.verbose)
 
   def GetStdout(self, job):
+    """Get job data that was written to the standard output stream."""
     return CheckRemoteCommands(job.host, ["cat '%s'" % os.path.join(
         self.results_dir, job.id_, "log")], verbose = self.verbose)
 
   def LaunchJob(self, job, host):
     """Start a job on a remote host, returning the allocated job ID.
-    Requires that the command 'gjob' be on the remote path of the worker node. The set of job commands is launched as a
-    bash script.
+
+    Requires that the command 'gjob' be on the remote path of the worker node.
+    The set of job commands is launched as a bash script.
+
     """
     # Make experiment directory, recording experiment ID.
     job_id = CheckRemoteCommands(host,
@@ -184,11 +214,17 @@ class Network(object):
 
 def CopyLocalFilesToRemoteHost(host, remote_path, *files, **check_opts):
   """Copy a set of files to a remote node.
-  host -- name of remote node
-  remote_path -- path of remote directory to which local files are copied
-  files -- set of local files to copy
-  check_opts -- optional arguments for CheckLocalCommand()
-  Requires that the command 'scp' be on the local path.
+
+  :param str host: Name of remote node.
+  :param str remote_path: Path of remote directory to which local files are
+     copied.
+  :param files: Set of local files to copy.
+  :type files: list of str
+  :param check_opts: Optional arguments for :func:`CheckLocalCommand`.
+
+  .. note::
+     Requires that the command 'scp' be on the local path.
+
   """
   if len(files) < 1:
     return
@@ -201,11 +237,16 @@ def CopyLocalFilesToRemoteHost(host, remote_path, *files, **check_opts):
 
 def WriteRemoteFile(host, remote_path, contents, verbose = False):
   """Write data stored in memory to a file on a remote node.
-  host -- name of remote node
-  remote_path -- path of output file on remote node
-  contents -- data to write
-  verbose -- flag controlling whether extra logging information is printed
-  Requires that the command 'ssh' be on the local path.
+
+  :param str host: Name of remote node.
+  :param str remote_path: Path of output file on remote node.
+  :param contents: Data to write.
+  :param bool verbose: Flag controlling whether extra logging information is
+     printed.
+
+  .. note::
+     Requires that the command 'ssh' be on the local path.
+
   """
   if verbose:
     print "Writing to '%s' on '%s'\n%s" % (remote_path, host, contents)
@@ -220,10 +261,16 @@ def WriteRemoteFile(host, remote_path, contents, verbose = False):
 def CheckRemoteCommands(host, cmds, verbose = False):
   """Open a pipe via SSH, execute given commands, close the pipe, and return
   stdout.
-  host -- name of remote node
-  cmds -- (string list) commands to execute on remote node
-  verbose -- flag controlling whether extra logging information is printed
-  Requires that the command 'ssh' be on the local path.
+
+  :param str host: Name of remote node.
+  :param cmds: Commands to execute on remote node.
+  :type cmds: list of str
+  :param bool verbose: Flag controlling whether extra logging information is
+     printed.
+
+  .. note::
+     Requires that the command 'ssh' be on the local path.
+
   """
   if verbose:
     print "Running remote commands on '%s'\n%s" % (host,
@@ -237,10 +284,15 @@ def CheckRemoteCommands(host, cmds, verbose = False):
   return stdout
 
 def CheckLocalCommand(cmd, verbose = False):
-  """Run a single command on local machine, returning stdout. Throw an exception
-  if the command failed.
-  cmd -- (string list) command to run
-  verbose -- flag controlling whether extra logging information is printed
+  """Run a single command on local machine, returning stdout.
+
+  This function throws an exception if the command fails.
+
+  :param cmd: Command to run.
+  :type cmd: list of str
+  :param bool verbose: Flag controlling whether extra logging information is
+     printed.
+
   """
   if verbose:
     print "Running local command: '%s'" % " ".join(cmd)
@@ -252,6 +304,7 @@ class Manager(object):
   """Allocates N jobs to M hosts, with N > M."""
 
   def __init__(self, sleep_time_in_secs):
+    """Create a new manager."""
     self.sleep_time_in_secs = sleep_time_in_secs
     self.jobs = None
     self.hosts = None
@@ -259,9 +312,12 @@ class Manager(object):
 
   def Setup(self, job_specs, network):
     """Initialize the manager to process a set of jobs.
-    jobs_specs -- (JobSpec list) Command, arguments, and files required to
-                  launch each of a set of jobs.
-    network -- (Network) The network on which to launch the jobs.
+
+    :param jobs_specs: Command, arguments, and files required to launch each of
+       a set of jobs.
+    :type job_specs: list of :class:`JobSpec`
+    :param Network network: The network on which to launch the jobs.
+
     """
     jobs = [ Job(spec) for spec in job_specs ]
     self.jobs = Queue([STATE_FREE, STATE_BUSY, STATE_DONE], jobs)
@@ -279,19 +335,24 @@ class Manager(object):
     self.HandleJobLaunch(job)
 
   def HandleJobLaunch(self, job):
-    """Event handler -- called when job begins."""
+    """Event handler, called when job begins."""
     pass
 
   def HandleJobDone(self, job):
-    """Event handler -- called when job completes."""
+    """Event handler, called when job completes."""
     pass
 
   def HandleSleep(self):
-    """Event handler -- called when manager waits on finished jobs."""
+    """Event handler, called when manager waits on finished jobs."""
     pass
 
   def UpdateJobStatus(self):
-    """Poll hosts for job status, returning True if any job has finished."""
+    """Poll hosts for job status
+
+    :returns: True if any job has finished.
+    :rtype: bool
+
+    """
     busy_jobs = self.jobs.InState(STATE_BUSY)
     results = self.network.GetJobStatus(busy_jobs)
     event_fired = False
@@ -323,10 +384,19 @@ class LoggingManager(Manager):
   """Manager that logs job events to disk."""
 
   def __init__(self, sleep_time_in_secs, log):
+    """Create a new logging manager.
+
+    :param int sleep_time_in_secs:
+    :param log:
+
+    """
     Manager.__init__(self, sleep_time_in_secs)
+    #: (file) Destination for logging messages.
     self.log = log
+    #: (bool) Flag indicating that the last activity was a sleep event.
     self.last_was_sleep = False
 
+  @docstring.copy(Manager.HandleJobLaunch)
   def HandleJobLaunch(self, job):
     if self.last_was_sleep:
       self.log.write("\n")
@@ -336,6 +406,7 @@ class LoggingManager(Manager):
         idx))
     self.log.flush()
 
+  @docstring.copy(Manager.HandleJobDone)
   def HandleJobDone(self, job):
     if self.last_was_sleep:
       self.log.write("\n")
@@ -345,6 +416,7 @@ class LoggingManager(Manager):
         idx))
     self.log.flush()
 
+  @docstring.copy(Manager.HandleSleep)
   def HandleSleep(self):
     if self.last_was_sleep:
       self.log.write(".")
@@ -358,8 +430,11 @@ class JobSpec(object):
 
   def __init__(self, cmds, files = [], name = None):
     assert(len(cmds) > 0), "Must specify at least one command"
+    #: (list of str) Path to binary, and arguments.
     self.cmds = cmds
+    #: (list of str) Path to files needed to run command.
     self.files = files
+    #: (str) Name of job, for debugging.
     self.name = name or "no-name"
 
   def __str__(self):
@@ -372,8 +447,11 @@ class Job(object):
   """The record of a job, including its spec and ID."""
 
   def __init__(self, job_spec):
+    #: (:class:`JobSpec`) The job specification.
     self.spec = job_spec
+    #: Unique identifier for this job.
     self.id_ = None
+    #: Node on which this job is running.
     self.host = None
 
   def __str__(self):
@@ -386,12 +464,24 @@ class Builder(object):
     self.repeat = 1
     self.job_specs = []
 
-  def AddJob(self, **args):
-    for i in range(args.get('repeat', self.repeat)):
-      self.job_specs.append( JobSpec(args.get('commands', []), args.get('files',
-          []), args.get('name', None)) )
+  def AddJob(self, commands = [], files = [], name = None, repeat = None):
+    """Add information for a new job specification.
+
+    :param commands: Path to binary, and arguments.
+    :type commands: list of str
+    :param files: Path to files needed to run this job.
+    :type files: list of str
+    :param str name: Name of job, for debugging.
+    :param int repeat: Number of times to replicate job.
+
+    """
+    if repeat == None:
+      repeat = self.repeat
+    for i in range(repeat):
+      self.job_specs.append( JobSpec(commands, files, name) )
 
   def SetRepeat(self, repeat):
+    """Set the default number of times to replicate a job."""
     self.repeat = repeat
 
   def MakeJobSpecs(self):

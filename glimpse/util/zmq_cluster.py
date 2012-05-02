@@ -1,3 +1,13 @@
+"""Classes and functions for interacting with a cluster of compute nodes using
+ZeroMQ sockets.
+
+.. note::
+
+   In this module, a type is said to be *socket-like* if it is either a
+   :class:`zmq.socket` or a :class:`FutureSocket`.
+
+"""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
@@ -12,6 +22,7 @@ import time
 import zmq
 
 def SocketTypeToString(type):
+  """Get a textual representation of a socket type ID."""
   mapping = { zmq.PUSH : 'PUSH', zmq.PULL : 'PULL',
       zmq.PUB : 'PUB', zmq.SUB : 'SUB', zmq.REQ : 'REQ', zmq.REP : 'REP' }
   return mapping[type]
@@ -22,23 +33,35 @@ class ReceiverTimeoutException(Exception):
 
 class WorkerException(Exception):
   """Indicates that a worker node reported an exception while processing a
-  request."""
+  request.
 
-  worker_exception = None  # the exception object thrown in the worker process
+  """
+
+  #: The exception object thrown in the worker process.
+  worker_exception = None
 
 class FutureSocket(object):
-  """Describes the options needed to connect/bind a ZMQ socket to an
-  end-point."""
+  """Describes the options needed to connect/bind a ZMQ socket to an end-point
+  in the future.
 
-  url = None  # (required) the URL passed to the connect() or bind() method of
-              # the created socket
-  type = None  # (optional) the type of socket to create
-  bind = False  # (optional) whether this socket connects or binds
-  options = None  # (optional) a dictionary of socket options (see setsockopt())
-  pre_delay = None  # (optional) amount of time (in seconds) to wait before
-                    # connecting/binding the socket
-  post_delay = None  # (optional) amount of time (in seconds) to wait after
-                     # connecting/binding the socket
+  """
+
+  #: (str, required) The URL passed to the :func:`connect` and :func:`bind`
+  #: methods of the created socket.
+  url = None
+  #: (optional) The type of socket to create.
+  type = None
+  #: (bool, optional) Whether this socket connects or binds.
+  bind = False
+  #: (dict, optional) A dictionary of socket options (see
+  #: :func:`zmq.setsockopt`).
+  options = None
+  #: (int, optional) Amount of time (in seconds) to wait before
+  #: connecting/binding the socket.
+  pre_delay = None
+  #: (int, optional) Amount of time (in seconds) to wait after connecting/binding
+  #: the socket.
+  post_delay = None
 
   def __init__(self, url = None, type = None, bind = False, options = None):
     self.url, self.type, self.bind, self.options = url, type, bind, options
@@ -51,17 +74,15 @@ class FutureSocket(object):
     values = map(self.__getattribute__, keys)
     return "Connect(%s)" % ", ".join("%s=%s" % x for x in zip(keys, values))
 
-  def __repr__(self):
-    return str(self)
-
-  def __call__(self, context, url = None, type = None, bind = None,
-      options = None):
-    return self.MakeSocket(context, url, type, bind, options)
+  __repr__ = __str__
 
   def MakeSocket(self, context, url = None, type = None, bind = None,
       options = None, pre_delay = None, post_delay = None):
-    """Create the socket. Arguments take precendence over their corresponding
-    object attributes."""
+    """Create the socket.
+
+    Arguments take precendence over their corresponding object attributes.
+
+    """
     if type == None:
       type = self.type
     if url == None:
@@ -98,11 +119,28 @@ class FutureSocket(object):
       time.sleep(post_delay)
     return socket
 
+  __call__ = MakeSocket
+
 Connect = FutureSocket
 
 def InitSocket(context, connect_or_socket, type = None, **kwargs):
+  """Initialize a socket.
+
+  :param zmq.Context context: The ZeroMQ context object with which to associate
+     this socket.
+  :param connect_or_socket: The socket to initialize. If this is a
+     :class:`FutureSocket`, the corresponding ZeroMQ socket is constructed. If
+     this is an existing ZeroMQ socket, its type is checked against the *type*
+     argument (if present).
+  :type connect_or_socket: :class:`FutureSocket` or zmq.socket
+  :param type: Type of the new socket.
+  :param kwargs: Arguments passed to the FutureSocket constructor.
+  :returns: The ZeroMQ socket.
+
+  """
   if isinstance(connect_or_socket, FutureSocket):
-    connect_or_socket = connect_or_socket(context, type = type, **kwargs)
+    connect_or_socket = connect_or_socket.MakeSocket(context, type = type,
+       **kwargs)
   else:
     if type != None and connect_or_socket.socket_type != type:
       raise ValueError("Expected socket of type %s, but got type %s" % (
@@ -111,21 +149,27 @@ def InitSocket(context, connect_or_socket, type = None, **kwargs):
   return connect_or_socket
 
 def MakeSocket(context, url, type, bind = False, options = None):
+  """This is a shortcut for constructing a :class:`FutureSocket` and calling its
+  :meth:`MakeSocket <FutureSocket.MakeSocket>` method.
+
+  """
   return FutureSocket(url = url, type = type, bind = bind, options = options) \
       .MakeSocket(context)
 
 class BasicVentilator(object):
   """Push tasks to worker nodes on the cluster."""
 
-  request_sender = None  # (required) constructor for the writer socket
+  #: (socket-like, required) Constructor for the writer socket.
+  request_sender = None
 
   def __init__(self, context, request_sender, worker_connect_delay = None):
-    """
-    worker_connect_delay -- (float) length of time to wait (in seconds) between
-                            calling Setup() and starting to transmit tasks to
-                            the cluster. This gives worker nodes a chance to
-                            connect, avoiding ZMQ's "late joiner syndrome".
-                            Default delay is one second.
+    """Create a new ventilator.
+
+    :param float worker_connect_delay: Length of time to wait (in seconds)
+       between calling :meth:`Setup` and starting to transmit tasks to the
+       cluster. This gives worker nodes a chance to connect, avoiding ZMQ's
+       "late joiner syndrome". Default delay is one second.
+
     """
     if worker_connect_delay == None:
       worker_connect_delay = 1.
@@ -137,6 +181,7 @@ class BasicVentilator(object):
     self.num_total_requests = 0
 
   def Setup(self):
+    """Initialize the ventilator."""
     logging.info("BasicVentilator: starting ventilator on pid %d" % os.getpid())
     logging.info("BasicVentilator:   sender: %s" % self.request_sender)
     if isinstance(self.request_sender, Connect):
@@ -149,12 +194,17 @@ class BasicVentilator(object):
     self.ready = True
 
   def Shutdown(self):
+    """Shutdown the ventilator."""
     del self.sender
     self.ready = False
 
   def Send(self, requests):
-    """Reads tasks from an iterator, and sends them to worker nodes.
-    RETURN the number of sent tasks.
+    """Send a set of task requests to the worker nodes.
+
+    :param iterable requests: Task requests to send.
+    :returns: The number of sent tasks.
+    :rtype: int
+
     """
     # Set up the connection
     if not self.ready:
@@ -177,20 +227,23 @@ class BasicVentilator(object):
 class BasicSink(object):
   """Collect results from worker nodes on the cluster."""
 
-  result_receiver = None  # (required) constructor for the reader socket
-  command_receiver = None  # (optional) constructor for the command socket
+  #: (socket-like, required) Constructor for the reader socket.
+  result_receiver = None
+  #: (socket-like, optional) Constructor for the command socket.
+  command_receiver = None
 
-  CMD_KILL = "CLUSTER_SINK_KILL"  # Send this to the command socket to shut down
-                                  # the sink.
+  #: Send this to the command socket to shut down the sink.
+  CMD_KILL = "CLUSTER_SINK_KILL"
 
   def __init__(self, context, result_receiver, command_receiver = None,
       receiver_timeout = None):
     """Create a new Sink object.
-    result_receiver -- (zmq.socket or Connect) channel on which to receive
-                       results
-    command_receiver -- (zmq.socket or Connect, optional) channel on which to
-                        receive quit command
-    receiver_timeout -- (int) time to wait for a result before quiting
+
+    :param socket-like result_receiver: Channel on which to receive results.
+    :param socket-like command_receiver: Channel on which to receive quit
+       command.
+    :param int receiver_timeout: Time to wait for a result before quiting.
+
     """
     self.context = context
     self.result_receiver = result_receiver
@@ -199,6 +252,7 @@ class BasicSink(object):
     self._ready = False
 
   def Setup(self):
+    """Initialize the sink."""
     self._poller = zmq.Poller()
     if isinstance(self.result_receiver, Connect):
       self._receiver_socket = self.result_receiver.MakeSocket(self.context,
@@ -222,16 +276,22 @@ class BasicSink(object):
     logging.info("BasicSink: setup done")
 
   def Shutdown(self):
+    """Shutdown the sink."""
     del self._poller
     del self._receiver_socket
     del self._command_socket
 
   def Receive(self, num_results = None, timeout = None):
-    """Returns an iterator over results, available as they arrive at the sink.
-    Raises a ReceiverTimeoutException if no result arrives in the given time
-    period.
-    num_results -- (int) return after a fixed number of results have arrived
-    timeout -- (int) time to wait for each result (in milliseconds)
+    """Get an iterator over the set of result objects.
+
+    Results will be available on the iterator as they arrive at the sink. This
+    method raises a ReceiverTimeoutException if no result arrives in the given
+    time period.
+
+    :param int num_results: Return after a fixed number of results have arrived.
+    :param int timeout: Time to wait for each result (in milliseconds).
+    :rtype: iterator
+
     """
     if not self._ready:
       self.Setup()
@@ -259,8 +319,10 @@ class BasicSink(object):
 
   @staticmethod
   def SendKillCommand(context, command_sender):
-    """
-    command_sender -- (zmq.socket or Connect)
+    """Send the *quit* command to the sink.
+
+    :param socket-like command_sender: Channel on which to send the command.
+
     """
     #~ logging.info("Sink:   command: %s" % command_sender.url)
     if isinstance(command_sender, Connect):
@@ -275,9 +337,11 @@ class BasicSink(object):
 class ClusterRequest(object):
   """A cluster request, corresponding to the input value of a callback."""
 
-  payload = None  # task's input values.
-  metadata = None  # optional information associated with the request. this
-                   # information is copied to the result object.
+  #: Input values for the task.
+  payload = None
+  #: Optional information associated with the request. This information is
+  #: copied to the result object.
+  metadata = None
 
   def __init__(self, payload = None, metadata = None):
     self.payload = payload
@@ -287,18 +351,23 @@ class ClusterResult(object):
   """A cluster result, corresponding to the output value of a callback when
   applied to one input element."""
 
-  status = None  # whether the input elements were processed successfully
-  payload = None  # output corresponding to task's input elements. this will
-                  # either be a list -- in the case of a map() operation -- or a
-                  # scalar -- in the case of a reduce().
+  #: Whether the input elements were processed successfully.
+  status = None
+  #: Output corresponding to task's input elements. This will either be a
+  #: :class:`list` in the case of a *map* operation, or a scalar in the case of
+  #: a *reduce* operation.
+  payload = None
+  #: Optional information that was associated with request.
+  request_metadata = None
+  #: Optional information associated with result.
+  metadata = None
+  #: The exception that occurrred during processing, if any.
+  exception = None
 
-  request_metadata = None  # optional information that was associated with
-                           # request.
-  metadata = None  # optional information associated with result.
-  exception = None  # exception that occurrred during processing, if any
-
-  STATUS_SUCCESS = "OK"  # indicates that request was processed successfully
-  STATUS_FAIL = "FAIL"  # indicates that error occurred while processing request
+  #: Indicates that the request was processed successfully.
+  STATUS_SUCCESS = "OK"
+  #: Indicates that error occurred while processing request.
+  STATUS_FAIL = "FAIL"
 
   def __init__(self, status = None, payload = None, request_metadata = None,
       metadata = None, exception = None):
@@ -306,11 +375,14 @@ class ClusterResult(object):
         self.exception = status, payload, request_metadata, metadata, exception
 
 class Ventilator(BasicVentilator):
+  """A ventilator for task requests on the cluster."""
 
   def Send(self, requests, metadata = None):
     """Send requests to worker nodes.
-    requests -- (iterable) callback arguments
-    metadata -- (iterable) same number of metadata objects
+
+    :param iterable requests: Callback arguments.
+    :param iterable metadata: Metadata objects corresponding to the *requests*.
+
     """
     # Wrap in a cluster request with an empty ID.
     if metadata != None:
@@ -320,8 +392,17 @@ class Ventilator(BasicVentilator):
     return super(Ventilator, self).Send(requests)
 
 class Sink(BasicSink):
+  """A sink for task results on the cluster."""
 
   def Receive(self, num_results = None, timeout = None, metadata = False):
+    """Get an iterator over the set of results sent to this sink.
+
+    :param int num_results: Return after a fixed number of results have arrived.
+    :param int timeout: Time to wait for each result (in milliseconds).
+    :param bool metadata: Wheter to return (request and result) metadata with
+       each result.
+
+    """
     results = super(Sink, self).Receive(num_results, timeout)
     for result in results:
       if result.status != ClusterResult.STATUS_SUCCESS:
@@ -334,20 +415,24 @@ class Sink(BasicSink):
     raise StopIteration
 
 class BasicWorker(object):
+  """A cluster worker."""
 
-  CMD_KILL = "CLUSTER_WORKER_KILL"  # Send this to the command socket to shut
-                                    # down the worker.
+  #: Send this to the command socket to shut down the worker.
+  CMD_KILL = "CLUSTER_WORKER_KILL"
 
   def __init__(self, context, request_receiver, result_sender,
       command_receiver = None, receiver_timeout = None):
     """Handles requests that arrive on a socket, writing results to another
     socket.
-    context -- (zmq.Context) context used to create sockets
-    request_receiver -- (Connect) channel for receiving incoming requests
-    result_sender -- (Connect) channel for sending results
-    command_receiver -- (zmq.socket or Connect) channel for receiving commands
-    receiver_timeout -- (int) how long to wait for a request or command before
-                        quiting. If not set, wait indefinitely.
+
+    :param zmq.Context context: Context used to create sockets.
+    :param FutureSocket request_receiver: Channel for receiving incoming
+       requests.
+    :param FutureSocket result_sender: Channel for sending results.
+    :param socket-like command_receiver: Channel for receiving commands.
+    :param int receiver_timeout: How long to wait for a request or command
+       before quiting. Default is to wait indefinitely.
+
     """
     self.context, self.request_receiver, self.result_sender, \
         self.command_receiver, self.receiver_timeout = context, \
@@ -356,6 +441,7 @@ class BasicWorker(object):
     self.receiver = None
 
   def Setup(self):
+    """Initialize the worker."""
     logging.info("BasicWorker: starting worker on pid %s at %s" % (os.getpid(),
         time.asctime()))
     logging.info("BasicWorker:   receiver: %s" % self.request_receiver)
@@ -376,9 +462,9 @@ class BasicWorker(object):
     logging.info("BasicWorker: bound at pid %d" % os.getpid())
 
   def Run(self):
+    """Handle incoming requests, and watch for *quit* commands."""
     if self.receiver == None:
       self.Setup()
-    # Handle incoming requests, and watch for KILL commands
     while True:
       socks = dict(self.poller.poll(self.receiver_timeout))
       if len(socks) == 0:
@@ -412,9 +498,11 @@ class BasicWorker(object):
           break
 
   def HandleRequest(self, request):
+    """Event handler for an incoming task request."""
     return request
 
   def HandleCommand(self, command):
+    """Event handler for an incoming command."""
     finish = False
     if command == BasicWorker.CMD_KILL:
       logging.info("BasicWorker: received kill command")
@@ -424,8 +512,10 @@ class BasicWorker(object):
   @staticmethod
   def SendKillCommand(context, command_sender, command = None):
     """Send a kill command to all workers on a given channel.
-    command_sender -- (zmq.socket or Connect)
-    command -- message to send to workers. defaults to CMD_KILL.
+
+    :param socket-like command_sender: The channel on which to send the command.
+    :param command: Message to send to workers. Defaults to :attr:`CMD_KILL`.
+
     """
     if command == None:
       command = BasicWorker.CMD_KILL
@@ -439,6 +529,16 @@ class BasicWorker(object):
     logging.info("BasicWorker: sent kill command")
 
 def LaunchStreamerDevice(context, frontend_connect, backend_connect):
+  """Launch a ZeroMQ streamer device.
+
+  :param zmq.Context context: The ZeroMQ context for the channels.
+  :param FutureSocket frontend_connect: The frontend channel.
+  :param FutureSocket backend_connect: The backend channel.
+
+  .. seealso::
+     :func:`zmq.device`
+
+  """
   frontend = frontend_connect.MakeSocket(context, type = zmq.PULL, bind = True)
   backend = backend_connect.MakeSocket(context, type = zmq.PUSH, bind = True)
   logging.info("LaunchStreamerDevice: starting streamer on pid %d" % \
@@ -448,6 +548,16 @@ def LaunchStreamerDevice(context, frontend_connect, backend_connect):
   zmq.device(zmq.STREAMER, frontend, backend)
 
 def LaunchForwarderDevice(context, frontend_connect, backend_connect):
+  """Launch a ZeroMQ forwarder device.
+
+  :param zmq.Context context: The ZeroMQ context for the channels.
+  :param FutureSocket frontend_connect: The frontend channel.
+  :param FutureSocket backend_connect: The backend channel.
+
+  .. seealso::
+     :func:`zmq.device`
+
+  """
   frontend = frontend_connect.MakeSocket(context, type = zmq.SUB, bind = True,
       options = {zmq.SUBSCRIBE : ""})
   backend = backend_connect.MakeSocket(context, type = zmq.PUB, bind = True)

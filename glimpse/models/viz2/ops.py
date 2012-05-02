@@ -13,17 +13,23 @@ import numpy as np
 from params import Params
 
 class ModelOps(object):
-  """Base class for a Glimpse model based on PANN. This class implements all
-  single-layer transformations."""
+  """Base class for a Glimpse model based on PANN.
 
-  # The parameters type associated with this model.
+  This class implements all single-layer transformations.
+
+  """
+
+  #: The parameters type associated with this model.
   ParamsClass = Params
 
   def __init__(self, backend = None, params = None):
     """Create new object.
-    backend -- (implements IBackend) implementation of backend operations, such
-               as dot-products
-    params -- (Params) model configuration, such as S-unit kernel widths
+
+    :param IBackend backend: Implementation of backend operations, such as
+       dot-products.
+    :param Params params: Model configuration, such as S-unit kernel
+       widths.
+
     """
     if backend == None:
       backend = backends.MakeBackend()
@@ -43,9 +49,10 @@ class ModelOps(object):
 
   @property
   def s1_kernel_shape(self):
-    """Get the expected shape of the S1 kernels array (i.e., includes band
-    structure).
-    RETURN (tuple) expected shape
+    """The expected shape of the S1 kernels array, including band structure.
+
+    :rtype: tuple of int
+
     """
     p = self.params
     return p.num_scales, p.s1_num_orientations, p.s1_num_phases, p.s1_kwidth, \
@@ -53,7 +60,7 @@ class ModelOps(object):
 
   @property
   def s1_kernels(self):
-    """Get the S1 kernels array, generating it if unset."""
+    """The S1 kernels array, which are generated if not set."""
     # if kernels array is empty, then generate it using current model parameters
     if self._s1_kernels == None:
       p = self.params
@@ -80,15 +87,17 @@ class ModelOps(object):
 
   @property
   def s2_kernel_shape(self):
-    """Get the expected shape of a single S2 kernel (i.e., this does not include
-    band structure).
-    RETURN (tuple) expected shape
+    """The expected shape of a single S2 kernel, *without* band structure.
+
+    :rtype: tuple of int
+
     """
     p = self.params
     return p.s1_num_orientations, p.s2_kwidth, p.s2_kwidth
 
   @property
   def s2_kernels(self):
+    """The S2 kernels array."""
     return self._s2_kernels
 
   @s2_kernels.setter
@@ -111,13 +120,23 @@ class ModelOps(object):
 
   def BuildImageFromInput(self, input_):
     """Create the initial image layer from some input.
-    input_ -- Image or (2-D) array of input data. If array, values should lie in
-              the range [0, 1].
-    RETURNS (2-D) array containing image layer data
+
+    :param input_: Input data. If array, values should lie in the range [0, 1].
+    :type input_: PIL.Image or 2D ndarray
+    :returns: image layer data
+    :rtype: 2D ndarray of float
+
     """
     return ImageLayerFromInputArray(input_, self.backend)
 
   def BuildRetinaFromImage(self, img):
+    """Compute retinal layer activity from the input image.
+
+    :param img: Image data
+    :type: 2D ndarray of float
+    :rtype: 2D ndarray of float
+
+    """
     p = self.params
     if not p.retina_enabled:
       return img
@@ -127,8 +146,16 @@ class ModelOps(object):
 
   def BuildS1FromRetina(self, retina):
     """Apply S1 processing to some existing retinal layer data.
-    retina -- (2-D array) result of retinal layer processing
-    RETURNS list of (4-D) S1 activity arrays, with one array per scale
+
+    .. note::
+
+       This method pools over phase, so the output array has only scale and
+       orientation bands.
+
+    :param retina: Result of retinal layer processing.
+    :type retina: 2D ndarray of float
+    :rtype: 4D ndarray of float
+
     """
     # Reshape retina to be 3D array
     p = self.params
@@ -146,6 +173,14 @@ class ModelOps(object):
     return s1
 
   def BuildC1FromS1(self, s1s):
+    """Compute the C1 layer activity from multi-scale S1 activity.
+
+    :param s1s: S1 activity for each scale.
+    :type s1s: 4D ndarray of float
+    :returns: C1 activity, with one array per scale.
+    :rtype: list of 3D ndarray of float
+
+    """
     p = self.params
     c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
         scaling = p.c1_scaling) for s1 in s1s ]
@@ -163,7 +198,12 @@ class ModelOps(object):
 
   def BuildS2FromC1(self, c1s):
     """Compute the S2 layer activity from multi-scale C1 activity.
-    c1s -- (4D ndarray, or list of 3D ndarrays) C1 activity
+
+    :param c1s: C1 activity
+    :type c1s: 4D ndarray of float, or list of 3D ndarray of float
+    :returns: S2 activity for each scale
+    :rtype: 4D ndarray of float
+
     """
     if self.s2_kernels == None:
       raise Exception("Need S2 kernels to compute S2 layer activity, but none "
@@ -190,15 +230,53 @@ class ModelOps(object):
     return s2s
 
   def BuildC2FromS2(self, s2s):
+    """Compute the C2 layer activity from multi-scale S2 activity.
+
+    :param s2s: S2 activity
+    :type: s2s: 4D array
+    :returns: C2 activity for each scale and prototype
+    :rtype: 2D ndarray of float
+
+    """
     c2s = map(self.backend.GlobalMax, s2s)
     c2s = np.array(c2s, ACTIVATION_DTYPE)
     return c2s
 
   def BuildItFromC2(self, c2s):
+    """Compute the IT layer activity from multi-scale C2 activity.
+
+    :param c2s: C2 activity
+    :type c2s: 2D ndarray of float
+    :returns: IT activity for each prototype
+    :rtype: 1D ndarray of float
+
+    """
     it = np.array(c2s).max(0)
     return it
 
 def Whiten(data):
+  """Normalize an array, such that each location contains equal energy.
+
+  For each X-Y location, the vector :math:`a` of data (containing activation for
+  each band) is *sphered* according to:
+
+  .. math::
+
+    a' = (a - \mu_a ) / \sigma_a
+
+  where :math:`\mu_a` and :math:`\sigma_a` are the mean and standard deviation
+  of :math:`a`, respectively.
+
+  .. caution::
+
+     This function modifies the input data in-place.
+
+  :param data: Layer activity to modify.
+  :type data: 3D ndarray of float
+  :returns: The `data` array.
+  :rtype: 3D ndarray of float
+
+  """
   data -= data.mean(0)
   norms = np.sqrt((data**2).sum(0))
   norms[ norms < 1 ] = 1

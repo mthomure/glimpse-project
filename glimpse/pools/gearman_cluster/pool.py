@@ -18,12 +18,17 @@ import threading
 import time
 import zmq
 
-# By default, GearmanClient's can only send off byte-strings. If we want to be
-# able to send out Python objects, we can specify a data encoder. This will
-# automatically convert byte strings <-> Python objects for ALL commands that
-# have the 'data' field. See http://gearman.org/index.php?id=protocol for client
-# commands that send/receive 'opaque data'.
 class PickleDataEncoder(gearman.DataEncoder):
+  """A data encoder that reads and writes using the Pickle format.
+
+  By default, a :class:`GearmanClient` can only send byte-strings. If we want to
+  be able to send Python objects, we must specify a data encoder. This will
+  automatically convert byte strings to Python objects (and vice versa) for
+  *all* commands that have the 'data' field. See
+  http://gearman.org/index.php?id=protocol for client commands that send/receive
+  'opaque data'.
+
+  """
 
   @classmethod
   def encode(cls, encodable_object):
@@ -33,26 +38,48 @@ class PickleDataEncoder(gearman.DataEncoder):
   def decode(cls, decodable_string):
     return cPickle.loads(decodable_string)
 
+#: Gearman task ID for the *map* task.
 GEARMAN_TASK_MAP = "glimpse_map"
+#: Instructs the worker to exit with signal 0.
 COMMAND_QUIT = "quit"
+#: Instructs the worker to exit with signal -1.
 COMMAND_RESTART = "restart"
+#: Instructs the worker to respond with processing statistics.
 COMMAND_PING = "ping"
 
 class Worker(gearman.GearmanWorker):
+  """A Gearman worker that tracks exit status."""
+
+  #: Exit status of the worker.
   exit_status = 0
+  #: Indicates whether the worker has received a *quit* or *restart* command.
   finish = False
+  #: How to marshal data on the wire.
   data_encoder = PickleDataEncoder
 
   def after_poll(self, any_activity):
+    """Returns True unless the :attr:`finish` flag is set.
+
+    This method is called by the :class:`gearman.GearmanWorker` to decide when
+    to quit.
+
+    """
     return not self.finish
 
-class Client(gearman.GearmanClient):
+class ClusterPool(gearman.GearmanClient):
+  """Client for the Gearman task farm."""
+
+  #: Encode communications as pickles.
   data_encoder = PickleDataEncoder
+  #: Size of a map request (in number of input elements).
   chunksize = 8
-  poll_timeout = 60.0  # wait one minute for each job to complete
-  max_retries = 3  # resubmit job up to three times
+  #: Wait one minute for each job to complete.
+  poll_timeout = 60.0
+  #: Resubmit a job up to three times.
+  max_retries = 3
 
   def map(self, func, iterable, chunksize = None):
+    """Apply a function to a list."""
     if chunksize == None:
       chunksize = self.chunksize
     # chunk states into groups
@@ -80,7 +107,8 @@ class Client(gearman.GearmanClient):
     results = [ r.result for r in job_requests ]
     return list(util.UngroupIterator(results))
 
-  imap = map  # imap is not implemented yet
+  #: Not implemented. This is currently an alias for :func:`map`.
+  imap = map
 
 class ConfigException(Exception):
   """Indicates that an error occurred while reading the cluster
@@ -88,6 +116,17 @@ class ConfigException(Exception):
   pass
 
 def MakePool(config_file = None, chunksize = None):
+  """Create a new client for a Gearman cluster.
+
+  :param str config_file: Path to a configuration file.
+  :param int chunksize: Size of batch request.
+  :rtype: :class:`ClusterPool <glimpse.pools.gearman_pool.pool.ClusterPool>`
+
+  Configuration information is read from the paths specified by
+  ``config_file`` (if specified), and the ``GLIMPSE_CLUSTER_CONFIG``
+  environment variable (if set).
+
+  """
   config_files = list()
   if config_file != None:
     config_files.append(config_file)
@@ -105,6 +144,19 @@ def MakePool(config_file = None, chunksize = None):
   return client
 
 def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
+  """Logic for process that handles command messages.
+
+  A *quit* or *restart* command is handled by setting the worker's
+  :attr:`finish <Worker.finish>` flag to True, setting the exit status, and
+  returning. The exit status is 0 on *quit*, or -1 on *restart*.
+
+  :param Worker worker: Instance for tracking worker state.
+  :param FutureSocket cmd_future: Socket information for the command channel.
+  :param FutureSocket log_future: Socket information for the log channel.
+  :param callable ping_handler: Generates a response message for a *ping*
+     command.
+
+  """
   logging.info("Gearman command handler starting")
   context = zmq.Context()
   cmd_socket = InitSocket(context, cmd_future, type = zmq.SUB,
@@ -136,6 +188,19 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
         logging.warn("Gearman worker got unknown command: %s" % (cmd,))
 
 def RunWorker(job_server_url, command_url, log_url, num_processes = None):
+  """Launch a Gearman worker and wait for it to complete.
+
+  This worker processes batch requests using a :class:`MulticorePool
+  <glimpse.pools.MulticorePool>`.
+
+  :param str job_server_url: URL for Gearman job server.
+  :param str command_url: URL for command channel.
+  :param str log_url: URL for logging channel.
+  :param int num_processes: Number of concurrent processes to use when
+     processing a batch request. Defaults to the number of available cores.
+  :returns: Exit status of the worker processes.
+
+  """
   pool = pools.MulticorePool(num_processes)
   stats = dict(HOST = socket.getfqdn(), PID = os.getpid(), ELAPSED_TIME = 0,
       NUM_REQUESTS = 0, START_TIME = time.strftime("%Y-%m-%d %H:%M:%S"))
@@ -176,5 +241,6 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
   worker.register_task(GEARMAN_TASK_MAP, handle_map)
   # Process tasks, checking command channel every two seconds
   worker.work(poll_timeout = 2.0)
+  # Wait for worker to exit
   worker.shutdown()
   return worker.exit_status

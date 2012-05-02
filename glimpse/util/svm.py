@@ -1,9 +1,9 @@
+"""This module provides access to the LIBSVM solver."""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
-
-"""This module provides access to the LIBSVM solver."""
 
 import math
 from .gio import SuppressStdout
@@ -13,37 +13,51 @@ import os
 import sys
 
 class RangeFeatureScaler(object):
-  """Scales features to lie in a fixed interval.
+  """Scale features to lie in a fixed interval.
 
-  Example Usage:
+  Example Usage::
 
-  instances = np.arange(10).reshape(2, 5)
-  scaler = RangeFeatureScaler()
-  scaler.Learn(instances)
-  scaled_instances = scaler.Apply(instances)
+     >>> instances = np.arange(10).reshape(2, 5)
+     >>> scaler = RangeFeatureScaler()
+     >>> scaler.Learn(instances)
+     >>> scaled_instances = scaler.Apply(instances)
+
+  .. seealso::
+     :class:`sklearn.preprocessing.Scaler`
+
   """
 
   def __init__(self, min = -1, max = 1):
     """Create new object.
-    min -- (float) minimum value in output range
-    max -- (float) maximum value in output range
+
+    :param float min: Minimum value in output range.
+    :param float max: Maximum value in output range.
+
     """
     self.omin, self.omax = min, max
 
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
     to the range [-1, 1].
-    features -- (2D array-like)
+
+    :param features: Input data.
+    :type features: 2D array-like
+
     """
     self.imin, self.imax = np.min(features, 0), np.max(features, 0)
 
   def Apply(self, features):
-    """Scale the features in-place. The range of output values will be
-    (approximately) [-vmin, vmax], assuming the feature vectors passed here were
-    drawn from the same distribution as those used to learn the scaling
-    parameters.
-    features -- (2D array-like)
-    RETURN (2D ndarray) new array of scaled feature values
+    """Scale the features in-place.
+
+    The range of output values will be (approximately) [-vmin, vmax], assuming
+    the feature vectors passed here were drawn from the same distribution as
+    those used to learn the scaling parameters.
+
+    :param features: Input data.
+    :type features: 2D array-like
+    :returns: Scaled feature values.
+    :rtype: 2D ndarray
+
     """
     features = np.array(features, copy = True)  # copy feature values
     for f in features:
@@ -54,20 +68,26 @@ class RangeFeatureScaler(object):
     return features
 
 class SpheringFeatureScaler(object):
-  """Scales features to have fixed mean and standard deviation.
+  """Scale features to have fixed mean and standard deviation.
 
-  Example Usage:
+  Example usage::
 
-  instances = np.arange(10).reshape(2, 5)
-  scaler = SpheringFeatureScaler()
-  scaler.Learn(instances)
-  scaled_instances = scaler.Apply(instances)
+     >>> instances = np.arange(10).reshape(2, 5)
+     >>> scaler = SpheringFeatureScaler()
+     >>> scaler.Learn(instances)
+     >>> scaled_instances = scaler.Apply(instances)
+
+  .. seealso::
+     :class:`sklearn.preprocessing.Scaler`
+
   """
 
   def __init__(self, mean = 0, std = 1):
     """Create new object.
-    mean -- (float) mean of output feature values
-    std -- (float) standard deviation of feature values
+
+    :param float mean: Mean of output feature values.
+    :param float std: Standard deviation of feature values.
+
     """
     self.omean, self.ostd = mean, std
     self.imean = None
@@ -76,17 +96,26 @@ class SpheringFeatureScaler(object):
   def Learn(self, features):
     """Determine the parameters required to scale each feature (independently)
     to the range [-1, 1].
-    features -- (2D array-like)
+
+    :param features: Input data.
+    :type features: 2D array-like
+
     """
     assert np.ndim(features) == 2
     self.imean, self.istd = np.mean(features, 0), np.std(features, 0)
 
   def Apply(self, features):
-    """Scale the features. The range of output values will be (approximately)
-    [-vmin, vmax], assuming the feature vectors passed here were drawn from the
-    same distribution as those used to learn the scaling parameters.
-    features -- (2D array-like)
-    RETURN (2D ndarray) new array with scaled features
+    """Scale the features.
+
+    The range of output values will be (approximately) [-vmin, vmax], assuming
+    the feature vectors passed here were drawn from the same distribution as
+    those used to learn the scaling parameters.
+
+    :param features: Input data.
+    :type features: 2D array-like
+    :returns: Scaled features.
+    :rtype: 2D ndarray
+
     """
     if len(features) == 0:
       return features
@@ -103,8 +132,13 @@ class SpheringFeatureScaler(object):
 
 def PrepareLibSvmInput(features_per_class):
   """Format feature vectors for use by LIBSVM.
-  features_per_class -- (list of ndarray) per-class feature vectors
-  RETURN (tuple) (list) labels, and (list) all feature vectors
+
+  :param features_per_class: Per-class feature vectors.
+  :type features_per_class: list of ndarray
+  :returns: Labels and feature vectors.
+  :rtype: 2-tuple, where first element is a list and second element is a list of
+     list
+
   """
   num_classes = len(features_per_class)
   if num_classes == 2:
@@ -120,15 +154,23 @@ def PrepareLibSvmInput(features_per_class):
   return UngroupLists(labels_per_class), UngroupLists(features_per_class)
 
 class Svm(object):
-  """The LIBSVM classifier."""
+  """The LIBSVM classifier.
+
+  .. seealso::
+     :class:`sklearn.svm.LinearSVC`
+
+  """
 
   def __init__(self, classifier = None):
     self.classifier = classifier
 
   def Train(self, features):
     """Train an SVM classifier.
-    features -- (3D array-like) training instances, indexed by class, instance,
-                and then feature offset.
+
+    :param features: Training instances, indexed by class, instance, and then
+       by feature offset.
+    :type features: 3D array-like
+
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -143,9 +185,13 @@ class Svm(object):
 
   def Test(self, features):
     """Test an existing classifier.
-    features -- (3D array-like) test instances: indexed by class, instance, and
-                then feature offset.
-    RETURN (dict) results from svmutil.svm_predict, as a dictionary.
+
+    :param features: Test instances: indexed by class, instance, and then
+       feature offset.
+    :type features: 3D array-like
+    :returns: Results from svmutil.svm_predict.
+    :rtype: dict
+
     """
     # Use delayed import of LIBSVM library, so non-SVM methods are always
     # available.
@@ -179,8 +225,11 @@ class ScaledSvm(Svm):
 
   def Train(self, features):
     """Train an SVM classifier.
-    features -- (3D array-like) training instances, indexed by class, instance,
-                and then feature offset.
+
+    :param features: Training instances, indexed by class, instance, and then
+       feature offset.
+    :type features: 3D array-like
+
     """
     # Learn scaling parameters from single list of all training vectors
     self.scaler.Learn(np.vstack(features))
@@ -190,22 +239,35 @@ class ScaledSvm(Svm):
 
   def Test(self, features):
     """Test an existing classifier.
-    features -- (3D array-like) test instances: indexed by class, instance, and
-                then feature offset.
-    RETURN (dict) results from svmutil.svm_predict, as a dictionary.
+
+    :param features: Test instances: indexed by class, instance, and then
+       feature offset.
+    :type features: 3D array-like
+    :returns: Results from svmutil.svm_predict.
+    :rtype: dict
+
     """
     scaled_features = map(self.scaler.Apply, features)
     return super(ScaledSvm, self).Test(scaled_features)
 
 def SvmForSplit(train_features, test_features, scaler = None):
-  """Train and test an SVM classifier from a set of features, which have
-  already been partitioned into training and testing sets.
-  train_features -- (3D array-like) training instances: indexed by
-                    class, instance, and then feature offset.
-  test_features -- (list of 2D float ndarray) testing instances: indexed by
-                    class, instance, and then feature offset.
-  scaler -- feature scaling algorithm
-  RETURN (LIBSVM) classifier, (float) training accuracy, (float) test accuracy
+  """Train and test an SVM classifier from a set of features.
+
+  Features should already have been partitioned into training and testing sets.
+
+  :param train_features: Training instances: indexed by class, instance, and
+     then feature offset.
+  :type train_features: 3D array-like
+
+  :param test_features: Testing instances: indexed by class, instance, and then
+     feature offset.
+  :type test_features: list of 2D ndarray of float
+  :param scaler: Feature scaling algorithm.
+  :returns: The trained classifier, the training accuracy, and the testing
+     accuracy.
+  :rtype: 3-tuple, where first element is an SVM classifier, and the last two
+     elements are floats
+
   """
   # TEST CASE: unbalanced number of instances across training/testing sets
   # TEST CASE: unbalanced number of instances across classes
@@ -215,15 +277,19 @@ def SvmForSplit(train_features, test_features, scaler = None):
 
 def SvmCrossValidate(features_per_class, num_repetitions = None,
     num_splits = None, scaler = None):
-  """Perform 10x10 way cross-validation.
-  features_per_class -- (list of 2D ndarray) feature vectors indexed by class,
-                        instance, and then feature offset.
-  num_repetitions -- (int) how many times to repeat the measurements (default is
-                     10)
-  num_splits -- (int) how many ways to split the instances (default is
-                num_repetitions)
-  scaler -- feature scaling algorithm
-  RETURN (float) mean test accuracy across splits and repetitions
+  """Perform NxM way cross-validation.
+
+  :param features_per_class: Feature vectors indexed by class, instance, and
+     then feature offset.
+  :type features_per_class: list of 2D ndarray
+  :param int num_repetitions: How many times to repeat the measurements (default
+     is 10).
+  :param int num_splits: How many ways to split the instances (default is
+                *num_repetitions*).
+  :param scaler: Feature scaling algorithm.
+  :returns: Mean test accuracy across splits and repetitions.
+  :rtype: float
+
   """
   if num_repetitions == None:
     num_repetitions = 10
@@ -245,8 +311,12 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
   def make_splits_for_class(instances):
     """Randomize the order of a set of instances for a single class, and split
     them into subsets.
-    instances -- (2D array) set of feature vectors
-    RETURN (list of 2D array) instance subsets
+
+    :param instances: Set of feature vectors.
+    :type instances: 2D ndarray
+    :returns: Instance subsets.
+    :rtype: list of 2D ndarray
+
     """
     # Randomize order of instances
     instances = np.array(instances, copy = True)
@@ -270,9 +340,12 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
   def accuracy_for_split(splits_per_class, test_idx):
     """Compute test accuracy for a given slice, using remaining slices for
     training.
-    splits_per_class -- (list of list of ndarray) set of splits for each class,
-                        where each split is an matrix of instances.
-    test_idx -- (int) index of test split
+
+    :param splits_per_class: Set of splits for each class, where each split is
+       an matrix of instances.
+    :type splits_per_class: list of list of ndarray
+    :param int test_idx: Index of test split.
+
     """
     # For each class, get all training instances as list of ndarray.
     train_features = [ splits[:test_idx] + splits[test_idx + 1:]
@@ -288,7 +361,7 @@ def SvmCrossValidate(features_per_class, num_repetitions = None,
     return test_accuracy
 
   def cross_validate():
-    # Get accuracy for each slice.
+    """Get accuracy for each slice."""
     splits_per_class = map(make_splits_for_class, features_per_class)
     return [ accuracy_for_split(splits_per_class, x)
         for x in range(num_splits) ]

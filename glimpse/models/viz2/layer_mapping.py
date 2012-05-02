@@ -7,9 +7,13 @@
 from model import Layer
 
 class CoordinateMapper(object):
-  """Given an offset expressed in the coordinates of one layer, these methods
+  """Converts coordinates between model layers.
+
+  Given an offset expressed in the coordinates of one layer, these methods
   convert that value to the equivalent offset in the coordinates of a lower
-  layer. Note that these methods assume that all kernels are square."""
+  layer. Note that these methods assume that all kernels are square.
+
+  """
 
   def __init__(self, params, center = True):
     self.params = params
@@ -17,7 +21,13 @@ class CoordinateMapper(object):
 
   def GetMappingFunction(self, activity_layer, background_layer):
     """Lookup the function that maps activity from one layer to another, where
-    layers are identified by strings (e.g., "s1", or "image")."""
+    layers are identified by strings (e.g., "s1", or "image").
+
+    :param str activity_layer: Identifier of foreground layer.
+    :param str background_layer: Identifier of background layer.
+    :rtype: callable
+
+    """
     try:
       return getattr(self, "Map%sTo%s" % (activity_layer.name.title(),
           background_layer.name.title()))
@@ -79,8 +89,12 @@ class CoordinateMapper(object):
     return self.MapS2ToImage(self.MapC2ToS2(x))
 
 class LayerSizeMapper(object):
-  """These methods compute the image size required to support a model layer
-  (e.g., C2) with at least the given spatial extent (e.g., 3x3 units)."""
+  """Converts spatial extents between model layers.
+
+  These methods compute the image size required to support a model layer (e.g.,
+  C2) with at least the given spatial extent (e.g., 3x3 units).
+
+  """
 
   def __init__(self, backend, params):
     self.backend = backend
@@ -88,7 +102,13 @@ class LayerSizeMapper(object):
 
   def GetMappingFunction(self, activity_layer, background_layer):
     """Lookup the function that maps activity from one layer to another, where
-    layers are identified by strings (e.g., "s1", or "image")."""
+    layers are identified by strings (e.g., "s1", or "image").
+
+    :param str activity_layer: Identifier of foreground layer.
+    :param str background_layer: Identifier of background layer.
+    :rtype: callable
+
+    """
     try:
       return getattr(self, "Map%sTo%s" % (activity_layer.name.title(),
           background_layer.name.title()))
@@ -135,9 +155,13 @@ class LayerSizeMapper(object):
     return self.MapS2ToImage(*self.MapC2ToS2(height, width))
 
 class RegionMapper(object):
-  """The methods of this object re-express a slice --- given in coordinates
-  of one layer --- in terms of coordinates of some lower-level layer. Note
-  that these methods assume that all kernels are square."""
+  """Converts coordinate range between model layers.
+
+  The methods of this object re-express a slice --- given in coordinates of one
+  layer --- in terms of coordinates of some lower-level layer. Note that these
+  methods assume that all kernels are square.
+
+  """
 
   def __init__(self, params):
     self.params = params
@@ -146,8 +170,11 @@ class RegionMapper(object):
   def GetMappingFunction(self, activity_layer, background_layer):
     """Lookup the function that maps activity from one layer to another, where
     layers are identified by strings (e.g., "s1", or "image").
-    activity_layer -- identifier of foreground layer
-    background_layer -- identifier of background layer
+
+    :param str activity_layer: Identifier of foreground layer.
+    :param str background_layer: Identifier of background layer.
+    :rtype: callable
+
     """
     try:
       return getattr(self, "Map%sTo%s" % (activity_layer.name.title(),

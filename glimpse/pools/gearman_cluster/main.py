@@ -19,7 +19,12 @@ import zmq
 
 def LaunchBroker(config):
   """Start a set of intermediate devices for the cluster on this machine.
-  RETURN This method does not return."""
+
+  This method does not return.
+
+  :param ConfigParser config: Configuration information for cluster.
+
+  """
   cmd_frontend_url = config.get('server', 'command_frontend_url')
   cmd_backend_url = config.get('server', 'command_backend_url')
   log_frontend_url = config.get('server', 'log_frontend_url')
@@ -47,9 +52,12 @@ def LaunchBroker(config):
 
 def LaunchWorker(config, num_processes = None):
   """Start a cluster worker on the local host.
-  config -- (ClusterConfig) socket configuration for the cluster
-  num_processes -- (int) number of sub-processes to use
-  RETURN This method calls sys.exit(), so does not return.
+
+  This method does not return.
+
+  :param ConfigParser config: Configuration information for cluster.
+  :param int num_processes: Number of sub-processes to use.
+
   """
   if num_processes != None:
     num_processes = int(num_processes)
@@ -61,22 +69,42 @@ def LaunchWorker(config, num_processes = None):
   sys.exit(exit_status)
 
 def SendCommand(command_url, command):
+  """Send an arbitrary command to all workers running on the cluster.
+
+  :param str command_url: URL of command channel.
+  :param command: Command to send to workers.
+
+  """
   context = zmq.Context()
   socket = context.socket(zmq.PUB)
   socket.connect(command_url)
   socket.send_pyobj(command)
 
 def KillWorkers(config):
-  """Send a QUIT command to any workers running on the cluster."""
+  """Send a *quit* command to all workers running on the cluster.
+
+  :param ConfigParser config: Configuration information for cluster.
+
+  """
   command_url = config.get('client', 'command_frontend_url')
   SendCommand(command_url, pool.COMMAND_QUIT)
 
 def RestartWorkers(config):
-  """Send KILL-ERROR to any workers running on cluster, causing a restart."""
+  """Send a *restart* command to any workers running on cluster.
+
+  :param ConfigParser config: Configuration information for cluster.
+
+  """
   command_url = config.get('client', 'command_frontend_url')
   SendCommand(command_url, pool.COMMAND_RESTART)
 
 def _PingWorkers(config, wait_time = None):
+  """A result generator for the *ping* command.
+
+  :param ConfigParser config: Configuration information for cluster.
+  :param int wait_time: Amount of time to wait for responses, in seconds.
+
+  """
   if wait_time == None:
     wait_time = 1  # wait for one second by default
   log_url = config.get('client', 'log_backend_url')
@@ -97,7 +125,12 @@ def _PingWorkers(config, wait_time = None):
       yield stats
 
 def PingWorkers(config, wait_time = None):
-  """Determine the set of active workers."""
+  """Determine the set of active workers and print results to console.
+
+  :param ConfigParser config: Configuration information for cluster.
+  :param int wait_time: Amount of time to wait for responses, in seconds.
+
+  """
   if wait_time != None:
     wait_time = int(wait_time)
   rs_list = _PingWorkers(config, wait_time)
@@ -127,6 +160,7 @@ def PingWorkers(config, wait_time = None):
       print " ".join(fields)
 
 def main(args = None):
+  """Entry point for the command line interface."""
   methods = map(eval, ("LaunchBroker", "LaunchWorker", "KillWorkers",
       "RestartWorkers", "PingWorkers"))
   try:
