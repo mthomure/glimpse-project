@@ -21,7 +21,7 @@ class State(BaseState):
 class Model(ModelOps, BaseModel):
 
   # The datatype associated with network states for this model.
-  State = State
+  StateClass = State
 
 # Add (circular) Model reference to State class.
-State.Model = Model
+State.ModelClass = Model

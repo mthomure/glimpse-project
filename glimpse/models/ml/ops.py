@@ -15,7 +15,7 @@ class ModelOps(BaseModelOps):
   implements all single-layer transformations."""
 
   # The parameters type associated with this model.
-  Params = Params
+  ParamsClass = Params
 
   @property
   def s1_kernel_shape(self):

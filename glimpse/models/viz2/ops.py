@@ -17,7 +17,7 @@ class ModelOps(object):
   single-layer transformations."""
 
   # The parameters type associated with this model.
-  Params = Params
+  ParamsClass = Params
 
   def __init__(self, backend = None, params = None):
     """Create new object.
@@ -30,11 +30,11 @@ class ModelOps(object):
     else:
       backend = copy.copy(backend)
     if params == None:
-      params = self.Params()
+      params = self.ParamsClass()
     else:
-      if not isinstance(params, self.Params):
+      if not isinstance(params, self.ParamsClass):
         raise ValueError("Params object has wrong type: expected %s, got %s" % \
-            (self.Params, type(params)))
+            (self.ParamsClass, type(params)))
       params = copy.copy(params)
     self.backend = backend
     self.params = params

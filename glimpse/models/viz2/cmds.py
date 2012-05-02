@@ -27,7 +27,7 @@ def Transform(model_class, pool, args):
         edit_params = True
       elif opt == '-l':
         try:
-          output_layer = model_class.Layer.FromName(arg)
+          output_layer = model_class.LayerClass.FromName(arg)
         except ValueError:
           raise util.UsageException("Unknown model layer: %s" % arg)
       elif opt == '-o':
@@ -55,7 +55,7 @@ def Transform(model_class, pool, args):
         "           output layer"
         , e)
   if params == None:
-    params = model_class.Params()
+    params = model_class.ParamsClass()
   if edit_params:
     params.configure_traits()
   model = model_class(backends.CythonBackend(), params)
@@ -109,7 +109,7 @@ def Imprint(model_class, pool, args):
         "           useful for cluster pool)"
         , e)
   if params == None:
-    params = model_class.Params()
+    params = model_class.ParamsClass()
   if edit_params:
     params.configure_traits()
   model = model_class(backends.CythonBackend(), params)
@@ -149,7 +149,7 @@ def EditParams(model_class, pool, args):
         "  -o FILE  Write model parameters to FILE (default is stdout)"
         , e)
   if params == None:
-    params = model_class.Params()
+    params = model_class.ParamsClass()
   params.configure_traits()
   util.Store(params, output)
 

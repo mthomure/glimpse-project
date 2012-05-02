@@ -546,7 +546,7 @@ def GetModelClass():
 def SetParams(params = None):
   global __PARAMS
   if params == None:
-    params = GetModelClass().Params()
+    params = GetModelClass().ParamsClass()
   __PARAMS = params
   return __PARAMS
 
@@ -559,9 +559,9 @@ def GetParams():
 def SetLayer(layer = None):
   global __LAYER, __MODEL_CLASS
   if layer == None:
-    layer = __MODEL_CLASS.Layer.IT
+    layer = __MODEL_CLASS.LayerClass.IT
   elif isinstance(layer, str):
-    layer = __MODEL_CLASS.Layer.FromName(layer)
+    layer = __MODEL_CLASS.LayerClass.FromName(layer)
   __LAYER = layer
   return __LAYER
 
@@ -597,10 +597,11 @@ def SetExperiment(model = None, layer = None, scaler = None):
   if layer == None:
     layer = GetLayer()
   elif isinstance(layer, str):
-    layer = model.Layer.FromName(layer)
+    layer = model.LayerClass.FromName(layer)
   if scaler == None:
     scaler = svm.SpheringFeatureScaler()
   __EXP = Experiment(model, layer, pool = GetPool(), scaler = scaler)
+  return __EXP
 
 def ImprintS2Prototypes(num_prototypes):
   """Imprint a set of S2 prototypes from a set of training images.
@@ -734,6 +735,8 @@ def RunSvm(cross_validate = False):
     print "  done: %s s" % e.svm_time
     print "Time to compute feature vectors: %s s" % \
         e.compute_feature_time
+    print "Accuracy is %.3f on training set, and %.3f on test set." % \
+        (train_accuracy, test_accuracy)
   return train_accuracy, test_accuracy
 
 def StoreExperiment(root_path):

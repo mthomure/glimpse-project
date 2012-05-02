@@ -38,7 +38,7 @@ def main():
   def test(x, y):
     try:
       s0 = model.MakeStateFromImage(img.crop((0, 0, x, y)))
-      model.BuildLayer(model.Layer.IT, s0)
+      model.BuildLayer(model.LayerClass.IT, s0)
     except InsufficientSizeException:
       return False
     return True

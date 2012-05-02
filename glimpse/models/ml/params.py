@@ -5,19 +5,7 @@
 # terms.
 
 from glimpse.util import traits
-
-class KWidth(traits.BaseInt):
-  """A trait type corresponding to a kernel width (a positive, odd integer)."""
-
-  default_value = 1
-
-  info_text = 'a positive odd integer'
-
-  def validate(self, object, name, value):
-    value = super(KWidth, self).validate(object, name, value)
-    if value > 1 and value % 2 == 1:
-      return value
-    self.error(object, name, value)
+from glimpse.models.viz2.params import KWidth, SLayerOperation
 
 class Params(traits.HasStrictTraits):
 

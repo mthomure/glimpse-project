@@ -63,6 +63,8 @@ class State(dict):
   has a seperate State object, so it is always clear which model generated a
   given state object."""
 
+  ModelClass = None
+
   def __eq__(self, other):
     if not isinstance(other, type(self)):
       return False
@@ -81,13 +83,13 @@ class Model(ModelOps, AbstractNetwork):
   from a given initial model state."""
 
   # The datatype associated with network states for this model.
-  State = State
+  StateClass = State
 
   # The datatype associated with layer descriptors for this model.
-  Layer = Layer
+  LayerClass = Layer
 
   def BuildSingleNode(self, output_id, state):
-    L = self.Layer
+    L = self.LayerClass
     if output_id == L.SOURCE.id:
       raise DependencyError
     elif output_id == L.IMAGE.id:
@@ -107,7 +109,7 @@ class Model(ModelOps, AbstractNetwork):
     raise ValueError("Unknown layer ID: %r" % output_id)
 
   def GetDependencies(self, output_id):
-    return [ l.id for l in self.Layer.FromId(output_id).depends ]
+    return [ l.id for l in self.LayerClass.FromId(output_id).depends ]
 
   def BuildLayer(self, output_layer, state, save_all = True):
     """Apply the model through the given layer. This is just a helper for
@@ -124,7 +126,7 @@ class Model(ModelOps, AbstractNetwork):
       output_state = self.BuildNode(output_layer, state)
     except InsufficientSizeException, e:
       # Try to annotate exception with source information.
-      source = state.get(self.Layer.SOURCE.id, None)
+      source = state.get(self.LayerClass.SOURCE.id, None)
       if source == None:
         raise
       raise InsufficientSizeException(source = source)
@@ -133,8 +135,8 @@ class Model(ModelOps, AbstractNetwork):
       # Keep output layer data
       state_[output_layer] = state[output_layer]
       # Keep source information
-      if self.Layer.SOURCE.id in state:
-        state_[self.Layer.SOURCE.id] = state[self.Layer.SOURCE.id]
+      if self.LayerClass.SOURCE.id in state:
+        state_[self.LayerClass.SOURCE.id] = state[self.LayerClass.SOURCE.id]
       state = state_
     return state
 
@@ -149,14 +151,14 @@ class Model(ModelOps, AbstractNetwork):
     num_patches -- (int) number of patches to extract
     normalize -- (bool) whether to normalize each C1 patch
     """
-    state = self.BuildLayer(self.Layer.C1, state)
-    c1s = state[self.Layer.C1.id]
+    state = self.BuildLayer(self.LayerClass.C1, state)
+    c1s = state[self.LayerClass.C1.id]
     try:
       patch_it = SampleC1Patches(c1s, kwidth = self.params.s2_kwidth)
       patches = list(itertools.islice(patch_it, num_patches))
     except InsufficientSizeException, e:
       # Try to annotate exception with source information.
-      source = state.get(self.Layer.SOURCE.id, None)
+      source = state.get(self.LayerClass.SOURCE.id, None)
       if source == None:
         raise
       raise InsufficientSizeException(source = source)
@@ -181,8 +183,8 @@ class Model(ModelOps, AbstractNetwork):
     resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
-    state = self.State()
-    state[self.Layer.SOURCE.id] = InputSource(filename, resize = resize)
+    state = self.StateClass()
+    state[self.LayerClass.SOURCE.id] = InputSource(filename, resize = resize)
     return state
 
   def MakeStateFromImage(self, image):
@@ -192,8 +194,8 @@ class Model(ModelOps, AbstractNetwork):
     resize -- (int) scale minimum edge to fixed length
     RETURN (State) the new model state
     """
-    state = self.State()
-    state[self.Layer.IMAGE.id] = self.BuildImageFromInput(image)
+    state = self.StateClass()
+    state[self.LayerClass.IMAGE.id] = self.BuildImageFromInput(image)
     return state
 
   def ImprintS2Prototypes(self, num_prototypes, input_states, normalize = True,
@@ -246,7 +248,7 @@ class Model(ModelOps, AbstractNetwork):
     return prototypes, locations
 
 # Add (circular) Model reference to State class.
-State.Model = Model
+State.ModelClass = Model
 
 class LayerBuilder(object):
   """Represents a serializable function that computes a network state
