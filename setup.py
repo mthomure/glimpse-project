@@ -6,9 +6,11 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from distutils.core import setup
-from distutils.extension import Extension
-import numpy
+from distribute_setup import use_setuptools
+use_setuptools()
+
+from setuptools import setup, find_packages
+from setuptools.extension import Extension
 
 #### Control Flags for Compilation ####
 
@@ -58,7 +60,20 @@ if profiler:
 
 #### Do Not Edit Below This Line ####
 
-cython_backend_ext = Extension(
+# See http://permalink.gmane.org/gmane.comp.python.distutils.devel/5345
+class NumpyExtension(Extension):
+   def __init__(self, *args, **kwargs):
+     Extension.__init__(self, *args, **kwargs)
+     self._include_dirs = self.include_dirs
+     del self.include_dirs # restore overwritten property
+
+   # warning: Extension is a classic class so it's not really read-only
+   @property
+   def include_dirs(self):
+     from numpy import get_include
+     return self._include_dirs + [get_include()]
+
+cython_backend_ext = NumpyExtension(
   "glimpse.backends.cython_backend.filter",
   [
     "glimpse/backends/cython_backend/filter.cpp",
@@ -82,15 +97,56 @@ cython_backend_ext = Extension(
 
 setup(
   name = "glimpse",
-  version = "1.1",
-  description = "Library for hierarchical visual models in C++ and Python",
+  version = "0.1.0",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
-
+  packages = find_packages(),
+  url = 'https://github.com/mthomure/glimpse-project',
+  license = 'LICENSE.txt',
+  description = "Library for hierarchical visual models in C++ and Python",
+  long_description = open('README.txt').read(),
+  platforms = ["Linux", "Mac OS-X", "Unix"],
+  classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: C++",
+    "Programming Language :: Python",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX",
+    "Operating System :: Unix",
+    "Operating System :: MacOS",
+  ],
+  install_requires = [
+    "Python >= 2.6",
+    "numpy >= 1.3",
+    "scipy >= 0.7.2",
+    "PIL >= 1.1.6",
+    "traits >= 3.4",
+  ],
+  setup_requires = [
+    "numpy >= 1.3",
+  ],
+  extras_require = {
+    "gui" : [
+      "traitsui >= 3.4",
+    ],
+    "cluster" : [
+      "gearman >= 0.14",
+      "pyzmq >= 2.1.11",
+    ],
+  },
+  entry_points = {
+    'console_scripts' : [
+      'glab = glimpse.glab:main',
+      'glimpse-cluster = glimpse.pools.main:main [cluster]',
+    ],
+    'gui_scripts' : [
+      'edit-glimpse-params = glimpse.models.edit_params:main [gui]',
+    ],
+  },
   ext_modules = [ cython_backend_ext ],
-  packages = [ 'glimpse', 'glimpse.backends', 'glimpse.backends.cython_backend',
-      'glimpse.models', 'glimpse.models.viz2', 'glimpse.models.ml',
-      'glimpse.pools', 'glimpse.pools.zmq_cluster', 'glimpse.pools.gearman_cluster',
-      'glimpse.pools.ipython_cluster', 'glimpse.util' ],
-  include_dirs = [ numpy.get_include() ],
 )

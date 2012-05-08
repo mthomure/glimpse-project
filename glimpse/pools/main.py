@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+"""Entry point for glimpse-cluster."""
 
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
@@ -6,13 +6,8 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse import util
-from glimpse import pools
-import os
-import sys
+from . import misc
 
 def main():
-  pkg = pools.GetClusterPackage()
+  pkg = misc.GetClusterPackage()
   pkg.RunMain()
-
-main()

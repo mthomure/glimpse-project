@@ -90,7 +90,7 @@ Learn the Prototypes
 --------------------
 
 The filters used at the S2 layer are defined by their kernel matrices, or
-*prototypes*. These matrices can be :ref:`learned <prototype learning>` in a
+*prototypes*. These matrices can be :ref:`learned <filter learning>` in a
 number of ways. A simple learning mechanism used by Serre et al [1]_ is to
 *imprint* these prototypes from the training examples. In glab, this can be
 achieved using :func:`ImprintS2Prototypes`.

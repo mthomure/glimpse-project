@@ -2,5 +2,3 @@
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
-
-from misc import GetExampleImagePaths

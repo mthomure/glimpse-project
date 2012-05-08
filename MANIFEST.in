@@ -1,0 +1,11 @@
+include distribute_setup.py
+recursive-include glimpse *.cpp *.h
+exclude glimpse/convnet.py
+exclude glimpse/exp.py
+exclude glimpse/ipython.py
+exclude glimpse/misc.py
+exclude glimpse/odd.py glimpse/odd_core_methods.*
+exclude glimpse/recon.py
+exclude glimpse/vis.py
+recursive-exclude glimpse/orange *
+exclude MANIFEST.in
