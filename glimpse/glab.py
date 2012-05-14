@@ -9,6 +9,12 @@ using the :class:`Experiment` class directly.
 
 """
 
+# Copyright (c) 2011 Mick Thomure
+# All rights reserved.
+#
+# Please see the file COPYING in this distribution for usage
+# terms.
+
 from glimpse import backends
 from glimpse.backends import InsufficientSizeException
 from glimpse.models import viz2
