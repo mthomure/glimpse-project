@@ -37,7 +37,7 @@ __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
     'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'SetLayer',
     'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'CrossValidateSvm',
     'TrainSvm', 'TestSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment',
-    'Verbose')
+    'Reset', 'Verbose')
 
 class DirReader(object):
   """Read directory contents."""
