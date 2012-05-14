@@ -174,7 +174,10 @@ class Experiment(object):
   __repr__ = __str__
 
   def ImprintS2Prototypes(self, num_prototypes):
-    """Imprint a set of S2 prototypes from a set of training images.
+    """Imprint a set of S2 prototypes from the training images.
+
+    Only images from the first (i.e., positive) class of the training set are
+    used.
 
     :param int num_prototypes: The number of C1 patches to sample.
 
@@ -183,7 +186,7 @@ class Experiment(object):
       sys.exit("Please specify the training corpus before imprinting "
           "prototypes.")
     start_time = time.time()
-    image_files = util.UngroupLists(self.train_images)
+    image_files = self.train_images[0]
     # Represent each image file as an empty model state.
     input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
         for f in image_files ]
