@@ -456,10 +456,15 @@ class Experiment(object):
        :func:`SetCorpus`
 
     """
-    if classes == None:
-      classes = os.listdir(train_dir)
-    train_images = self._ReadCorpusDir(train_dir, classes)
-    test_images = self._ReadCorpusDir(test_dir, classes)
+    try:
+      if classes == None:
+        classes = map(os.path.basename, self.dir_reader.ReadDirs(train_dir))
+      train_images = map(self.dir_reader.ReadFiles,
+          [ os.path.join(train_dir, cls) for cls in classes ])
+      test_images = map(self.dir_reader.ReadFiles,
+          [ os.path.join(test_dir, cls) for cls in classes ])
+    except OSError, e:
+      sys.exit("Failed to read corpus directory: %s" % e)
     self.SetTrainTestSplit(train_images, test_images, classes)
     self.corpus = (train_dir, test_dir)
 
@@ -476,6 +481,12 @@ class Experiment(object):
     :type classes: list of str
 
     """
+    if classes == None:
+      raise ValueError("Must specify set of classes.")
+    if train_images == None:
+      raise ValueError("Must specify set of training images.")
+    if test_images == None:
+      raise ValueError("Must specify set of testing images.")
     self.classes = classes
     self.train_test_split = 'manual'
     self.train_images = train_images
@@ -862,7 +873,7 @@ def SetCorpusSubdirs(corpus_subdirs, classes = None, balance = False):
 
 @docstring.copy_dedent(Experiment.SetTrainTestSplitFromDirs)
 def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
-  return GetExperiment().SetTrainTestSplit(train_dir, test_dir, classes)
+  return GetExperiment().SetTrainTestSplitFromDirs(train_dir, test_dir, classes)
 
 @docstring.copy_dedent(Experiment.SetTrainTestSplit)
 def SetTrainTestSplit(train_images, test_images, classes):
