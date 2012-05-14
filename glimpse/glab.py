@@ -972,14 +972,15 @@ def _InitCli(pool_type = None, cluster_config = None, model_name = None,
   if pool_type != None:
     pool_type = pool_type.lower()
     if pool_type in ('c', 'cluster'):
-      pool = MakeClusterPool(cluster_config)
+      UseCluster(cluster_config)
     elif pool_type in ('m', 'multicore'):
       pool = pools.MulticorePool()
+      SetPool(pool)
     elif pool_type in ('s', 'singlecore'):
       pool = pools.SinglecorePool()
+      SetPool(pool)
     else:
       raise util.UsageException("Unknown pool type: %s" % pool_type)
-    SetPool(pool)
   if model_name != None:
     SetModelClass(_GetCliModel(model_name))
   SetParams(params)
