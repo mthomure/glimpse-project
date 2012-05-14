@@ -1,1 +1,2 @@
 v0.1, 2012-05-07 -- Initial release.
+v0.1.1, 2012-05-14 -- Bug fixes to glab commands.

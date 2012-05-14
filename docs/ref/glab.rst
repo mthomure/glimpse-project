@@ -20,6 +20,7 @@ glab
       MakeShuffledRandomS2Prototypes,
       MakeUniformRandomS2Prototypes,
       RunSvm,
+      Reset,
       SetCorpus,
       SetCorpusSubdirs,
       SetExperiment,

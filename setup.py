@@ -97,7 +97,7 @@ cython_backend_ext = NumpyExtension(
 
 setup(
   name = "glimpse",
-  version = "0.1.0",
+  version = "0.1.1",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
   packages = find_packages(),
