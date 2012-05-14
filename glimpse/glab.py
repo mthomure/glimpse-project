@@ -35,6 +35,33 @@ __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
     'TrainSvm', 'TestSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment',
     'Verbose')
 
+class DirReader(object):
+  """Read directory contents."""
+
+  def __init__(self, ignore_hidden = True):
+    if ignore_hidden:
+      path_filter = DirReader._HiddenPathFilter
+    else:
+      path_filter = None
+    self.path_filter = path_filter
+
+  @staticmethod
+  def _HiddenPathFilter(path):
+    # Ignore "hidden" entries in directory.
+    return not path.startswith('.')
+
+  def _Read(self, dir_path):
+    return [ os.path.join(dir_path, entry)
+        for entry in filter(self.path_filter, os.listdir(dir_path)) ]
+
+  def ReadDirs(self, dir_path):
+    """Read list of sub-directories."""
+    return filter(os.path.isdir, self._Read(dir_path))
+
+  def ReadFiles(self, dir_path):
+    """Read list of files."""
+    return filter(os.path.isfile, self._Read(dir_path))
+
 class Experiment(object):
   """Container for experimental results.
 
@@ -110,6 +137,7 @@ class Experiment(object):
     #: (float) Time required to test the SVM, in seconds.
     self.svm_test_time = None
     self.debug = False
+    self.dir_reader = DirReader(ignore_hidden = True)
 
   def GetFeatures(self):
     """The full set of features for each class, without training/testing splits.
@@ -355,8 +383,14 @@ class Experiment(object):
        :func:`SetTrainTestSplit`
 
     """
-    corpus_subdirs = [ os.path.join(corpus_dir, cls)
-        for cls in os.listdir(corpus_dir) ]
+    if classes == None:
+      corpus_subdirs = self.dir_reader.ReadDirs(corpus_dir)
+    else:
+      corpus_subdirs = [ os.path.join(corpus_dir, cls) for cls in classes ]
+      # Check that sub-directory exists.
+      for subdir in corpus_subdirs:
+        if not os.path.isdir(subdir):
+          raise ValueError("Directory not found: %s" % subdir)
     return self.SetCorpusSubdirs(corpus_subdirs, corpus_dir, classes, balance)
 
   def SetCorpusSubdirs(self, corpus_subdirs, corpus = None, classes = None,
@@ -365,7 +399,8 @@ class Experiment(object):
 
     Training and testing subsets are chosen automatically.
 
-    :param corpus_subdirs: Paths to directories for each class.
+    :param corpus_subdirs: Paths to directories for each class. Order
+       corresponds to `classes` argument, if set.
     :type corpus_subdirs: list of str
     :param corpus: Path to main corpus directory.
     :type corpus: str, optional
@@ -386,24 +421,15 @@ class Experiment(object):
     self.classes = classes
     self.corpus = corpus
     self.train_test_split = 'automatic'
-
-    def image_filter(img):
-      # Ignore "hidden" files in corpus directory.
-      return not img.startswith('.')
-
-    def read_subdir(path):
-      return [ os.path.join(path, img)
-          for img in os.listdir(path) if image_filter(img) ]
-
     try:
-      images_per_class = map(read_subdir, corpus_subdirs)
+      images_per_class = map(self.dir_reader.ReadFiles, corpus_subdirs)
     except OSError, e:
       sys.exit("Failed to read corpus directory: %s" % e)
     # Randomly reorder image lists.
     for images in images_per_class:
       np.random.shuffle(images)
     if balance:
-      # Make sure each class has the same number of images
+      # Make sure each class has the same number of images.
       num_images = map(len, images_per_class)
       size = min(num_images)
       if not all(n == size for n in num_images):
