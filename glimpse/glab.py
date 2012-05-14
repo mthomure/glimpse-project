@@ -437,9 +437,11 @@ class Experiment(object):
   def SetTrainTestSplit(self, train_images, test_images, classes):
     """Manually specify the training and testing images.
 
-    :param train_images: Paths for each training image, with one sub-list per class.
+    :param train_images: Paths for each training image, with one sub-list per
+       class.
     :type train_images: list of list of str
-    :param test_images: Paths for each training image, with one sub-list per class.
+    :param test_images: Paths for each training image, with one sub-list per
+       class.
     :type test_images: list of list of str
     :param classes: Class names
     :type classes: list of str
@@ -473,7 +475,8 @@ class Experiment(object):
     features = self.ComputeFeaturesFromInputStates(input_states, block = True)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
-    train_features, test_features = util.SplitList(features, [train_size, test_size])
+    train_features, test_features = util.SplitList(features,
+        [train_size, test_size])
     # Split training set by class
     train_features = util.SplitList(train_features, train_sizes)
     # Split testing set by class
@@ -609,6 +612,19 @@ __PARAMS = None
 __LAYER = None
 __EXP = None
 __VERBOSE = False
+
+def Reset():
+  """Remove the current experiment and revert to default settings."""
+  global __EXP, __POOL, __MODEL_CLASS, __PARAMS, __LAYER, __EXP, __VERBOSE
+  __EXP = None
+  __POOL = None
+  __MODEL_CLASS = None
+  __PARAMS = None
+  __LAYER = None
+  __EXP = None
+  __VERBOSE = False
+
+Reset()
 
 def SetPool(pool):
   """Set the worker pool used for this experiment."""
