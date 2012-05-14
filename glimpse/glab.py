@@ -24,10 +24,8 @@ from glimpse.util import docstring
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
-import itertools
 import logging
 import numpy as np
-import operator
 import os
 import sys
 import time
@@ -144,6 +142,9 @@ class Experiment(object):
     self.svm_test_time = None
     self.debug = False
     self.dir_reader = DirReader(ignore_hidden = True)
+    self.debug_prototype_locations = None
+    self.svm_time = None
+    self.compute_feature_time = None
 
   def GetFeatures(self):
     """The full set of features for each class, without training/testing splits.
@@ -227,21 +228,19 @@ class Experiment(object):
     try:
       prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
           input_states, normalize = True, pool = self.pool)
-    except InputSourceLoadException, e:
-      if e.source != None:
-        path = e.source.image_path
+    except InputSourceLoadException, ex:
+      if ex.source != None:
+        path = ex.source.image_path
       else:
         path = '<unknown>'
-      logging.error("Failed to process image (%s): image read error" % \
-          path)
+      logging.error("Failed to process image (%s): image read error", path)
       sys.exit(-1)
-    except InsufficientSizeException, e:
-      if e.source != None:
-        path = e.source.image_path
+    except InsufficientSizeException, ex:
+      if ex.source != None:
+        path = ex.source.image_path
       else:
         path = '<unknown>'
-      logging.error("Failed to process image (%s): image too small" % \
-          path)
+      logging.error("Failed to process image (%s): image too small", path)
       sys.exit(-1)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
@@ -261,8 +260,8 @@ class Experiment(object):
     start_time = time.time()
     shape = (num_prototypes,) + tuple(self.model.s2_kernel_shape)
     prototypes = np.random.uniform(0, 1, shape)
-    for p in prototypes:
-      p /= np.linalg.norm(p)
+    for proto in prototypes:
+      proto /= np.linalg.norm(proto)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'uniform'
@@ -279,8 +278,8 @@ class Experiment(object):
     start_time = time.time()
     if self.model.s2_kernels == None:
       self.ImprintS2Prototypes(num_prototypes)
-    for k in self.model.s2_kernels:
-      np.random.shuffle(k.flat)
+    for kernel in self.model.s2_kernels:
+      np.random.shuffle(kernel.flat)
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'shuffle'
 
@@ -301,8 +300,8 @@ class Experiment(object):
     size = (num_prototypes,) + self.model.s2_kernel_shape
     prototypes = hist.Sample(size).astype(
         util.ACTIVATION_DTYPE)
-    for p in prototypes:
-      p /= np.linalg.norm(p)
+    for proto in prototypes:
+      proto /= np.linalg.norm(proto)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'histogram'
@@ -324,8 +323,8 @@ class Experiment(object):
     size = (num_prototypes,) + self.model.s2_kernel_shape
     prototypes = np.random.normal(mean, std, size = size).astype(
         util.ACTIVATION_DTYPE)
-    for p in prototypes:
-      p /= np.linalg.norm(p)
+    for proto in prototypes:
+      proto /= np.linalg.norm(proto)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'normal'
@@ -362,13 +361,13 @@ class Experiment(object):
     if block:
       try:
         features = list(features)  # wait for results
-      except InputSourceLoadException, e:
-        logging.error("Failed to read image from disk: %s" % \
-            e.source.image_path)
+      except InputSourceLoadException, ex:
+        logging.error("Failed to read image from disk: %s",
+            ex.source.image_path)
         sys.exit(-1)
-      except InsufficientSizeException, e:
-        logging.error("Failed to process image (%s): image too small" % \
-            e.source.image_path)
+      except InsufficientSizeException, ex:
+        logging.error("Failed to process image (%s): image too small",
+            ex.source.image_path)
         sys.exit(-1)
     return features
 
@@ -429,8 +428,8 @@ class Experiment(object):
     self.train_test_split = 'automatic'
     try:
       images_per_class = map(self.dir_reader.ReadFiles, corpus_subdirs)
-    except OSError, e:
-      sys.exit("Failed to read corpus directory: %s" % e)
+    except OSError, ex:
+      sys.exit("Failed to read corpus directory: %s" % ex)
     # Randomly reorder image lists.
     for images in images_per_class:
       np.random.shuffle(images)
@@ -469,8 +468,8 @@ class Experiment(object):
           [ os.path.join(train_dir, cls) for cls in classes ])
       test_images = map(self.dir_reader.ReadFiles,
           [ os.path.join(test_dir, cls) for cls in classes ])
-    except OSError, e:
-      sys.exit("Failed to read corpus directory: %s" % e)
+    except OSError, ex:
+      sys.exit("Failed to read corpus directory: %s" % ex)
     self.SetTrainTestSplit(train_images, test_images, classes)
     self.corpus = (train_dir, test_dir)
 
@@ -542,7 +541,6 @@ class Experiment(object):
     """
     if self.train_features == None:
       self.ComputeFeatures()
-    start_time = time.time()
     svm_model = svm.ScaledSvm(self.scaler)
     svm_model.Train(self.train_features)
     self.scaler = svm_model.scaler  # scaler has been trained. save it.
@@ -675,7 +673,7 @@ Reset()
 def SetPool(pool):
   """Set the worker pool used for this experiment."""
   global __POOL
-  logging.info("Using pool type: %s" % type(pool).__name__)
+  logging.info("Using pool type: %s", type(pool).__name__)
   __POOL = pool
 
 def GetPool():
@@ -705,13 +703,12 @@ def SetModelClass(model_class = None):
   global __MODEL_CLASS
   if model_class == None:
     model_class = viz2.Model  # the default GLIMPSE model
-  logging.info("Using model type: %s" % model_class.__name__)
+  logging.info("Using model type: %s", model_class.__name__)
   __MODEL_CLASS = model_class
   return __MODEL_CLASS
 
 def GetModelClass():
   """Get the type that will be used to construct an experiment."""
-  global __MODEL_CLASS
   if __MODEL_CLASS == None:
     SetModelClass()
   return __MODEL_CLASS
@@ -732,7 +729,6 @@ def GetParams():
   experiment.
 
   """
-  global __PARAMS
   if __PARAMS == None:
     SetParams()
   return __PARAMS
@@ -742,7 +738,7 @@ def SetLayer(layer = None):
   experiment.
 
   """
-  global __LAYER, __MODEL_CLASS
+  global __LAYER
   if layer == None:
     layer = GetModelClass().LayerClass.IT
   elif isinstance(layer, str):
@@ -755,7 +751,6 @@ def GetLayer():
   experiment.
 
   """
-  global __LAYER
   if __LAYER == None:
     SetLayer()
   return __LAYER
@@ -767,14 +762,12 @@ def MakeModel(params = None):
      :func:`SetModelClass`
 
   """
-  global __MODEL_CLASS
   if params == None:
     params = GetParams()
   return __MODEL_CLASS(backends.MakeBackend(), params)
 
 def GetExperiment():
   """Get the current experiment object."""
-  global __EXP
   if __EXP == None:
     SetExperiment()
   return __EXP
@@ -811,6 +804,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
 
 @docstring.copy_dedent(Experiment.ImprintS2Prototypes)
 def ImprintS2Prototypes(num_prototypes):
+  """" """
   if __VERBOSE:
     print "Imprinting %d prototypes" % num_prototypes
   result = GetExperiment().ImprintS2Prototypes(num_prototypes)
@@ -820,6 +814,7 @@ def ImprintS2Prototypes(num_prototypes):
 
 @docstring.copy_dedent(Experiment.MakeUniformRandomS2Prototypes)
 def MakeUniformRandomS2Prototypes(num_prototypes):
+  """" """
   if __VERBOSE:
     print "Making %d uniform random prototypes" % num_prototypes
   result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes)
@@ -829,6 +824,7 @@ def MakeUniformRandomS2Prototypes(num_prototypes):
 
 @docstring.copy_dedent(Experiment.MakeShuffledRandomS2Prototypes)
 def MakeShuffledRandomS2Prototypes(num_prototypes):
+  """" """
   if __VERBOSE:
     print "Making %d shuffled random prototypes" % num_prototypes
   result = GetExperiment().MakeShuffledRandomS2Prototypes(num_prototypes)
@@ -838,6 +834,7 @@ def MakeShuffledRandomS2Prototypes(num_prototypes):
 
 @docstring.copy_dedent(Experiment.MakeHistogramRandomS2Prototypes)
 def MakeHistogramRandomS2Prototypes(num_prototypes):
+  """" """
   if __VERBOSE:
     print "Making %d histogram random prototypes" % num_prototypes
   result = GetExperiment().MakeHistogramRandomS2Prototypes(num_prototypes)
@@ -847,6 +844,7 @@ def MakeHistogramRandomS2Prototypes(num_prototypes):
 
 @docstring.copy_dedent(Experiment.MakeNormalRandomS2Prototypes)
 def MakeNormalRandomS2Prototypes(num_prototypes):
+  """" """
   if __VERBOSE:
     print "Making %d normal random prototypes" % num_prototypes
   result = GetExperiment().MakeNormalRandomS2Prototypes(num_prototypes)
@@ -870,64 +868,75 @@ def SetS2Prototypes(prototypes):
 
 @docstring.copy_dedent(Experiment.SetCorpus)
 def SetCorpus(corpus_dir, classes = None, balance = False):
-  return GetExperiment().SetCorpus(corpus_dir, classes, balance = balance)
+  """" """
+  return GetExperiment().SetCorpus(corpus_dir, classes = classes,
+      balance = balance)
 
 @docstring.copy_dedent(Experiment.SetCorpusSubdirs)
 def SetCorpusSubdirs(corpus_subdirs, classes = None, balance = False):
+  """" """
   return GetExperiment().SetCorpusSubdirs(corpus_subdirs, classes = classes,
       balance = balance)
 
 @docstring.copy_dedent(Experiment.SetTrainTestSplitFromDirs)
 def SetTrainTestSplitFromDirs(train_dir, test_dir, classes = None):
+  """" """
   return GetExperiment().SetTrainTestSplitFromDirs(train_dir, test_dir, classes)
 
 @docstring.copy_dedent(Experiment.SetTrainTestSplit)
 def SetTrainTestSplit(train_images, test_images, classes):
+  """" """
   return GetExperiment().SetTrainTestSplit(train_images, test_images, classes)
 
 @docstring.copy_dedent(Experiment.ComputeFeatures)
 def ComputeFeatures():
+  """" """
   GetExperiment().ComputeFeatures()
 
 @docstring.copy_dedent(Experiment.CrossValidateSvm)
 def CrossValidateSvm():
+  """" """
   return GetExperiment().CrossValidateSvm()
 
 @docstring.copy_dedent(Experiment.TrainSvm)
 def TrainSvm():
+  """" """
   return GetExperiment().TrainSvm()
 
 @docstring.copy_dedent(Experiment.TestSvm)
 def TestSvm():
+  """" """
   return GetExperiment().TestSvm()
 
 @docstring.copy_dedent(Experiment.RunSvm)
 def RunSvm(cross_validate = False):
-  global __VERBOSE
-  e = GetExperiment()
+  """" """
+  exp = GetExperiment()
   if cross_validate:
     if __VERBOSE:
       print "Computing cross-validated SVM performance on %d images" % \
-          sum(map(len, e.GetImages()))
+          sum(map(len, exp.GetImages()))
   else:
     if __VERBOSE:
-      print "Train SVM on %d images" % sum(map(len, e.train_images))
-      print "  and testing on %d images" % sum(map(len, e.test_images))
-  train_accuracy, test_accuracy = e.RunSvm(cross_validate)
+      print "Train SVM on %d images" % sum(map(len, exp.train_images))
+      print "  and testing on %d images" % sum(map(len, exp.test_images))
+  train_accuracy, test_accuracy = exp.RunSvm(cross_validate)
   if __VERBOSE:
-    print "  done: %s s" % e.svm_time
+    print "  done: %s s" % exp.svm_time
     print "Time to compute feature vectors: %s s" % \
-        e.compute_feature_time
+        exp.compute_feature_time
     print "Accuracy is %.3f on training set, and %.3f on test set." % \
         (train_accuracy, test_accuracy)
   return train_accuracy, test_accuracy
 
 @docstring.copy_dedent(Experiment.Store)
 def StoreExperiment(root_path):
+  """" """
   return GetExperiment().Store(root_path)
 
 @docstring.copy_dedent(Experiment.Load)
 def LoadExperiment(root_path):
+  """" """
   global __EXP
   __EXP = Experiment.Load(root_path)
   __EXP.pool = GetPool()
@@ -944,7 +953,7 @@ def Verbose(flag = True):
 
 #### CLI Interface ####
 
-def CLIGetModel(model_name):
+def _GetCliModel(model_name):
   models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
       ['Model'], 0)
   try:
@@ -952,7 +961,7 @@ def CLIGetModel(model_name):
   except AttributeError:
     raise util.UsageException("Unknown model (-m): %s" % model_name)
 
-def CLIInit(pool_type = None, cluster_config = None, model_name = None,
+def _InitCli(pool_type = None, cluster_config = None, model_name = None,
     params = None, edit_params = False, layer = None, debug = False,
     verbose = 0, resize = None, **opts):
   if verbose > 0:
@@ -972,7 +981,7 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
       raise util.UsageException("Unknown pool type: %s" % pool_type)
     SetPool(pool)
   if model_name != None:
-    SetModelClass(CLIGetModel(model_name))
+    SetModelClass(_GetCliModel(model_name))
   SetParams(params)
   SetLayer(layer)
   if edit_params:
@@ -981,15 +990,15 @@ def CLIInit(pool_type = None, cluster_config = None, model_name = None,
   GetExperiment().resize = resize
   GetExperiment().debug = debug
 
-def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
+def _FormatCliResults(svm_decision_values = False, svm_predicted_labels = False,
     **opts):
-  e = GetExperiment()
-  if e.train_results != None:
-    print "Train Accuracy: %.3f" % e.train_results['accuracy']
-  if e.test_results != None:
-    print "Test Accuracy: %.3f" % e.test_results['accuracy']
-    test_images = e.test_images
-    test_results = e.test_results
+  exp = GetExperiment()
+  if exp.train_results != None:
+    print "Train Accuracy: %.3f" % exp.train_results['accuracy']
+  if exp.test_results != None:
+    print "Test Accuracy: %.3f" % exp.test_results['accuracy']
+    test_images = exp.test_images
+    test_results = exp.test_results
     if svm_decision_values:
       if 'decision_values' not in test_results:
         logging.warn("Decision values are unavailable.")
@@ -1011,10 +1020,10 @@ def CLIFormatResults(svm_decision_values = False, svm_predicted_labels = False,
   else:
     print "No results available."
 
-def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
-    corpus = None, svm = False, compute_features = False, result_path = None,
-    cross_validate = False, verbose = 0, balance = False, corpus_subdirs = None,
-    **opts):
+def _RunCli(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
+    corpus = None, use_svm = False, compute_features = False,
+    result_path = None, cross_validate = False, verbose = 0, balance = False,
+    corpus_subdirs = None, **opts):
   if corpus != None:
     SetCorpus(corpus, balance = balance)
   elif corpus_subdirs:  # must be not None and not empty list
@@ -1039,17 +1048,17 @@ def CLIRun(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
           "(%s), expected 'imprint' or 'random'." % prototype_algorithm)
   if compute_features:
     ComputeFeatures()
-  if svm:
+  if use_svm:
     RunSvm(cross_validate)
     if verbose > 0:
-      CLIFormatResults(**opts)
+      _FormatCliResults(**opts)
   if result_path != None:
     StoreExperiment(result_path)
 
-def CLI(**opts):
+def CommandLineInterface(**opts):
   """Entry point for command-line interface handling."""
-  CLIInit(**opts)
-  CLIRun(**opts)
+  _InitCli(**opts)
+  _RunCli(**opts)
 
 def main():
   default_model = "viz2"
@@ -1057,9 +1066,7 @@ def main():
     opts = dict()
     opts['verbose'] = 0
     opts['corpus_subdirs'] = []
-    result_path = None
-    verbose = 0
-    cli_opts, cli_args = util.GetOptions('bc:C:el:m:n:o:p:P:r:R:st:vx',
+    cli_opts, _ = util.GetOptions('bc:C:el:m:n:o:p:P:r:R:st:vx',
         ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
         'compute-features', 'edit-options', 'layer=', 'model=',
         'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
@@ -1099,7 +1106,7 @@ def main():
       elif opt in ('-R', '--resize'):
         opts['resize'] = int(arg)
       elif opt in ('-s', '--svm'):
-        opts['svm'] = True
+        opts['use_svm'] = True
       elif opt == '--svm-decision-values':
         opts['svm_decision_values'] = True
         opts['verbose'] = max(1, opts['verbose'])
@@ -1114,8 +1121,8 @@ def main():
         opts['verbose'] += 1
       elif opt in ('-x', '--cross-validate'):
         opts['cross_validate'] = True
-    CLI(**opts)
-  except util.UsageException, e:
+    CommandLineInterface(**opts)
+  except util.UsageException, ex:
     util.Usage("[options]\n"
         "  -b, --balance                   Choose equal number of images per "
         "class\n"
@@ -1160,7 +1167,7 @@ def main():
         "validation\n"
         "                                  instead of fixed training/testing "
         "split",
-        e
+        ex
     )
 
 if __name__ == '__main__':
