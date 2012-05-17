@@ -103,3 +103,22 @@ def CropArray(data, out_shape):
   in_shape = numpy.array(data.shape)
   begin = ((in_shape - out_shape) / 2.0).astype(int)
   return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]
+
+def CompareArrayLists(xs, ys):
+  """Compare lists of arrays.
+
+  :param xs: First list of arrays.
+  :type xs: iterable of ndarray
+  :param ys: Second list of arrays.
+  :type ys: iterable of ndarray
+  :rtype: bool
+  :returns: True if the two arguments have equal elements, otherwise False.
+
+  """
+  if isinstance(xs, numpy.ndarray):
+    if not isinstance(ys, numpy.ndarray):
+      return False
+    return numpy.all(xs == ys)
+  if not isinstance(ys, type(xs)):
+    return False
+  return all(CompareArrayLists(x, y) for x, y in zip(xs, ys))

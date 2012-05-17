@@ -194,5 +194,20 @@ class TestGlab(unittest.TestCase):
     self.assertNotEqual(e.train_results['accuracy'], None)
     self.assertNotEqual(e.test_results['accuracy'], None)
 
+  def testStoreExperiment_empty(self):
+    temp_dir = TempDir()
+    glab.StoreExperiment(pjoin(temp_dir.dir, 'dat'))
+
+  def testStoreExperiment_notEmpty(self):
+    temp_dir = TempDir()
+    glab.SetCorpus(EXAMPLE_CORPUS)
+    glab.ImprintS2Prototypes(10)
+    glab.RunSvm()
+    old_exp = glab.GetExperiment()
+    exp_path = pjoin(temp_dir.dir, 'dat')
+    glab.StoreExperiment(exp_path)
+    new_exp = glab.LoadExperiment(exp_path)
+    self.assertEqual(new_exp, old_exp)
+
 if __name__ == '__main__':
     unittest.main()

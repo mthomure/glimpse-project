@@ -29,6 +29,7 @@ import numpy as np
 import os
 import sys
 import time
+import types
 
 __all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
     'MakeModel', 'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
@@ -43,11 +44,7 @@ class DirReader(object):
   """Read directory contents."""
 
   def __init__(self, ignore_hidden = True):
-    if ignore_hidden:
-      path_filter = DirReader._HiddenPathFilter
-    else:
-      path_filter = None
-    self.path_filter = path_filter
+    self.ignore_hidden = ignore_hidden
 
   @staticmethod
   def _HiddenPathFilter(path):
@@ -55,8 +52,10 @@ class DirReader(object):
     return not path.startswith('.')
 
   def _Read(self, dir_path):
-    return [ os.path.join(dir_path, entry)
-        for entry in filter(self.path_filter, os.listdir(dir_path)) ]
+    entries = os.listdir(dir_path)
+    if self.ignore_hidden:
+      entries = filter(DirReader._HiddenPathFilter, entries)
+    return [ os.path.join(dir_path, entry) for entry in entries ]
 
   def ReadDirs(self, dir_path):
     """Read list of sub-directories."""
@@ -145,6 +144,26 @@ class Experiment(object):
     self.debug_prototype_locations = None
     self.svm_time = None
     self.compute_feature_time = None
+
+  def __eq__(self, other):
+    if other == None:
+      return False
+    attrs = dir(self)
+    attrs = [ a for a in attrs if not (a.startswith('_') or
+        isinstance(getattr(self, a), types.MethodType) or
+        isinstance(getattr(self, a), types.FunctionType)) ]
+    attrs = set(attrs) - set(('model', 'scaler', 'pool', 'dir_reader',
+        'classifier'))
+    for a in attrs:
+      value = getattr(self, a)
+      other_value = getattr(other, a)
+      if a in ('test_features', 'train_features', 's2_prototypes'):
+        test = util.CompareArrayLists(other_value, value)
+      else:
+        test = other_value == value
+      if not test:
+        return False
+    return True
 
   def GetFeatures(self):
     """The full set of features for each class, without training/testing splits.
