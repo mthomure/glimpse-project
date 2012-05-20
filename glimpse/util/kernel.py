@@ -28,7 +28,7 @@ def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
      choice, so that the kernel can fit 2 1/2 wavelengths total).
   :param bool scale_norm: If true, the kernel vector will be scaled to have unit
      norm.
-  :returns: kernel matrix
+  :returns: Kernel matrix indexed by y-offset and x-offset.
   :rtype: 2D ndarray of float
 
   """
@@ -56,6 +56,8 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
   """Create a set of 2-D square kernel arrays, whose components are chosen
   according to the Gabor function.
 
+  This function creates kernels across a range of orientation and phase.
+
   :param kwidth: Width of kernel.
   :type kwidth: odd int
   :param int num_orientations: Number of edge orientations (orientations will be
@@ -66,7 +68,7 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
      (a value of True helps compensate for aliasing).
   :param bool scale_norm: If true, then the kernel vector is scaled to have unit
      norm.
-  :returns: kernel arrays
+  :returns: Kernel arrays indexed by orientation and phase.
   :rtype: 4D ndarray of float
 
   """
@@ -77,12 +79,39 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
     offset = 0
   thetas = pi / num_orientations * (np.arange(num_orientations) + offset)
   phis = 2 * pi * np.arange(num_phases) / num_phases
-  ks = np.array([[ MakeGaborKernel(kwidth, theta, phi = phi, **args)
-      for phi in phis ] for theta in thetas ], ACTIVATION_DTYPE)
+  ks = [[ MakeGaborKernel(kwidth, theta, phi = phi, **args)
+      for phi in phis ]
+    for theta in thetas ]
+  ks = np.array(ks, ACTIVATION_DTYPE)
   return ks
 
 def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
     shift_orientations = True, embed_kwidth = None, **args):
+  """Create a set of 2-D square kernel arrays, whose components are chosen
+  according to the Gabor function.
+
+  This function creates kernels across a range of scale, orientation, and phase.
+
+  :param kwidth: Width of kernel.
+  :type kwidth: odd int
+  :param int num_scales: Number of Gabor scales (scales will be spread between
+     `kwidth` / 8 and slightly less than `kwidth` / 2).
+  :param int num_orientations: Number of edge orientations (orientations will be
+     spread between 0 and :math:`\pi`).
+  :param int num_phases: Number of Gabor phases (a value of 2 matches a white
+     edge on a black background, and vice versa).
+  :param bool shift_orientations: Whether to rotate Gabor through a small angle
+     (a value of True helps compensate for aliasing).
+  :param int embed_kwidth: If desired, the result can be embeded in a wider
+     array. For example, this can be useful for debugging when the larger scales
+     (governed by `kwidth`) contain clipping artifacts. By default, this is
+     equal to `kwidth`.
+  :param bool scale_norm: If true, then the kernel vector is scaled to have unit
+     norm.
+  :returns: Kernel arrays indexed by scale, orientation, and phase.
+  :rtype: 5D ndarray of float
+
+  """
   from math import pi
   if shift_orientations:
     offset = 0.5
@@ -95,12 +124,12 @@ def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
   lambdas = 2 * scales
   thetas = pi / num_orientations * (np.arange(num_orientations) + offset)
   phis = 2 * pi * np.arange(num_phases) / num_phases
-  ks = np.array([[[
-          MakeGaborKernel(embed_kwidth, theta, phi = phi, sigma = sigma,
+  ks = [[[ MakeGaborKernel(embed_kwidth, theta, phi = phi, sigma = sigma,
               lambda_ = lambda_, **args)
         for phi in phis ]
       for theta in thetas ]
-    for sigma, lambda_ in zip(scales, lambdas) ], ACTIVATION_DTYPE)
+    for sigma, lambda_ in zip(scales, lambdas) ]
+  ks = np.array(ks, ACTIVATION_DTYPE)
   return ks
 
 # gaussian scale is:

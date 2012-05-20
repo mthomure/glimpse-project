@@ -68,8 +68,19 @@ class HistogramSampler(object):
       # Create (size) copies of the current bin index.
       cum_dist[last : next] = bin_idx
       last = next
+    #: (1D ndarray of float) Edges of the histogram bins.
     self.edges = edges
+    #: (1D ndarray of int) Stores a "rotated" version of the histogram. If the
+    #: first histogram bin has (normalized) height N, then the first N entries
+    #: of the `cum_dist` array will have the value 0 (the index of the first
+    #: histogram bin). Similarly, if the second histogram bin has height M, then
+    #: the next M entries of the `cum_dist` array (i.e., those with indices N to
+    #: N+M-1) will have the value 1 (the index of the second histogram bin).
+    #: Thus, sampling a value uniformly from the `cum_dist` array is equivalent
+    #: to sampling a value from the histogram with probability given by the bin
+    #: height.
     self.cum_dist = cum_dist
+    #: (float) Distance between edges of consecutive bins.
     self.bin_width = bin_width
     # Calculate approximation error.
     target_range = edges[0], edges[-1] + bin_width
@@ -78,11 +89,12 @@ class HistogramSampler(object):
     actual = actual_range[1] - actual_range[0]
     self.range_error = (target - actual) / target
 
-  def Sample(self, size = 1):
+  def Sample(self, size = 1, dtype = None):
     """Generate variates according to the modelled distribution.
 
     :param size: Number of variates to generate.
     :type size: int, or tuple of int
+    :param dtype: Datatype for elements of the returned array.
     :returns: Generated variates.
     :rtype: ndarray
 
@@ -90,9 +102,11 @@ class HistogramSampler(object):
     # Sample uniformly from the cumulative distribution array.
     cum_dist_indices = np.random.randint(0, len(self.cum_dist), size = size)
     bin_indices = self.cum_dist[cum_dist_indices]
-    # Lookup the corresponding edge values for each bin.
+    # Lookup the corresponding edge values for each bin, returning a new array.
     offsets = self.edges[ bin_indices ]
     # Add a small delta, so that returned samples are drawn uniformly from the
     # corresponding bins.
     offsets += np.random.random_sample(size) * self.bin_width
+    if dtype != None:
+      offsets = offsets.astype(dtype)
     return offsets

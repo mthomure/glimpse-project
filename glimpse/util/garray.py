@@ -91,11 +91,13 @@ def PadArray(data, out_shape, cval):
 def CropArray(data, out_shape):
   """Remove the border of an array.
 
-  :param ndarray data: Input array.
-  :param out_shape: Shape of central region to return.
+  :param data: Input array.
+  :type data: ND ndarray
+  :param out_shape: Shape of central region to return. If length is less than
+     `data.shape`, this is assumed to specify the range in the last axes.
   :type out_shape: list of int
-  :rtype: ndarray
-  :returns: View of the central region of input array.
+  :rtype: ND ndarray
+  :returns: View of the central region of the input array.
 
   """
   assert numpy.all(numpy.array(data.shape) >= numpy.array(out_shape))
