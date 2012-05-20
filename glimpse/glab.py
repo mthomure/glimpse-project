@@ -18,14 +18,18 @@ using the :class:`Experiment` class directly.
 from glimpse import backends
 from glimpse.backends import InsufficientSizeException
 from glimpse.models import viz2
+from glimpse.models import misc
 from glimpse import pools
 from glimpse import util
 from glimpse.util import docstring
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
+import glimpse.models
 import logging
+import math
 import numpy as np
+import operator
 import os
 import sys
 import time
@@ -139,10 +143,13 @@ class Experiment(object):
     self.svm_train_time = None
     #: (float) Time required to test the SVM, in seconds.
     self.svm_test_time = None
-    self.debug = False
+    #: The file-system reader.
     self.dir_reader = DirReader(ignore_hidden = True)
-    self.debug_prototype_locations = None
+    #: (2D list of 4-tuple) Patch locations for imprinted prototypes.
+    self.prototype_imprint_locations = None
+    #: (float) Time elapsed while training and testing the SVM (in seconds).
     self.svm_time = None
+    #: (float) Time elapsed while constructing feature vectors (in seconds).
     self.compute_feature_time = None
 
   def __eq__(self, other):
@@ -245,8 +252,10 @@ class Experiment(object):
     input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
         for f in image_files ]
     try:
-      prototypes, locations = self.model.ImprintS2Prototypes(num_prototypes,
-          input_states, normalize = True, pool = self.pool)
+      # XXX This assumes prototoypes should be normalized, which isn't the case
+      # in general. Move normalization to the point of prototype application?
+      prototypes, locations = misc.ImprintS2Prototypes(self.model,
+          num_prototypes, input_states, normalize = True, pool = self.pool)
     except InputSourceLoadException, ex:
       if ex.source != None:
         path = ex.source.image_path
@@ -263,10 +272,10 @@ class Experiment(object):
       sys.exit(-1)
     # Store new prototypes in model.
     self.prototype_source = 'imprinted'
-    if self.debug:
-      # Convert input source index to corresponding image path.
-      locations = [ (image_files[l[0]],) + l[1:] for l in locations ]
-      self.debug_prototype_locations = locations
+    # Convert input source index to corresponding image path.
+    locations = [ [ (image_files[loc[0]],) + loc[1:]
+        for loc in locs_for_ksize ] for locs_for_ksize in locations ]
+    self.prototype_imprint_locations = locations
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
@@ -277,10 +286,14 @@ class Experiment(object):
 
     """
     start_time = time.time()
-    shape = (num_prototypes,) + tuple(self.model.s2_kernel_shape)
-    prototypes = np.random.uniform(0, 1, shape)
-    for proto in prototypes:
-      proto /= np.linalg.norm(proto)
+    prototypes = []
+    for kshape in self.model.s2_kernel_shapes:
+      shape = (num_prototypes,) + tuple(kshape)
+      prototypes_for_size = np.random.uniform(0, 1, shape)
+      # XXX This assumes prototypes are normalized, which may not be the case.
+      for proto in prototypes_for_size:
+        proto /= np.linalg.norm(proto)
+      prototypes.append(prototypes_for_size)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'uniform'
@@ -297,8 +310,9 @@ class Experiment(object):
     start_time = time.time()
     if self.model.s2_kernels == None:
       self.ImprintS2Prototypes(num_prototypes)
-    for kernel in self.model.s2_kernels:
-      np.random.shuffle(kernel.flat)
+    for kernels_for_size in self.model.s2_kernels:
+      for kernel in kernels_for_size:
+        np.random.shuffle(kernel.flat)
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'shuffle'
 
@@ -313,14 +327,27 @@ class Experiment(object):
 
     """
     start_time = time.time()
-    # Get ~100k C1 samples, which is approximately 255 prototypes.
-    self.ImprintS2Prototypes(num_prototypes = 255)
-    hist = HistogramSampler(self.model.s2_kernels.flat)
-    size = (num_prototypes,) + self.model.s2_kernel_shape
-    prototypes = hist.Sample(size).astype(
-        util.ACTIVATION_DTYPE)
-    for proto in prototypes:
-      proto /= np.linalg.norm(proto)
+    # We treat each kernel size independently. We want the histogram for each
+    # kernel size to be based on ~100k C1 samples minimum. Here, we calculate
+    # the number of imprinted prototypes required to get this.
+    c1_samples_per_prototype = min([ reduce(operator.mul, shape)
+        for shape in self.model.s2_kernel_shapes ])
+    num_desired_c1_samples = 100000
+    num_imprinted_prototypes = int(num_desired_c1_samples /
+        float(c1_samples_per_prototype))
+    self.ImprintS2Prototypes(num_prototypes = num_imprinted_prototypes)
+    # For each kernel size, build a histogram and sample new prototypes from it.
+    prototypes = []
+    for idx in range(len(self.model.s2_kernel_shapes)):
+      kernels = self.model.s2_kernels[idx]
+      shape = self.model.s2_kernel_shapes[idx]
+      hist = HistogramSampler(kernels.flat)
+      size = (num_prototypes,) + shape
+      prototypes_for_size = hist.Sample(size, dtype = util.ACTIVATION_DTYPE)
+      # XXX This assumes prototypes are normalized, which may not be the case.
+      for proto in prototypes_for_size:
+        proto /= np.linalg.norm(proto)
+      prototypes.append(prototypes_for_size)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'histogram'
@@ -336,14 +363,29 @@ class Experiment(object):
 
     """
     start_time = time.time()
-    # Get ~100k C1 samples, which is approximately 255 prototypes.
-    self.ImprintS2Prototypes(num_prototypes = 255)
-    mean, std = self.model.s2_kernels.mean(), self.model.s2_kernels.std()
-    size = (num_prototypes,) + self.model.s2_kernel_shape
-    prototypes = np.random.normal(mean, std, size = size).astype(
-        util.ACTIVATION_DTYPE)
-    for proto in prototypes:
-      proto /= np.linalg.norm(proto)
+    # We treat each kernel size independently. We want the histogram for each
+    # kernel size to be based on ~100k C1 samples minimum. Here, we calculate
+    # the number of imprinted prototypes required to get this.
+    c1_samples_per_prototype = min([ reduce(operator.mul, shape)
+        for shape in self.model.s2_kernel_shapes ])
+    num_desired_c1_samples = 100000
+    num_imprinted_prototypes = int(num_desired_c1_samples /
+        float(c1_samples_per_prototype))
+    self.ImprintS2Prototypes(num_prototypes = num_imprinted_prototypes)
+    # For each kernel size, estimate parameters of a normal distribution and
+    # sample from it.
+    prototypes = []
+    for idx in range(len(self.model.s2_kernel_shapes)):
+      kernels = self.model.s2_kernels[idx]
+      shape = self.model.s2_kernel_shapes[idx]
+      mean, std = kernels.mean(), kernels.std()
+      size = (num_prototypes,) + shape
+      prototypes_for_size = np.random.normal(mean, std, size = size).astype(
+          util.ACTIVATION_DTYPE)
+      # XXX This assumes prototypes are normalized, which may not be the case.
+      for proto in prototypes_for_size:
+        proto /= np.linalg.norm(proto)
+      prototypes.append(prototypes_for_size)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'normal'
@@ -366,10 +408,11 @@ class Experiment(object):
     :returns: A feature vector for each image.
 
     """
-    L = self.model.LayerClass
-    if self.layer in (L.S2, L.C2, L.IT) and self.model.s2_kernels == None:
-      sys.exit("Please set the S2 prototypes before computing feature vectors "
-          "for layer %s." % self.layer.name)
+    if self.model.s2_kernels == None:
+      lyr = self.model.LayerClass
+      if lyr.IsSublayer(lyr.S2, self.layer):
+        sys.exit("Please set the S2 prototypes before computing feature vectors"
+            " for layer %s." % self.layer.name)
     builder = self.model.BuildLayerCallback(self.layer, save_all = False)
     # Compute model states containing desired features.
     output_states = self.pool.imap(builder, input_states)
@@ -639,9 +682,6 @@ class Experiment(object):
       # available.
       import svmutil
       svmutil.svm_save_model(root_path + '.svm', classifier)
-    if self.debug and hasattr(pool, 'cluster_stats'):
-      # This is a hackish way to record basic cluster usage information.
-      util.Store(pool.cluster_stats, root_path + '.cluster-stats')
     # Restore the value of the "classifier" and "pool" attributes.
     self.classifier = classifier
     self.pool = pool
@@ -715,13 +755,15 @@ def UseCluster(config_file = None, chunksize = None):
 def SetModelClass(model_class = None):
   """Set the model type.
 
-  :param model_class: New model class to use (e.g.,
-     :class:`viz2.Model <glimpse.models.viz2.model.Model>`).
+  :param model_class: Model class to use for future experiments. If a name is
+     given, it is passed to :func:`GetModelClass
+     <glimpse.models.GetModelClass>`.
+  :type model_class: class or str
 
   """
   global __MODEL_CLASS
-  if model_class == None:
-    model_class = viz2.Model  # the default GLIMPSE model
+  if not isinstance(model_class, type):
+    model_class = glimpse.models.GetModelClass(model_class)
   logging.info("Using model type: %s", model_class.__name__)
   __MODEL_CLASS = model_class
   return __MODEL_CLASS
@@ -759,7 +801,7 @@ def SetLayer(layer = None):
   """
   global __LAYER
   if layer == None:
-    layer = GetModelClass().LayerClass.IT
+    layer = GetModelClass().LayerClass.TopLayer()
   elif isinstance(layer, str):
     layer = GetModelClass().LayerClass.FromName(layer)
   __LAYER = layer
@@ -970,19 +1012,15 @@ def Verbose(flag = True):
   global __VERBOSE
   __VERBOSE = flag
 
+def GetExampleCorpus():
+  """Return the path to the corpus of example images."""
+  return os.path.join(os.path.dirname(__file__), '..', 'rc', 'example-corpus')
+
 #### CLI Interface ####
 
-def _GetCliModel(model_name):
-  models = __import__("glimpse.models.%s" % model_name, globals(), locals(),
-      ['Model'], 0)
-  try:
-    return getattr(models, 'Model')
-  except AttributeError:
-    raise util.UsageException("Unknown model (-m): %s" % model_name)
-
 def _InitCli(pool_type = None, cluster_config = None, model_name = None,
-    params = None, edit_params = False, layer = None, debug = False,
-    verbose = 0, resize = None, **opts):
+    params = None, edit_params = False, layer = None, verbose = 0,
+    resize = None, **opts):
   if verbose > 0:
     Verbose(True)
     if verbose > 1:
@@ -1000,15 +1038,16 @@ def _InitCli(pool_type = None, cluster_config = None, model_name = None,
       SetPool(pool)
     else:
       raise util.UsageException("Unknown pool type: %s" % pool_type)
-  if model_name != None:
-    SetModelClass(_GetCliModel(model_name))
+  try:
+    SetModelClass(model_class)
+  except ValueError:
+    raise util.UsageException("Unknown model (-m): %s" % model_name)
   SetParams(params)
   SetLayer(layer)
   if edit_params:
     GetParams().configure_traits()
   # At this point, all parameters needed to create Experiment object are set.
   GetExperiment().resize = resize
-  GetExperiment().debug = debug
 
 def _FormatCliResults(svm_decision_values = False, svm_predicted_labels = False,
     **opts):
@@ -1081,7 +1120,6 @@ def CommandLineInterface(**opts):
   _RunCli(**opts)
 
 def main():
-  default_model = "viz2"
   try:
     opts = dict()
     opts['verbose'] = 0
@@ -1109,9 +1147,6 @@ def main():
       elif opt in ('-l', '--layer'):
         opts['layer'] = arg
       elif opt in ('-m', '--model'):
-        # Set the model class
-        if arg == 'default':
-          arg = default_model
         opts['model_name'] = arg
       elif opt in ('-n', '--num-prototypes'):
         opts['num_prototypes'] = int(arg)

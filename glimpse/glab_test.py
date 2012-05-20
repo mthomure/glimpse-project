@@ -31,8 +31,7 @@ def MockDirs(*args, **kwargs):
   MakeDirs(temp_dir.dir, *args, **kwargs)
   return temp_dir
 
-EXAMPLE_CORPUS = pjoin(os.path.dirname(glab.__file__), '..', 'rc',
-    'example-corpus')
+EXAMPLE_CORPUS = glab.GetExampleCorpus()
 
 def ImageDict(num_classes, start = 1, end = 5):
   return dict(('cls%d' % c, [ 'cls%d_img%d.jpg' % (c, i)
@@ -48,6 +47,8 @@ CLASSES3 = ('cls1', 'cls2', 'cls3')
 TRAIN_IMAGES3 = ImageDict(3, end = 3)
 TEST_IMAGES3 = ImageDict(3, start = 3, end = 5)
 IMAGES3 = ImageDict(3, end = 5)
+
+NUM_PROTOTYPES = 10
 
 class TestGlab(unittest.TestCase):
 
@@ -159,36 +160,44 @@ class TestGlab(unittest.TestCase):
   def testImprintS2Prototypes(self):
     # Look up the example corpus location relative to the Glimpse code.
     glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.ImprintS2Prototypes(10)
+    glab.ImprintS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
-    self.assertEqual(len(e.model.s2_kernels), 10)
+    # S2 kernels are stored as a list of arrays, with one list entry per kernel
+    # size. Check that we've imprinted NUM_PROTOTYPES patches for each kernel
+    # size.
+    self.assertEqual(map(len, e.model.s2_kernels),
+        [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
   def testMakeUniformRandomS2Prototypes(self):
-    glab.MakeUniformRandomS2Prototypes(10)
+    glab.MakeUniformRandomS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
-    self.assertEqual(len(e.model.s2_kernels), 10)
+    self.assertEqual(map(len, e.model.s2_kernels),
+        [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
   def testMakeShuffledRandomS2Prototypes(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.MakeShuffledRandomS2Prototypes(10)
+    glab.MakeShuffledRandomS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
-    self.assertEqual(len(e.model.s2_kernels), 10)
+    self.assertEqual(map(len, e.model.s2_kernels),
+        [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
   def testMakeHistogramRandomS2Prototypes(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.MakeHistogramRandomS2Prototypes(10)
+    glab.MakeHistogramRandomS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
-    self.assertEqual(len(e.model.s2_kernels), 10)
+    self.assertEqual(map(len, e.model.s2_kernels),
+        [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
   def testMakeNormalRandomS2Prototypes(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.MakeNormalRandomS2Prototypes(10)
+    glab.MakeNormalRandomS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
-    self.assertEqual(len(e.model.s2_kernels), 10)
+    self.assertEqual(map(len, e.model.s2_kernels),
+        [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
   def testRunSvm(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.ImprintS2Prototypes(10)
+    glab.ImprintS2Prototypes(NUM_PROTOTYPES)
     glab.RunSvm()
     e = glab.GetExperiment()
     self.assertNotEqual(e.train_results['accuracy'], None)
