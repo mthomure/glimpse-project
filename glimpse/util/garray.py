@@ -100,9 +100,17 @@ def CropArray(data, out_shape):
   :returns: View of the central region of the input array.
 
   """
-  assert np.all(np.array(data.shape) >= np.array(out_shape))
+  if out_shape == None or len(out_shape) < 1:
+    return data
+  in_shape = data.shape
+  if len(out_shape) < len(in_shape):
+    out_shape = data.shape[:-len(out_shape)] + tuple(out_shape)
+  elif len(out_shape) > len(in_shape):
+    raise ValueError("Shape parameter has wrong format.")
+  in_shape = np.array(in_shape)
   out_shape = np.array(out_shape)
-  in_shape = np.array(data.shape)
+  if not np.all(in_shape >= out_shape):
+    raise ValueError("Shape parameter is out of range.")
   begin = ((in_shape - out_shape) / 2.0).astype(int)
   return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]
 
