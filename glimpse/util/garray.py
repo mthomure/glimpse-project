@@ -7,22 +7,22 @@
 
 import Image
 import math
-import numpy
+import numpy as np
 
 #: Element type for an array of Glimpse activation values.
-ACTIVATION_DTYPE = numpy.float32
+ACTIVATION_DTYPE = np.float32
 
 def ArgMax(array):
   """Short-hand to find array indices containing the maximum value."""
-  return numpy.transpose(numpy.nonzero(array == array.max()))
+  return np.transpose(np.nonzero(array == array.max()))
 
 def ArgMin(array):
   """Short-hand to find array indices containing the minimum value."""
-  return numpy.transpose(numpy.nonzero(array == array.min()))
+  return np.transpose(np.nonzero(array == array.min()))
 
 def ScaleUnitNorm(x):
   """Scale elements of vector (in place), such that result has unit norm."""
-  norm = numpy.linalg.norm(x)
+  norm = np.linalg.norm(x)
 #  norm = math.sqrt((x**2).sum())
   if norm == 0:
     x[:] = 1.0 / math.sqrt(x.size)
@@ -36,8 +36,8 @@ def ArrayToGreyscaleImage(array, normalize = True):
   This function assumes range of input values contains 0.
 
   """
-  if array.dtype != numpy.float32:
-    array = array.astype(numpy.float32)
+  if array.dtype != np.float32:
+    array = array.astype(np.float32)
   if len(array.shape) > 2:
     # Stack bands vertically.
     array = array.reshape((-1, array.shape[-1]))
@@ -51,7 +51,7 @@ def ArrayToGreyscaleImage(array, normalize = True):
     # Map to [0, 255]
     array *= 255
   # Convert to unsigned chars
-  array = numpy.asarray(array, dtype = numpy.uint8)
+  array = np.asarray(array, dtype = np.uint8)
   return Image.fromarray(array, 'L')
 
 def ArrayToRGBImage(array):
@@ -71,7 +71,7 @@ def ArrayListToVector(arrays):
   """
   assert len(arrays) > 0
   out_size = sum(a.size for a in arrays)
-  out = numpy.empty((out_size,), arrays[0].dtype)
+  out = np.empty((out_size,), arrays[0].dtype)
   offset = 0
   for a in arrays:
     out[offset : offset + a.size] = a.flat
@@ -80,9 +80,9 @@ def ArrayListToVector(arrays):
 
 def PadArray(data, out_shape, cval):
   """Pad the border of an array with a constant value."""
-  out_shape = numpy.array(out_shape)
-  in_shape = numpy.array(data.shape)
-  result = numpy.empty(out_shape)
+  out_shape = np.array(out_shape)
+  in_shape = np.array(data.shape)
+  result = np.empty(out_shape)
   result[:] = cval
   begin = ((out_shape - in_shape) / 2.0).astype(int)
   result[ [ slice(b, e) for b, e in zip(begin, begin + in_shape) ] ] = data
@@ -100,9 +100,9 @@ def CropArray(data, out_shape):
   :returns: View of the central region of the input array.
 
   """
-  assert numpy.all(numpy.array(data.shape) >= numpy.array(out_shape))
-  out_shape = numpy.array(out_shape)
-  in_shape = numpy.array(data.shape)
+  assert np.all(np.array(data.shape) >= np.array(out_shape))
+  out_shape = np.array(out_shape)
+  in_shape = np.array(data.shape)
   begin = ((in_shape - out_shape) / 2.0).astype(int)
   return data[ [ slice(b, e) for b, e in zip(begin, begin + out_shape) ] ]
 
@@ -117,10 +117,10 @@ def CompareArrayLists(xs, ys):
   :returns: True if the two arguments have equal elements, otherwise False.
 
   """
-  if isinstance(xs, numpy.ndarray):
-    if not isinstance(ys, numpy.ndarray):
+  if isinstance(xs, np.ndarray):
+    if not isinstance(ys, np.ndarray):
       return False
-    return numpy.all(xs == ys)
+    return np.all(xs == ys)
   if not isinstance(ys, type(xs)):
     return False
   return all(CompareArrayLists(x, y) for x, y in zip(xs, ys))

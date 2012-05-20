@@ -7,7 +7,7 @@
 
 import cPickle
 from cStringIO import StringIO
-import numpy
+import numpy as np
 import pprint
 import struct
 import sys
@@ -79,7 +79,7 @@ def ReadGTiffFile(fname):
   num_bands = ds.RasterCount
   height = ds.RasterYSize
   width = ds.RasterXSize
-  data = numpy.empty((num_bands, height, width), dtype=numpy.float32)
+  data = np.empty((num_bands, height, width), dtype=np.float32)
   for band_idx in range(num_bands):
     band = ds.GetRasterBand(band_idx + 1)
     for y in range(band.YSize):
@@ -145,7 +145,7 @@ def LoadAll(fnames, encoding = ENCODING_PICKLE):
             except ValueError:
               record.append(field)
           data.append(record)
-        yield numpy.array(data)
+        yield np.array(data)
       except ValueError, e:
         raise Exception("Caught exception (ValueError): maybe input encoding "
             "should not be \"%s\"?" % ENCODING_CSV)

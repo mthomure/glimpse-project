@@ -9,7 +9,7 @@ import garray
 import gimage
 import itertools
 import math
-import numpy
+import numpy as np
 import os
 import sys
 
@@ -169,7 +169,7 @@ def ToArray(obj):
   :rtype: ndarray
 
   """
-  if isinstance(obj, numpy.ndarray):
+  if isinstance(obj, np.ndarray):
     return obj
   if hasattr(obj, "load"):
     return gimage.ImageToArray(obj)
@@ -264,9 +264,9 @@ def Blackman1d(n, alpha = 0.16):
   a0 = (1 - alpha) / 2.0
   a1 = 0.5
   a2 = alpha / 2.0
-  x = numpy.arange(n)
-  return a0 - a1 * numpy.cos(2 * math.pi * x / (n - 1)) + \
-      a2 * numpy.cos(4 * math.pi * x / (n - 1))
+  x = np.arange(n)
+  return a0 - a1 * np.cos(2 * math.pi * x / (n - 1)) + \
+      a2 * np.cos(4 * math.pi * x / (n - 1))
 
 def Blackman2d(ny, nx, power = 1):
   """The 2-dimensional Blackman window.
@@ -278,13 +278,13 @@ def Blackman2d(ny, nx, power = 1):
   :rtype: 2D ndarray
 
   """
-  a = numpy.empty([ny, nx])
+  a = np.empty([ny, nx])
   bx = Blackman1d(nx)
-  bx = numpy.maximum(bx, numpy.zeros_like(bx)) ** power
+  bx = np.maximum(bx, np.zeros_like(bx)) ** power
   by = Blackman1d(ny)
   a[:] = bx
   a = (a.T * by).T
-  return numpy.maximum(a, numpy.zeros_like(a))
+  return np.maximum(a, np.zeros_like(a))
 
 def Gabor(sigma, theta, phi, gamma, lambda_, kernel):
   """Fill a 2D matrix using values of the Gabor function.

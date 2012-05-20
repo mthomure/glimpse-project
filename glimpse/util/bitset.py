@@ -6,7 +6,7 @@
 # Please see the file COPYING in this distribution for usage terms.
 
 import math
-import numpy
+import numpy as np
 import operator
 
 class BitsetArray(object):
@@ -67,7 +67,7 @@ class BitsetArray(object):
       memory = self.memory[array_idx]
       shape = self.bitset_shape
     # Convert uchar-packed representation to a seperate byte per bit.
-    bits = numpy.unpackbits(memory, -1)
+    bits = np.unpackbits(memory, -1)
     # Byte array may have padded junk on the end. Remove it.
     bits.shape = (-1, bits.shape[-1])
     bits = bits[:, 0 : nbits_per_set]
@@ -89,11 +89,11 @@ class BitsetArray(object):
       bitset_shape = (-1,)
     assert(bits.size == self.size)
     bits = bits.reshape(bitset_shape)
-    bits = numpy.packbits(bits, -1)
+    bits = np.packbits(bits, -1)
     memory[:] = bits.flat
     # memory = self.memory.reshape(-1)
     # bits = bits.reshape(self.array_shape + (-1,))
-    # bits = numpy.packbits(bits, -1)
+    # bits = np.packbits(bits, -1)
     # bits.shape = -1
     # memory[:] = bits[:]
   # def SetBit(self, array_idx, bitset_idx, value = True):
@@ -111,7 +111,7 @@ def MakeBitsetArrayMemory(array_shape, bitset_shape):
   """
   num_bits = reduce(operator.mul, bitset_shape)
   num_bytes = math.ceil(num_bits / 8.0)
-  return numpy.zeros(list(array_shape) + [num_bytes], numpy.uint8)
+  return np.zeros(list(array_shape) + [num_bytes], np.uint8)
 
 def MakeBitsetArray(array_shape, bitset_shape, memory = None):
   """Create an ND-array of bitsets with the given shape."""
@@ -126,7 +126,7 @@ def FromArray(array, bitset_dims):
      a single bitset.
 
   """
-  array = array.astype(numpy.uint8)
+  array = array.astype(np.uint8)
   array_shape = array.shape[:-bitset_dims]
   bitset_shape = array.shape[-bitset_dims:]
   ba = MakeBitsetArray(array_shape, bitset_shape)

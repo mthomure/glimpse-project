@@ -5,7 +5,7 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-import numpy
+import numpy as np
 
 def Pca(X):
   """Compute the Principal Component Analysis (PCA) transformation for a
@@ -50,18 +50,18 @@ def Pca(X):
   mean = X.mean(0)
   X = X - mean
   # Find covariance matrix of X - mu
-  cov = numpy.dot(X, X.T)
+  cov = np.dot(X, X.T)
   # Find eigenvectors of symmetric covariance matrix
-  eigenvalues, eigenvectors = numpy.linalg.eigh(cov)
+  eigenvalues, eigenvectors = np.linalg.eigh(cov)
   # Full transformation
-  transform = numpy.dot(X.T, eigenvectors).T
+  transform = np.dot(X.T, eigenvectors).T
   # Reorder transformation by descending eigenvalue.
-  order = numpy.argsort(eigenvalues)[::-1]
+  order = np.argsort(eigenvalues)[::-1]
   transform = transform[ order ]
   # Any negative eigenvalues are zero, and negative sign is caused by numerical
   # approximation error.
   eigenvalues[ eigenvalues < 0 ] = 0
-  stdev = numpy.sqrt(eigenvalues)[ order ]
+  stdev = np.sqrt(eigenvalues)[ order ]
   return transform, stdev
 
 def CalculateRoc(target_labels, predicted_labels):
@@ -87,7 +87,7 @@ def CalculateRoc(target_labels, predicted_labels):
     num_neg = len(target_labels) - num_pos
     i = predicted_labels.argsort()[::-1]
     fp = tp = 0
-    last_e = -numpy.inf
+    last_e = -np.inf
     for l, e in zip(target_labels[i], predicted_labels[i]):
       if e != last_e:
         yield (fp / float(num_neg), tp / float(num_pos))
@@ -97,7 +97,7 @@ def CalculateRoc(target_labels, predicted_labels):
       else:
         fp += 1
     yield (fp / float(num_neg), tp / float(num_pos))
-  return numpy.array(list(iterator()))
+  return np.array(list(iterator()))
 
 def CalculateRocScore(target_labels, predicted_labels):
   """Calculate area under the ROC curve (AUC) from a set of target labels and

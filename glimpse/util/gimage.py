@@ -6,7 +6,6 @@
 # Please see the file COPYING in this distribution for usage terms.
 
 from garray import ACTIVATION_DTYPE, PadArray
-import numpy
 import numpy as np
 from scipy import fftpack
 import sys
@@ -26,17 +25,17 @@ def ImageToArray(img, array = None, transpose = True):
   """
   def MakeBuffer():
     if img.mode == 'L':
-      return numpy.empty(img.size, dtype = numpy.uint8)
+      return np.empty(img.size, dtype = np.uint8)
     elif img.mode == 'RGB':
-      return numpy.empty(img.size + (3,), dtype = numpy.uint8)
+      return np.empty(img.size + (3,), dtype = np.uint8)
     elif img.mode == 'F':
-      return numpy.empty(img.size, dtype = numpy.float)
+      return np.empty(img.size, dtype = np.float)
     elif img.mode == '1':
-      return numpy.empty(img.size, dtype = numpy.bool)
+      return np.empty(img.size, dtype = np.bool)
     raise Exception("Can't load data from image with mode: %s" % img.mode)
   def CopyImage(dest):
     img_data = img.load()
-    for idx in numpy.ndindex(img.size):
+    for idx in np.ndindex(img.size):
       dest[idx] = img_data[idx]
     return dest
   def CheckArrayShape():
@@ -111,31 +110,31 @@ def PowerSpectrum(image, width = None):
         0)  # border value
   f2d = PowerSpectrum2d(image)
   # Get sorted radii.
-  x, y = numpy.indices(f2d.shape)
+  x, y = np.indices(f2d.shape)
   center_x = (x.max() - x.min()) / 2.0
   center_y = (y.max() - y.min()) / 2.0
-  r = numpy.hypot(x - center_x, y - center_y)
-  ind = numpy.argsort(r.flat)
+  r = np.hypot(x - center_x, y - center_y)
+  ind = np.argsort(r.flat)
   r_sorted = r.flat[ind]
   # Bin the radii based on integer values. First, find the location (offset) for
   # the edge of each bin.
   r_int = r_sorted.astype(int)
   delta_r = r_int[1:] - r_int[:-1]
-  r_ind = numpy.where(delta_r)[0]
+  r_ind = np.where(delta_r)[0]
   # Compute the number of elements in each bin.
   size_per_bin = r_ind[1:] - r_ind[:-1]
   # Finally, compute the average value for each bin.
   f_sorted = f2d.flat[ind]
-  f_cumsum = numpy.cumsum(f_sorted, dtype = float)  # total cumulative sum
+  f_cumsum = np.cumsum(f_sorted, dtype = float)  # total cumulative sum
   sum_per_bin = f_cumsum[r_ind[1:]] - f_cumsum[r_ind[:-1]]  # cum. sum per bin
   # Use a circular window
   size = min(f2d.shape)
   sum_per_bin = sum_per_bin[: size / 2]
   size_per_bin = size_per_bin[: size / 2]
   # Compute the frequency (in cycles per pixel) corresponding to each bin.
-  freq = numpy.arange(0, size / 2).astype(float) / size
+  freq = np.arange(0, size / 2).astype(float) / size
   # Compute the average power for each bin.
   # XXX the average may be significantly more accurate than the sum, as there
   # are many fewer low-frequency locations in the FFT.
   #~ avg_per_bin = sum_per_bin / size_per_bin
-  return numpy.array([freq, sum_per_bin, size_per_bin])
+  return np.array([freq, sum_per_bin, size_per_bin])
