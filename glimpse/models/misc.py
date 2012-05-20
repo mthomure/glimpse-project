@@ -581,7 +581,7 @@ def PatchGenerator(data, patch_width):
     num_bands = data_scale.ndim - 2
     layer_height, layer_width = data_scale.shape[-2:]
     if layer_height <= patch_width or layer_width <= patch_width:
-      raise InsufficientSizeException
+      raise InsufficientSizeException("Layer must be larger than patch size.")
     # Choose the top-left corner of the region.
     y = random.randint(0, layer_height - patch_width)
     x = random.randint(0, layer_width - patch_width)

@@ -7,12 +7,13 @@ class InsufficientSizeException(Exception):
   """Exception indicating that the input array was too small (spatially) to
   support the requested backend operation."""
 
-  def __init__(self, source = None):
-    super(Exception, self).__init__()
+  def __init__(self, msg = None, source = None):
+    super(Exception, self).__init__(msg)
     self.source = source
 
   def __str__(self):
-    return "InsufficientSizeException(%s)" % self.source
+    return "InsufficientSizeException(msg=%s, source=%s)" % (self.message,
+        self.source)
 
   __repr__ = __str__
 
