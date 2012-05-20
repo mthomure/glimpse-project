@@ -32,7 +32,7 @@ def main():
         e
     )
   if params == None:
-    params = model_class.ParamsClass()
+    params = model_class.ParamClass()
   if ofile == None:
     ofile = sys.stdout
   params.configure_traits()

@@ -739,7 +739,7 @@ def SetParams(params = None):
   """
   global __PARAMS
   if params == None:
-    params = GetModelClass().ParamsClass()
+    params = GetModelClass().ParamClass()
   __PARAMS = params
   return __PARAMS
 

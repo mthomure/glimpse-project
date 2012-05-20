@@ -18,7 +18,7 @@ class ModelOps(BaseModelOps):
   """
 
   #: The parameters type associated with this model.
-  ParamsClass = Params
+  ParamClass = Params
 
   @property
   def s1_kernel_shape(self):

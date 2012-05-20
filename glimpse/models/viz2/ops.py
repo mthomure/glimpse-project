@@ -20,7 +20,7 @@ class ModelOps(object):
   """
 
   #: The parameters type associated with this model.
-  ParamsClass = Params
+  ParamClass = Params
 
   def __init__(self, backend = None, params = None):
     """Create new object.
@@ -36,11 +36,11 @@ class ModelOps(object):
     else:
       backend = copy.copy(backend)
     if params == None:
-      params = self.ParamsClass()
+      params = self.ParamClass()
     else:
-      if not isinstance(params, self.ParamsClass):
+      if not isinstance(params, self.ParamClass):
         raise ValueError("Params object has wrong type: expected %s, got %s" % \
-            (self.ParamsClass, type(params)))
+            (self.ParamClass, type(params)))
       params = copy.copy(params)
     self.backend = backend
     self.params = params
