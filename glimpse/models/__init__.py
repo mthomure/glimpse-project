@@ -4,4 +4,5 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from misc import InputSource, InputSourceLoadException, DependencyError
+from .misc import InputSource, InputSourceLoadException, DependencyError, \
+    GetModelClass
