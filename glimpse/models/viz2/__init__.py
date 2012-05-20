@@ -4,5 +4,5 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from model import Layer, State, Model
-from params import Params
+from .model import Layer, State, Model
+from .params import Params

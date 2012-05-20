@@ -132,86 +132,9 @@ def ImageLayerFromInputArray(input_, backend):
     input_ /= 255
   return backend.PrepareArray(input_)
 
-def SampleC1Patches(c1s, kwidth):
-  """
-  Sample patches from a layer of C1 activity.
-
-  :param c1s: C1 activity maps, one map per scale.
-  :type c1s: 4D ndarray, or list of 3D ndarray
-  :returns: Infinite iterator over prototype arrays and corresponding locations
-     (i.e., iterator elements are 2-tuples). Prototype location gives top-left
-     corner of C1 region.
-
-  """
-  assert (np.array(len(c1s[0].shape)) == 3).all()
-  num_scales = len(c1s)
-  num_orientations = len(c1s[0])
-  while True:
-    scale = random.randint(0, num_scales - 1)
-    c1 = c1s[scale]
-    height, width = c1.shape[-2:]
-    if height <= kwidth or width <= kwidth:
-      raise InsufficientSizeException()
-    y = random.randint(0, height - kwidth)
-    x = random.randint(0, width - kwidth)
-    patch = c1[ :, y : y + kwidth, x : x + kwidth ]
-    yield patch.copy(), (scale, y, x)
-
 class DependencyError(Exception):
   """Indicates that a dependency required to build a node in the network is
   unavailable."""
-
-class AbstractNetwork(object):
-  """An abstract base class for a Glimpse model.
-
-  This class provides the scafolding for recursive dependency satisfaction.
-
-  """
-
-  def BuildSingleNode(self, output_id, state):
-    """Constructs a given node from one or more pre-computed input nodes.
-
-    :param output_id: Unique (at least in this network) identifier for output
-       node.
-    :param dict input_values: Node data for inputs (will not be modified).
-    :returns: Scalar output value for node.
-
-    """
-    raise NotImplemented
-
-  def GetDependencies(self, output_id):
-    """Encodes the dependency structure for each node in the network.
-
-    :param output_id: Unique identifier for output node.
-    :returns: Identifiers of nodes required to build the given output node.
-    :rtype: list
-
-    """
-    raise NotImplemented
-
-  def BuildNode(self, output_id, state):
-    """Construct the given output value.
-
-    The output value is built by recursively building required dependencies. A
-    node is considered to be *built* if the node's key is set in the state
-    dictionary, even if the corresponding value is None.
-
-    :param output_id: Unique identifier for the node to compute.
-    :param dict state: Current state of the network, which may be used to store
-       the updated network state.
-    :returns: The final state of the network, which is guaranteed to contain a
-       value for the output node.
-    :rtype: dict
-
-    """
-    # Short-circuit computation if data exists
-    if output_id not in state:
-      # Compute any dependencies
-      for node in self.GetDependencies(output_id):
-        state = self.BuildNode(node, state)
-      # Compute the output node
-      state[output_id] = self.BuildSingleNode(output_id, state)
-    return state
 
 class BaseLayer(object):
   """Enumerator for model layers."""
