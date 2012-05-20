@@ -128,7 +128,11 @@ def CompareArrayLists(xs, ys):
   if isinstance(xs, np.ndarray):
     if not isinstance(ys, np.ndarray):
       return False
+    # Make sure we can call np.all().
+    if xs.size != ys.size:
+      return False
     return np.all(xs == ys)
-  if not isinstance(ys, type(xs)):
+  # Arguments are iterables. Compare elements.
+  if len(xs) != len(ys):
     return False
   return all(CompareArrayLists(x, y) for x, y in zip(xs, ys))
