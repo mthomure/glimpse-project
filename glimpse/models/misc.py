@@ -24,7 +24,7 @@ class LayerSpec(object):
 
   #: A unique (within a given model) identifier for the layer. Not necessarily
   #: numeric.
-  id = 0
+  ident = 0
 
   #: A user-friendly name for the layer.
   name = ""
@@ -32,20 +32,20 @@ class LayerSpec(object):
   #: Layers whose data is required to compute this layer.
   depends = []
 
-  def __init__(self, id, name = None, *depends):
-    self.id, self.name, self.depends = id, name, depends
+  def __init__(self, ident, name = None, *depends):
+    self.ident, self.name, self.depends = ident, name, depends
 
   def __str__(self):
     return self.name
 
   def __repr__(self):
-    return "LayerSpec(id=%s, name=%s, depends=[%s])" % (self.id, self.name,
-        ", ".join(map(str, self.depends)))
+    return "LayerSpec(ident=%s, name=%s, depends=[%s])" % (self.ident,
+        self.name, ", ".join(map(str, self.depends)))
 
   def __eq__(self, other):
-    # XXX this is only useful for comparing layers for a single model (since it
-    # only uses the id attribute).
-    return isinstance(other, LayerSpec) and self.id == other.id
+    # Note that this is only useful for comparing layers for a single model
+    # (since it only uses the `ident` attribute).
+    return isinstance(other, LayerSpec) and self.ident == other.ident
 
 class InputSourceLoadException(Exception):
   """Thrown when an input source can not be loaded."""
@@ -148,14 +148,14 @@ class BaseLayer(object):
   IMAGE = LayerSpec("i", "image", SOURCE)
 
   @classmethod
-  def FromId(layer_class, id):
+  def FromId(layer_class, ident):
     """Lookup a LayerSpec object by ID."""
-    if isinstance(id, LayerSpec):
-      return id
+    if isinstance(ident, LayerSpec):
+      return ident
     for layer in layer_class.AllLayers():
-      if layer.id == id:
+      if layer.ident == ident:
         return layer
-    raise ValueError("Unknown layer id: %r" % id)
+    raise ValueError("Unknown layer id: %r" % ident)
 
   @classmethod
   def FromName(layer_class, name):
@@ -276,10 +276,10 @@ class BaseModel(object):
 
     """
     L = self.LayerClass
-    if output_id == L.SOURCE.id:
+    if output_id == L.SOURCE.ident:
       raise DependencyError
-    elif output_id == L.IMAGE.id:
-      return self.BuildImageFromInput(state[L.SOURCE.id].CreateImage())
+    elif output_id == L.IMAGE.ident:
+      return self.BuildImageFromInput(state[L.SOURCE.ident].CreateImage())
     raise ValueError("Unknown layer ID: %r" % output_id)
 
   def _BuildNode(self, output_id, state):
@@ -304,7 +304,7 @@ class BaseModel(object):
       # Compute any dependencies
       layer = self.LayerClass.FromId(output_id)
       for node in layer.depends:
-        state = self._BuildNode(node.id, state)
+        state = self._BuildNode(node.ident, state)
       # Compute the output node
       state[output_id] = self._BuildSingleNode(output_id, state)
     return state
@@ -326,22 +326,23 @@ class BaseModel(object):
     """
     state = copy.copy(state)  # get a shallow copy of the model state
     if isinstance(output_layer, LayerSpec):
-      output_layer = output_layer.id
+      output_layer = output_layer.ident
     if output_layer in state:
       return state
     try:
       output_state = self._BuildNode(output_layer, state)
     except InsufficientSizeException, ex:
       # Try to annotate exception with source information.
-      ex.source = state.get(self.LayerClass.SOURCE.id, None)
+      ex.source = state.get(self.LayerClass.SOURCE.ident, None)
       raise ex
     if not save_all:
       state_ = self.StateClass()
       # Keep output layer data
       state_[output_layer] = state[output_layer]
       # Keep source information
-      if self.LayerClass.SOURCE.id in state:
-        state_[self.LayerClass.SOURCE.id] = state[self.LayerClass.SOURCE.id]
+      src = self.LayerClass.SOURCE.ident
+      if src in state:
+        state_[src] = state[src]
       state = state_
     return state
 
@@ -361,7 +362,7 @@ class BaseModel(object):
 
     """
     if isinstance(output_layer, LayerSpec):
-      output_layer = output_layer.id
+      output_layer = output_layer.ident
     return LayerBuilder(self, output_layer, save_all)
 
   def MakeStateFromFilename(self, filename, resize = None):
@@ -374,7 +375,7 @@ class BaseModel(object):
 
     """
     state = self.StateClass()
-    state[self.LayerClass.SOURCE.id] = InputSource(filename, resize = resize)
+    state[self.LayerClass.SOURCE.ident] = InputSource(filename, resize = resize)
     return state
 
   def MakeStateFromImage(self, image):
@@ -388,7 +389,7 @@ class BaseModel(object):
 
     """
     state = self.StateClass()
-    state[self.LayerClass.IMAGE.id] = self.BuildImageFromInput(image)
+    state[self.LayerClass.IMAGE.ident] = self.BuildImageFromInput(image)
     return state
 
   def SamplePatches(self, layer, num_patches, state, normalize = False):
@@ -412,7 +413,7 @@ class BaseModel(object):
 
     """
     if isinstance(layer, LayerSpec):
-      layer = layer.id
+      layer = layer.ident
     state = self.BuildLayer(layer, state)
     data = state[layer]
 
@@ -422,7 +423,7 @@ class BaseModel(object):
         patches = list(islice(patch_it, count))
       except InsufficientSizeException, ex:
         # Try to annotate exception with source information.
-        ex.source = state.get(self.LayerClass.SOURCE.id, None)
+        ex.source = state.get(self.LayerClass.SOURCE.ident, None)
         raise ex
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.

@@ -176,16 +176,16 @@ class Model(BaseModel):
   @docstring.copy(BaseModel._BuildSingleNode)
   def _BuildSingleNode(self, output_id, state):
     L = self.LayerClass
-    if output_id == L.RETINA.id:
-      return self.BuildRetinaFromImage(state[L.IMAGE.id])
-    elif output_id == L.S1.id:
-      return self.BuildS1FromRetina(state[L.RETINA.id])
-    elif output_id == L.C1.id:
-      return self.BuildC1FromS1(state[L.S1.id])
-    elif output_id == L.S2.id:
-      return self.BuildS2FromC1(state[L.C1.id])
-    elif output_id == L.C2.id:
-      return self.BuildC2FromS2(state[L.S2.id])
+    if output_id == L.RETINA.ident:
+      return self.BuildRetinaFromImage(state[L.IMAGE.ident])
+    elif output_id == L.S1.ident:
+      return self.BuildS1FromRetina(state[L.RETINA.ident])
+    elif output_id == L.C1.ident:
+      return self.BuildC1FromS1(state[L.S1.ident])
+    elif output_id == L.S2.ident:
+      return self.BuildS2FromC1(state[L.C1.ident])
+    elif output_id == L.C2.ident:
+      return self.BuildC2FromS2(state[L.S2.ident])
     return super(Model, self)._BuildSingleNode(output_id, state)
 
   def BuildRetinaFromImage(self, img):

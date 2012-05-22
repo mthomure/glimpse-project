@@ -418,7 +418,7 @@ class Experiment(object):
     output_states = self.pool.imap(builder, input_states)
     # Look up the activity values for the output layer, and convert them all to
     # a single vector.
-    features = ( util.ArrayListToVector(state[self.layer.id])
+    features = ( util.ArrayListToVector(state[self.layer.ident])
         for state in output_states )
     if block:
       try:
