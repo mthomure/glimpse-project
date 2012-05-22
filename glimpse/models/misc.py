@@ -592,75 +592,75 @@ def PatchGenerator(data, patch_width):
     patch = data_scale[ index ]
     yield patch.copy(), (scale, y, x)
 
-def ImprintS2Prototypes(model, num_prototypes, input_states, normalize = True,
-    pool = None):
-  """Imprint a set of S2 prototypes from a set of images using an HMAX-like
-  model.
+def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
+    input_states, normalize = True, pool = None):
+  """Create a set of kernels by sampling patches from the layer below.
 
   :param model: Glimpse model with the property `s2_kernel_sizes`.
   :type model: :class:`BaseModel`
-  :param int num_prototypes: Number of prototypes to imprint at each size.
-  :param input_states: Initial network states from which to compute C1.
-  :type input_states: list of model.StateClass
-  :param bool normalize: Whether each prototype is scaled to have unit norm.
+  :param sample_layer: Layer from which to sample.
+  :type sample_layer: str or :class:`LayerSpec`
+  :param kernel_sizes: Kernel widths to support.
+  :type kernel_sizes: list of int
+  :param int num_kernels: Number of patches to sample for each width.
+  :param input_states: Initial network states from which to compute layer
+     activity.
+  :type input_states: list of `model.StateClass`
+  :param bool normalize: Whether to scale each kernel to have unit norm.
   :param pool: Worker pool used to evaluate the model.
-  :returns: Prototypes, and their corresponding locations. Prototypes are
-     returned as a list of (N+1)-dimensional arrays, where N is the number of
-     axes in a single prototype. The list axis and first axis of the array
-     correspond to the kernel size and kernel offset, respectively.  Locations
-     are returned as a 2D list of 4-tuples, where list axes correspond to kernel
-     size and kernel offset, respectively. Each location is given as a 4-tuple,
-     with elements corresponding to the input state index, scale, y-offset, and
-     x-offset of the corresponding prototype.
+  :returns: Kernels, and their corresponding locations. Kernels are returned as
+     a list of (N+1)-dimensional arrays, where N is the number of axes in a
+     single kernel. The list axis and first axis of the array correspond to the
+     kernel size and kernel offset, respectively.  Locations are returned as a
+     2D list of 4-tuples, where list axes correspond to kernel size and kernel
+     offset, respectively. Each location is given as a 4-tuple, with elements
+     corresponding to the input state index, scale, y-offset, and x-offset of
+     the corresponding kernel.
 
-  Examples
-  --------
+  Examples:
 
-  >>> model = ...
-  >>> states = [ model.MakeStateFromFilename(fname) ]
-  >>> prototypes, locations = ImprintS2Prototypes(model, 10, states)
+  >>> model = BaseModel()
+  >>> images = glab.GetExampleImages()
+  >>> states = map(model.MakeStateFromFilename, images)
+  >>> kernels, locations = ImprintKernels(model, kernel_sizes = (7, 11),
+          num_kernels = 10, states)
 
-  Here we assume the model uses four kernel sizes.
+  The result should contain a sub-list for each of the two kernel sizes.
 
-  >>> assert len(prototypes) == 4
-  >>> assert len(locations) == 4
-  >>> assert all(len(ps) == 10 for ps in prototypes)
+  >>> assert len(kernels) == 2
+  >>> assert len(locations) == 2
+  >>> assert all(len(ks) == 10 for ps in kernels)
   >>> assert all(len(ls) == 10 for ls in locations)
 
   """
-  # TODO Is this function specific to S2? If not, make the patch sampling layer
-  # a parameter.
-  # Note: this function assumes the model has an attribute named
-  # `s2_kernel_sizes`.
   if pool == None:
     pool = pools.MakePool()
-  if num_prototypes < len(input_states):
+  if num_kernels < len(input_states):
     # Take a random subset of images.
     random.shuffle(input_states)
-    input_states = input_states[:num_prototypes]
-    patches_per_image = 1
+    input_states = input_states[:num_kernels]
+    num_imprinted_kernels = 1
   else:
-    patches_per_image, extra = divmod(num_prototypes, len(input_states))
+    num_imprinted_kernels, extra = divmod(num_kernels, len(input_states))
     if extra > 0:
-      patches_per_image += 1
+      num_imprinted_kernels += 1
   # The SamplePatchesCallback() function takes a mapping of patch size
   # information, where the key is a patch size and the value gives the number of
   # patches for that size (for each image). We create that mapping here.
-  patches_per_image = [ (size, patches_per_image)
-      for size in model.s2_kernel_sizes ]
+  kernels_per_image = [ (size, num_imprinted_kernels) for size in kernel_sizes ]
   # Create a callback, which we can pass to the worker pool.
-  sampler = model.SamplePatchesCallback(model.LayerClass.C1, patches_per_image,
+  sampler = model.SamplePatchesCallback(sample_layer, kernels_per_image,
       normalize = normalize)
-  # Compute C1 activity, and sample patches.
+  # Compute layer activity, and sample patches.
   values_per_image = pool.map(sampler, input_states)
-  # We now have an iterator over (prototype, location) pairs for each image.
+  # We now have an iterator over (kernel, location) pairs for each image.
   # Evaluate the iterator, and store the result as a list. Note that we must
   # evaluate before concatenating (below) to ensure we don't leave requests
   # sitting on the worker pool.
   values_per_image = map(list, values_per_image)
   # Sanity check the number of returned results.
   assert len(input_states) == len(values_per_image), \
-      "Expected %d C1 patch sets, but got %d" % (len(input_states),
+      "Expected %d sampled patch sets, but got %d" % (len(input_states),
           len(values_per_image))
   # Add input state index to locations. Note that the sampler returns a 2D list
   # of pairs for each image. The list axes correspond to kernel size and kernel
@@ -668,27 +668,28 @@ def ImprintS2Prototypes(model, num_prototypes, input_states, normalize = True,
   # respectively. The location is a triple, whose axes correspond to the scale,
   # y-offset, and x-offset of the patch, respectively.
   values_per_image = [ [ [
-      (proto, (image_idx,) + loc) for proto, loc in values ]
+      (kernel, (image_idx,) + loc) for kernel, loc in values ]
       for values in values_per_ksize ]
       for values_per_ksize, image_idx in zip(values_per_image, count()) ]
-  # Gather prototypes across images, and arrange by size.
+  # Gather kernels across images, and arrange by size.
   values_per_ksize = zip(*values_per_image)
   # Each kernel size bin contains a 2D list of entries, where axes correspond to
   # input image and kernel offset. Flatten this to a 1D list.
   values_per_ksize = [ list(chain(*list2d)) for list2d in values_per_ksize ]
-  return_protos, return_locs = [], []
+  all_kernels, all_locations = [], []  # Result lists not grouped by image.
   # Loop over kernel sizes.
   for values in values_per_ksize:
-    # If the number of requested prototypes is not an even multiple of the
-    # number of images, then we have imprinted too many prototypes. Crop them.
-    values = values[:num_prototypes]
+    # We may have sampled too many kernels (e.g., if the number of requested
+    # patches is not an even multiple of the number of images). If so, crop
+    # the results.
+    values = values[:num_kernels]
     # Convert list of tuples to tuple of lists.
-    prototypes, locations = zip(*values)
-    # Convert prototype to a single numpy array.
-    prototypes = np.array(prototypes, ACTIVATION_DTYPE)
-    return_protos.append(prototypes)
-    return_locs.append(locations)
-  return return_protos, return_locs
+    kernels, locations = zip(*values)
+    # Convert set of kernels to a single numpy array.
+    kernels = np.array(kernels, ACTIVATION_DTYPE)
+    all_kernels.append(kernels)
+    all_locations.append(locations)
+  return all_kernels, all_locations
 
 def Whiten(data):
   """Normalize an array, such that each location contains equal energy.

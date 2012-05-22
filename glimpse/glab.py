@@ -246,16 +246,17 @@ class Experiment(object):
     if self.train_images == None:
       sys.exit("Please specify the training corpus before imprinting "
           "prototypes.")
+    model = self.model
     start_time = time.time()
     image_files = self.train_images[0]
     # Represent each image file as an empty model state.
-    input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
-        for f in image_files ]
+    input_states = [ model.MakeStateFromFilename(fn, resize = self.resize)
+        for fn in image_files ]
     try:
-      # XXX This assumes prototoypes should be normalized, which isn't the case
-      # in general. Move normalization to the point of prototype application?
-      prototypes, locations = misc.ImprintS2Prototypes(self.model,
-          num_prototypes, input_states, normalize = True, pool = self.pool)
+      prototypes, locations = misc.ImprintKernels(model,
+          model.LayerClass.C1, model.s2_kernel_sizes, num_prototypes,
+          input_states, normalize = model.s2_kernels_are_normed,
+          pool = self.pool)
     except InputSourceLoadException, ex:
       if ex.source != None:
         path = ex.source.image_path
@@ -276,7 +277,7 @@ class Experiment(object):
     locations = [ [ (image_files[loc[0]],) + loc[1:]
         for loc in locs_for_ksize ] for locs_for_ksize in locations ]
     self.prototype_imprint_locations = locations
-    self.model.s2_kernels = prototypes
+    model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
   def MakeUniformRandomS2Prototypes(self, num_prototypes):
@@ -286,15 +287,16 @@ class Experiment(object):
 
     """
     start_time = time.time()
+    model = self.model
     prototypes = []
-    for kshape in self.model.s2_kernel_shapes:
+    for kshape in model.s2_kernel_shapes:
       shape = (num_prototypes,) + tuple(kshape)
       prototypes_for_size = np.random.uniform(0, 1, shape)
-      # XXX This assumes prototypes are normalized, which may not be the case.
-      for proto in prototypes_for_size:
-        proto /= np.linalg.norm(proto)
+      if model.s2_kernels_are_normed:
+        for proto in prototypes_for_size:
+          proto /= np.linalg.norm(proto)
       prototypes.append(prototypes_for_size)
-    self.model.s2_kernels = prototypes
+    model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'uniform'
 
@@ -327,28 +329,29 @@ class Experiment(object):
 
     """
     start_time = time.time()
+    model = self.model
     # We treat each kernel size independently. We want the histogram for each
     # kernel size to be based on ~100k C1 samples minimum. Here, we calculate
     # the number of imprinted prototypes required to get this.
     c1_samples_per_prototype = min([ reduce(operator.mul, shape)
-        for shape in self.model.s2_kernel_shapes ])
+        for shape in model.s2_kernel_shapes ])
     num_desired_c1_samples = 100000
     num_imprinted_prototypes = int(num_desired_c1_samples /
         float(c1_samples_per_prototype))
     self.ImprintS2Prototypes(num_prototypes = num_imprinted_prototypes)
     # For each kernel size, build a histogram and sample new prototypes from it.
     prototypes = []
-    for idx in range(len(self.model.s2_kernel_shapes)):
-      kernels = self.model.s2_kernels[idx]
-      shape = self.model.s2_kernel_shapes[idx]
+    for idx in range(len(model.s2_kernel_shapes)):
+      kernels = model.s2_kernels[idx]
+      shape = model.s2_kernel_shapes[idx]
       hist = HistogramSampler(kernels.flat)
       size = (num_prototypes,) + shape
       prototypes_for_size = hist.Sample(size, dtype = util.ACTIVATION_DTYPE)
-      # XXX This assumes prototypes are normalized, which may not be the case.
-      for proto in prototypes_for_size:
-        proto /= np.linalg.norm(proto)
+      if model.s2_kernels_are_normed:
+        for proto in prototypes_for_size:
+          proto /= np.linalg.norm(proto)
       prototypes.append(prototypes_for_size)
-    self.model.s2_kernels = prototypes
+    model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'histogram'
 
@@ -382,9 +385,9 @@ class Experiment(object):
       size = (num_prototypes,) + shape
       prototypes_for_size = np.random.normal(mean, std, size = size).astype(
           util.ACTIVATION_DTYPE)
-      # XXX This assumes prototypes are normalized, which may not be the case.
-      for proto in prototypes_for_size:
-        proto /= np.linalg.norm(proto)
+      if model.s2_kernels_are_normed:
+        for proto in prototypes_for_size:
+          proto /= np.linalg.norm(proto)
       prototypes.append(prototypes_for_size)
     self.model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time

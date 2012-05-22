@@ -110,6 +110,11 @@ class Model(BaseModel):
     return len(self.v1_params)
 
   @property
+  def s1_kernels_are_normed(self):
+    """Determine if the model uses unit-norm S1 kernels."""
+    return False
+
+  @property
   def s2_kernel_shapes(self):
     """The expected shape of the S2 kernels, *without* band structure.
 
@@ -123,6 +128,11 @@ class Model(BaseModel):
   def s2_kernel_sizes(self):
     """The set of supported S2 kernel sizes, given as a tuple of int."""
     return tuple(self.s2_kwidths)
+
+  @property
+  def s2_kernels_are_normed(self):
+    """Determine if the model uses unit-norm S2 kernels."""
+    return False
 
   @property
   def s2_kernels(self):
@@ -185,7 +195,6 @@ class Model(BaseModel):
 
     """
     # Reshape image to be 3D array
-    p = self.params
     image = np.expand_dims(image, axis = 0)
     # List of 4-D arrays, where list index is scale band. Arrays are indexed by
     # offset within scale band, orientation, y-offset, x-offset.
