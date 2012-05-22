@@ -62,21 +62,48 @@ def ArrayToRGBImage(array):
   """
   return Image.fromarray(array, 'RGB')
 
-def ArrayListToVector(arrays):
-  """Flatten a list of numpy arrays to a single numpy vector.
+def FlattenLists(data):
+  """Flatten nested lists to a single list.
 
-  :type arrays: list of ndarray
-  :rtype: ndarray
+  :param data: Input data.
+  :type data: N-dimensional list
+  :returns: Flattened copy of input data.
+  :rtype: list
 
   """
-  assert len(arrays) > 0
-  out_size = sum(a.size for a in arrays)
-  out = np.empty((out_size,), arrays[0].dtype)
+  # From: http://stackoverflow.com/questions/2158395
+  result = []
+  for el in data:
+    if hasattr(el, "__iter__") and not isinstance(el, basestring):
+      result.extend(FlattenLists(el))
+    else:
+      result.append(el)
+  return result
+
+def FlattenArrays(data):
+  """Flatten a nested list of arrays to a one-dimensional vector.
+
+  Note: All arrays should have the same element type.
+
+  :param data: Input data.
+  :type data: N-dimensional list of ndarray
+  :returns: Flattened copy of input data.
+  :rtype: 1D ndarray
+
+  """
+  data = FlattenLists(data)
+  assert len(data) > 0
+  dtype = data[0].dtype
+  assert all(x.dtype == dtype for x in data)
+  out_size = sum(x.size for x in data)
+  out = np.empty((out_size,), dtype)
   offset = 0
-  for a in arrays:
-    out[offset : offset + a.size] = a.flat
-    offset += a.size
+  for subdata in data:
+    out[offset : offset + subdata.size] = subdata.flat
+    offset += subdata.size
   return out
+
+ArrayListToVector = FlattenArrays
 
 def PadArray(data, out_shape, cval):
   """Pad the border of an array with a constant value."""
