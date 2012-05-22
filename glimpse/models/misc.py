@@ -226,6 +226,17 @@ class BaseState(dict):
   #: sub-class.
   ModelClass = None
 
+  def __getitem__(self, name):
+    """Lookup activation for a given layer.
+
+    :param name: Layer identifier.
+    :type name: scalar or :class:`LayerSpec`
+
+    """
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__getitem__(name)
+
 class BaseModel(object):
   """Abstract base class for a Glimpse model."""
 
