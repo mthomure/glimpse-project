@@ -157,8 +157,30 @@ class TestGlab(unittest.TestCase):
       actual_images = sorted(map(os.path.basename, e.test_images[idx]))
       self.assertEqual(actual_images, sorted(test_images[cls]))
 
+  def testStoreExperiment_empty(self):
+    temp_dir = TempDir()
+    glab.StoreExperiment(pjoin(temp_dir.dir, 'dat'))
+
+  def testStoreExperiment_notEmpty(self):
+    temp_dir = TempDir()
+    glab.SetCorpus(EXAMPLE_CORPUS)
+    glab.ImprintS2Prototypes(10)
+    glab.RunSvm()
+    old_exp = glab.GetExperiment()
+    exp_path = pjoin(temp_dir.dir, 'dat')
+    glab.StoreExperiment(exp_path)
+    new_exp = glab.LoadExperiment(exp_path)
+    self.assertEqual(new_exp, old_exp)
+
+class _TestGlabForModel(unittest.TestCase):
+
+  MODEL_CLASS = None
+
+  def setUp(self):
+    glab.Reset()
+    glab.SetModelClass(self.MODEL_CLASS)
+
   def testImprintS2Prototypes(self):
-    # Look up the example corpus location relative to the Glimpse code.
     glab.SetCorpus(EXAMPLE_CORPUS)
     glab.ImprintS2Prototypes(NUM_PROTOTYPES)
     e = glab.GetExperiment()
@@ -203,20 +225,24 @@ class TestGlab(unittest.TestCase):
     self.assertNotEqual(e.train_results['accuracy'], None)
     self.assertNotEqual(e.test_results['accuracy'], None)
 
-  def testStoreExperiment_empty(self):
-    temp_dir = TempDir()
-    glab.StoreExperiment(pjoin(temp_dir.dir, 'dat'))
+  def testGetImageFeatures(self):
+    images = glab.GetExampleImages()[:2]
+    glab.SetLayer("c1")
+    features = glab.GetImageFeatures(images)
+    self.assertEqual(len(features), 2)
+    self.assertEqual(len(features[0]), len(features[1]))
 
-  def testStoreExperiment_notEmpty(self):
-    temp_dir = TempDir()
-    glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.ImprintS2Prototypes(10)
-    glab.RunSvm()
-    old_exp = glab.GetExperiment()
-    exp_path = pjoin(temp_dir.dir, 'dat')
-    glab.StoreExperiment(exp_path)
-    new_exp = glab.LoadExperiment(exp_path)
-    self.assertEqual(new_exp, old_exp)
+class TestGlabForHmax(_TestGlabForModel):
+
+  MODEL_CLASS = "hmax"
+
+class TestGlabForMl(_TestGlabForModel):
+
+  MODEL_CLASS = "ml"
+
+class TestGlabForViz2(_TestGlabForModel):
+
+  MODEL_CLASS = "viz2"
 
 if __name__ == '__main__':
     unittest.main()
