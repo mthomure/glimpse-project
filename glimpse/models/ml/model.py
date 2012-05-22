@@ -87,7 +87,7 @@ class Model(Viz2Model):
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
       s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
-          scaling = p.s1_scaling)
+          scaling = p.s1_sampling)
       # Reshape S1 to be 4D array
       s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
           s1_.shape[-2:])
@@ -108,7 +108,7 @@ class Model(Viz2Model):
     """
     p = self.params
     c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
-        scaling = p.c1_scaling) for s1 in s1s ]
+        scaling = p.c1_sampling) for s1 in s1s ]
     if p.c1_whiten:
       # Whiten each scale independently, modifying values in-place.
       map(Whiten, c1s)
@@ -135,7 +135,7 @@ class Model(Viz2Model):
     for scale in range(p.num_scales):
       c1 = c1s[scale]
       s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
-          scaling = p.s2_scaling)
+          scaling = p.s2_sampling)
       # Append 3D array to list.
       s2s.append(s2)
     return s2s

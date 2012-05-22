@@ -224,7 +224,7 @@ class Model(BaseModel):
     s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     backend_op = getattr(self.backend, p.s1_operation)
     s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
-        scaling = p.s1_scaling)
+        scaling = p.s1_sampling)
     # Reshape S1 to be 5D array
     s1 = s1_.reshape((p.num_scales, p.s1_num_orientations, p.s1_num_phases) + \
         s1_.shape[-2:])
@@ -243,7 +243,7 @@ class Model(BaseModel):
     """
     p = self.params
     c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
-        scaling = p.c1_scaling) for s1 in s1s ]
+        scaling = p.c1_sampling) for s1 in s1s ]
     c1s = np.array(c1s, dtype = ACTIVATION_DTYPE)
     if p.c1_whiten:
       #~ # DEBUG: use this to whiten over orientation only
@@ -279,7 +279,7 @@ class Model(BaseModel):
     height, width = c1s[0].shape[-2:]
     # Get the shape of each S2 map
     s2_shape = self.backend.OutputMapShapeForInput(p.s2_kwidth, p.s2_kwidth,
-        p.s2_scaling, height, width)
+        p.s2_sampling, height, width)
     # Get the shape of the full S2 activity array
     s2_shape = (p.num_scales, len(kernels)) + s2_shape
     s2s = np.empty(s2_shape, ACTIVATION_DTYPE)
@@ -288,7 +288,7 @@ class Model(BaseModel):
       c1 = c1s[scale]
       s2 = s2s[scale]
       backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
-          scaling = p.s2_scaling, out = s2)
+          scaling = p.s2_sampling, out = s2)
     return s2s
 
   def BuildC2FromS2(self, s2s):

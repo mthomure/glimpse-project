@@ -32,9 +32,9 @@ class Params(traits.HasStrictTraits):
   s1_num_phases = traits.Range(low = 1, value = 2, label = "Number of Phases",
       desc = "number of different phases for S1 Gabors. Using two phases "
           "corresponds to find a light bar on a dark background and vice versa")
-  s1_scaling = traits.Range(low = 1, value = 2, label = "S1 Scaling",
+  s1_sampling = traits.Range(low = 1, value = 2, label = "S1 Sampling",
       desc = "subsampling factor (e.g., setting this parameter to 2 will "
-      "result in an output array that is half the width -- and half the height "
+      "result in an S1 array that is half the width -- and half the height "
       "-- of the input array)")
   s1_shift_orientations = traits.Bool(True, label = "Shift Orientations",
       desc = "rotate Gabors by a small positive angle")
@@ -42,8 +42,10 @@ class Params(traits.HasStrictTraits):
 
   c1_kwidth = KWidth(5, label = "C1 Kernel Width",
       desc = "spatial width of input neighborhood for C1 units")
-  c1_scaling = traits.Range(low = 1, value = 2, label = "C1 Scaling",
-      desc = "subsampling factor")
+  c1_sampling = traits.Range(low = 1, value = 2, label = "C1 Sampling",
+      desc = "subsampling factor (e.g., setting this parameter to 2 will "
+      "result in a C1 array that is half the width -- and half the height "
+      "-- of the S1 array)")
   c1_whiten = traits.Bool(True, label = "C1 Whiten",
       desc = "whether to normalize the total energy at each C1 location")
 
@@ -55,18 +57,14 @@ class Params(traits.HasStrictTraits):
       desc = "additive term combined with input window norm")
   s2_kwidth = KWidth(7, label = "S2 Kernel Width",
       desc = "spatial width of input neighborhood for S2 units")
-  s2_scaling = traits.Range(low = 1, value = 2, label = "S2 Scaling",
-      desc = "subsampling factor")
+  s2_sampling = traits.Range(low = 1, value = 2, label = "S2 Sampling",
+      desc = "subsampling factor (e.g., setting this parameter to 2 will "
+      "result in an S2 array that is half the width -- and half the height "
+      "-- of the C1 array)")
   s2_operation = SLayerOperation("NormRbf", label = "S2 Operation")
-
-  c2_kwidth = KWidth(3, label = "C2 Kernel Width",
-      desc = "spatial width of input neighborhood for C2 units")
-  c2_scaling = traits.Range(low = 1, value = 2, label = "C2 Scaling",
-      desc = "subsampling factor")
 
   num_scales = traits.Range(low = 1, value = 4, label = "Number of Scales",
       desc = "number of different scale bands")
-
   scale_factor = traits.Range(low = 1., value = 2**0.5,
       label = "Scaling Factor",
       desc = "Image downsampling factor between scale bands")
