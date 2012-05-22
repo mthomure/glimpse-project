@@ -17,7 +17,7 @@ import random
 from glimpse import backends
 from glimpse.backends import InsufficientSizeException
 from glimpse import pools
-from glimpse.util import ImageToArray, ACTIVATION_DTYPE
+from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
@@ -51,7 +51,7 @@ class InputSourceLoadException(Exception):
   """Thrown when an input source can not be loaded."""
 
   def __init__(self, msg = None, source = None):
-    super(Exception, self).__init__(msg)
+    super(InputSourceLoadException, self).__init__(msg)
     self.source = source
 
   def __str__(self):
@@ -330,7 +330,7 @@ class BaseModel(object):
     if output_layer in state:
       return state
     try:
-      output_state = self._BuildNode(output_layer, state)
+      state = self._BuildNode(output_layer, state)
     except InsufficientSizeException, ex:
       # Try to annotate exception with source information.
       ex.source = state.get(self.LayerClass.SOURCE.ident, None)
@@ -506,8 +506,7 @@ class LayerBuilder(object):
 
   def __str__(self):
     return "%s(model=%s, output_layer_id=%s, save_all=%s)" % \
-        (util.TypeName(self), type(self.model), self.output_layer_id,
-        self.save_all)
+        (TypeName(self), type(self.model), self.output_layer_id, self.save_all)
 
   __repr__ = __str__
 
@@ -557,7 +556,7 @@ class PatchSampler(object):
 
   def __str__(self):
     return "%s(model=%s, layer=%s, num_patches=%s, normalize=%s)" % \
-        (util.TypeName(self), type(self.model), self.layer, self.num_patches,
+        (TypeName(self), type(self.model), self.layer, self.num_patches,
         self.normalize)
 
   __repr__ = __str__
