@@ -52,6 +52,8 @@ class InputSourceLoadException(Exception):
 
   def __init__(self, msg = None, source = None):
     super(InputSourceLoadException, self).__init__(msg)
+    #: The *source* of the exception. This is generally an :class:`InputSource`
+    #: object.
     self.source = source
 
   def __str__(self):
@@ -62,14 +64,23 @@ class InputSourceLoadException(Exception):
 class InputSource(object):
   """Describes the input to a hierarchical model.
 
-  Examples include the path to a single image, or the path and frame of a video.
+  Example inputs could include the path to a single image, or the path and frame
+  of a video.
+
+  Example:
+
+  Load a still image from disk, and resize its shorter edge to 128 pixels
+  (maintaining aspect ratio).
+
+  >>> source = InputSource(image_path = "/tmp/MyImage.jpg", resize = 128)
 
   """
 
   #: Path to an image file.
   image_path = None
 
-  #: Size of minimum dimension when resizing
+  #: If set, the image is resized such that its shorter edge has this length.
+  #: The resize operation preserves the aspect ratio of the image.
   resize = None
 
   def __init__(self, image_path = None, resize = None):
@@ -149,7 +160,17 @@ class BaseLayer(object):
 
   @classmethod
   def FromId(cls, ident):
-    """Lookup a LayerSpec object by ID."""
+    """Lookup a LayerSpec object by ID.
+
+    :param ident: Model-unique layer identifier.
+    :rtype: :class:`LayerSpec`
+
+    Example:
+
+    >>> lyr = BaseLayer.FromId(BaseLayer.IMAGE.ident)
+    >>> assert(lyr == BaseLayer.IMAGE)
+
+    """
     if isinstance(ident, LayerSpec):
       return ident
     for layer in cls.AllLayers():
@@ -159,7 +180,19 @@ class BaseLayer(object):
 
   @classmethod
   def FromName(cls, name):
-    """Lookup a LayerSpec object by name."""
+    """Lookup a LayerSpec object by name.
+
+    This method is not case sensitive.
+
+    :param str name: Layer name.
+    :rtype: :class:`LayerSpec`
+
+    Example:
+
+    >>> lyr = BaseLayer.FromName(BaseLayer.IMAGE.name)
+    >>> assert(lyr == BaseLayer.IMAGE)
+
+    """
     if isinstance(name, LayerSpec):
       return name
     # Here we perform a linear search, rather than use a dictionary, since we
@@ -173,7 +206,15 @@ class BaseLayer(object):
 
   @classmethod
   def AllLayers(cls):
-    """Return the unordered set of all layers."""
+    """Return the unordered set of all layers.
+
+    :rtype: list of :class:`LayerSpec`
+
+    Example:
+
+    >>> assert(BaseLayer.IMAGE in BaseLayer.AllLayers())
+
+    """
     names = [ k for k in dir(cls) if not k.startswith('_') ]
     values = [ getattr(cls, k) for k in names ]
     return [ v for v in values if isinstance(v, LayerSpec) ]
@@ -187,6 +228,11 @@ class BaseLayer(object):
     :param super_layer: Higher layer.
     :type super_layer: :class:`LayerSpec`
     :rtype: bool
+
+    Examples:
+
+    >>> assert(BaseLayer.IsSublayer(BaseLayer.SOURCE, BaseLayer.IMAGE))
+    >>> assert(not BaseLayer.IsSublayer(BaseLayer.IMAGE, BaseLayer.SOURCE))
 
     """
     for lyr in super_layer.depends:
@@ -204,6 +250,10 @@ class BaseLayer(object):
 
     :rtype: :class:`LayerSpec`
 
+    Example:
+
+    >>> assert(BaseLayer.TopLayer() == BaseLayer.IMAGE)
+
     """
     all_layers = cls.AllLayers()
     for layer in all_layers:
@@ -217,8 +267,8 @@ class BaseState(dict):
 
   The main purpose of extending the dictionary (instead of just storing states
   as dictionary objects) is to indicate with which model a given state is
-  associated. Similarly, each model has a seperate state object, so it is always
-  clear which model generated a given state object.
+  associated. Each model has a seperate state object, so it is always clear
+  which model generated a given state object.
 
   """
 
@@ -240,17 +290,18 @@ class BaseState(dict):
 class BaseModel(object):
   """Abstract base class for a Glimpse model."""
 
-  #: The datatype associated with layer descriptors for this model. This must be
-  #: set by sub-class to a descendent of :class:`BaseLayer`.
-  LayerClass = None
+  #: The datatype associated with layer descriptors for this model. This should
+  #: be over-ridden by the sub-class with a descendent of :class:`BaseLayer`.
+  LayerClass = BaseLayer
 
-  #: The type of the parameter collection associated with this model.
-  ParamClass = None
+  #: The type of the parameter collection associated with this model. This
+  #: should be over-ridden by the sub-class.
+  ParamClass = object
 
-  #: The datatype associated with network states for this model. This must be
-  #: set by sub-class, and should generally be a descendent of
+  #: The datatype associated with network states for this model. This should be
+  #: over-ridden by the sub-class, and should generally be a descendent of
   #: :class:`BaseState`.
-  StateClass = None
+  StateClass = BaseState
 
   def __init__(self, backend = None, params = None):
     """Create new object.
@@ -334,6 +385,15 @@ class BaseModel(object):
     :returns: Output state containing the given layer
     :rtype: StateClass
 
+    Examples:
+
+    Get the :attr:`IMAGE <BaseLayer.IMAGE>` layer for an image.
+
+    >>> model = BaseModel()
+    >>> input_state = model.MakeStateFromFilename(glab.GetExampleImage())
+    >>> output_state = model.BuildLayer(BaseLayer.IMAGE, input_state)
+    >>> assert(BaseLayer.IMAGE.ident in output_state)
+
     """
     state = copy.copy(state)  # get a shallow copy of the model state
     if isinstance(output_layer, LayerSpec):
@@ -371,6 +431,18 @@ class BaseModel(object):
 
     See also :meth:`BuildLayer`.
 
+    Examples:
+
+    Get the IMAGE layer for a set of images.
+
+    >>> model = BaseModel()
+    >>> builder = model.BuildLayerCallback(BaseLayer.IMAGE)
+    >>> images = glab.GetExampleImages()
+    >>> input_states = map(model.MakeStateFromFilename, images)
+    >>> output_states = map(builder, input_states)
+    >>> assert(len(output_states) == len(images))
+    >>> assert(all(BaseLayer.IMAGE.ident in state for state in output_states))
+
     """
     if isinstance(output_layer, LayerSpec):
       output_layer = output_layer.ident
@@ -383,6 +455,14 @@ class BaseModel(object):
     :param int resize: Scale minimum edge to fixed length.
     :returns: The new model state.
     :rtype: :class:`BaseState`
+
+    Examples:
+
+    Create a model state from an image path.
+
+    >>> model = BaseModel()
+    >>> image = glab.GetExampleImage()
+    >>> state = model.MakeStateFromImage(image)
 
     """
     state = self.StateClass()
@@ -397,6 +477,20 @@ class BaseModel(object):
     :param int resize: Scale minimum edge to fixed length.
     :returns: The new model state.
     :rtype: StateClass
+
+    Examples:
+
+    Create a model state from a PIL image object.
+
+    >>> model = BaseModel()
+    >>> image = Image.open(glab.GetExampleImage())
+    >>> state = model.MakeStateFromImage(image)
+
+    Create a model state from an array of pixel data.
+
+    >>> model = BaseModel()
+    >>> image = numpy.random.randint(0, 256, (100, 100))
+    >>> state = model.MakeStateFromImage(image)
 
     """
     state = self.StateClass()
@@ -421,6 +515,17 @@ class BaseModel(object):
        kernel size and kernel offset, respectively. The location is a triple,
        whose axes correspond to the scale, y-offset, and x-offset of the patch.
     :rtype: 2D list of (patch, location) pairs
+
+    Examples:
+
+    Get 10 patches from an image.
+
+    >>> model = BaseModel()
+    >>> num_patches = 10
+    >>> image = glab.GetExampleImage()
+    >>> state = model.MakeStateFromFilename(image)
+    >>> results = model.SamplePatches(BaseLayer.IMAGE, num_patches, state)
+    >>> assert(len(results) == num_patches)
 
     """
     if isinstance(layer, LayerSpec):
@@ -462,7 +567,20 @@ class BaseModel(object):
     :return: A callable object that, when evaluated, will sample patches
     :rtype: :class:`PatchSampler`
 
-    See also :meth:`SamplePatches`.
+    Examples:
+
+    Get 10 patches from each image in a list.
+
+    >>> model = BaseModel()
+    >>> num_patches_per_image = 10
+    >>> sampler = model.SamplePatchesCallback(model, BaseLayer.IMAGE,
+            num_patches_per_image)
+    >>> images = glab.GetExampleImages()
+    >>> states = map(model.MakeStateFromFilename, images)
+    >>> results_per_image = map(sampler, states)
+    >>> assert(len(results_per_image) == len(images))
+    >>> assert(all(len(results) == num_patches_per_image
+            for results in results_per_image))
 
     """
     return PatchSampler(self, layer, num_patches, normalize)
@@ -486,7 +604,8 @@ class LayerBuilder(object):
 
   """
 
-  __name__ = "LayerBuilder"  # needed for use with IPython.parallel
+  #: Set the name of the class. This is needed for use with IPython.parallel.
+  __name__ = "LayerBuilder"
 
   def __init__(self, model, output_layer_id, save_all = True):
     """Create a new object.
@@ -530,7 +649,8 @@ class PatchSampler(object):
 
   """
 
-  __name__ = "PatchSampler"  # needed for use with IPython.parallel
+  #: Set the name of the class. This is needed for use with IPython.parallel.
+  __name__ = "PatchSampler"
 
   def __init__(self, model, layer, num_patches, normalize = False):
     """Create new object.
@@ -581,6 +701,19 @@ def PatchGenerator(data, patch_width):
   :returns: Infinite iterator over patch arrays and corresponding locations
      (i.e., iterator elements are 2-tuples). Location gives top-left corner of
      region.
+
+  Examples:
+
+  Extract 2D patches from a 3D array:
+
+  >>> shape = (4, 100, 100)
+  >>> data = numpy.random.random(shape)
+  >>> patch_iterator = PatchGenerator(data, patch_width = 10)
+
+  Note that `patch_iterator` is an (infinite) iterator, not a list. The
+  following will get the first 50 patches as a list.
+
+  >>> patches = list(itertools.islice(patch_iterator, 50))
 
   """
   assert len(data) > 0
@@ -737,6 +870,13 @@ def GetModelClass(name = None):
   :param str name: The name of the model. This corresponds to the model's
      package name. The default is read from the :envvar:`GLIMPSE_MODEL`
      environment variable, or is ``hmax`` if this is not set.
+
+  Examples:
+
+  Create a new instance of the 'viz2' model:
+
+  >>> ModelClass = GetModelClass("viz2")
+  >>> assert(ModelClass == glimpse.viz2.Model)
 
   """
   import os

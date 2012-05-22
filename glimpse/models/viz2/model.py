@@ -1,12 +1,18 @@
+"""This module implements a two-stage HMAX-like model.
+
+This module implements a multi-scale analysis by applying Gabors corresponding
+to different edge widths. The model given here was used for the GCNC 2011
+experiments.
+
+"""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-import copy
 import numpy as np
 
-from glimpse import backends
 from glimpse.models.misc import BaseLayer, LayerSpec, BaseState, BaseModel, \
     Whiten
 from glimpse.util import ACTIVATION_DTYPE
@@ -37,11 +43,7 @@ class State(BaseState):
   pass
 
 class Model(BaseModel):
-  """Create a 2-part, HMAX-like hierarchy of S+C layers.
-
-  This module implements the "Viz2" model used for the GCNC 2011 experiments.
-
-  """
+  """A two-stage, HMAX-like hierarchy of S+C layers."""
 
   #: The datatype associated with layer descriptors for this model.
   LayerClass = Layer

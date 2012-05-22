@@ -1,13 +1,19 @@
+"""This module implements a two-stage HMAX model.
+
+This module implements a multi-scale analysis by applying Gabors corresponding
+to different edge widths. The model given here corresponds as closely as
+possible to the configuration used by Serre et al (2007).
+
+"""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-import copy
 import numpy as np
 
-from glimpse import backends
 from glimpse.models.misc import BaseLayer, LayerSpec, BaseState, BaseModel
 from glimpse.util import ACTIVATION_DTYPE
 from glimpse.util import kernel
@@ -34,6 +40,7 @@ class State(BaseState):
   pass
 
 class S1Params():
+  """Configuration for a single S1 scale."""
 
   gamma = 0.3
   thetas = (0, 45, 90, 135)
@@ -45,6 +52,11 @@ class S1Params():
 
   @property
   def kernels(self):
+    """Get the kernel array for this configuration.
+
+    :rtype: 4D ndarray of float
+
+    """
     if self._kernels == None:
       kernels = [ kernel.MakeGaborKernel(self.kwidth, theta,
           gamma = S1Params.gamma, sigma = self.sigma, phi = 0,
@@ -54,17 +66,18 @@ class S1Params():
     return self._kernels
 
 class V1Params():
+  """Parameters for a single V1 scale band.
+
+  This gives the configuration for a single C1 scale, and a subset of S1 scales.
+
+  """
 
   def __init__(self, c1_kwidth, c1_overlap, *s1_params):
     self.c1_kwidth, self.c1_overlap, self.s1_params = c1_kwidth, c1_overlap, \
         s1_params
 
 class Model(BaseModel):
-  """Create a 2-part, HMAX-like hierarchy of S+C layers.
-
-  This module implements the "Viz2" model used for the GCNC 2011 experiments.
-
-  """
+  """A two-stage, HMAX hierarchy of S+C layers."""
 
   #: The datatype associated with layer descriptors for this model.
   LayerClass = Layer
@@ -103,10 +116,23 @@ class Model(BaseModel):
 
   @property
   def num_orientations(self):
+    """The number of S1 orientations used.
+
+    :rtype: int
+
+    """
     return S1Params.num_orientations
 
   @property
   def num_scale_bands(self):
+    """The number of V1 scale bands.
+
+    This is equal to the number of C1 and S2 scales, but not the number of S1
+    scales.
+
+    :rtype: int
+
+    """
     return len(self.v1_params)
 
   @property
@@ -126,7 +152,11 @@ class Model(BaseModel):
 
   @property
   def s2_kernel_sizes(self):
-    """The set of supported S2 kernel sizes, given as a tuple of int."""
+    """The set of supported S2 kernel sizes.
+
+    :rtype: tuple of int
+
+    """
     return tuple(self.s2_kwidths)
 
   @property
@@ -138,8 +168,8 @@ class Model(BaseModel):
   def s2_kernels(self):
     """The S2 kernels array.
 
-    This is a list of 4D ndarray of float, indexed by kernel size, kernel
-    offset, orientation, y, x.
+    :returns: S2 kernels indexed by kernel size, kernel offset, orientation.
+    :rtype: list of 4D ndarray of float
 
     """
     return self._s2_kernels
@@ -148,8 +178,8 @@ class Model(BaseModel):
   def s2_kernels(self, kernels):
     """Set the kernels for the S2 layer.
 
-    :param kernels: S2 prototype kernels (indexed by kernel size, offset,
-       orientation, y, x).
+    :param kernels: S2 prototype kernels indexed by kernel size, offset,
+       orientation.
     :type kernels: list of 4D ndarray of float
 
     """

@@ -3,7 +3,7 @@
 """This module provides a simplified interface for running Glimpse experiments.
 
 The easiest way to use this module is via the top-level functions, such as
-:func:`SetCorpus`, which provide a declarative interface similar to
+:func:`SetCorpus`, which provide a declarative interface in the style of
 Matlab(TM). Alternatively, an object-oriented interface is also available by
 using the :class:`Experiment` class directly.
 
@@ -836,6 +836,9 @@ def SetLayer(layer = None):
   """Set the layer from which features will be extracted for the next
   experiment.
 
+  :param layer: Layer from which to compute feature vectors.
+  :type layer: str or :class:`glimpse.models.misc.LayerSpec`
+
   """
   global __LAYER
   if layer == None:
@@ -866,7 +869,11 @@ def MakeModel(params = None):
   return __MODEL_CLASS(backends.MakeBackend(), params)
 
 def GetExperiment():
-  """Get the current experiment object."""
+  """Get the current experiment object.
+
+  :rtype: :class:`Experiment`
+
+  """
   if __EXP == None:
     SetExperiment()
   return __EXP
@@ -954,8 +961,9 @@ def MakeNormalRandomS2Prototypes(num_prototypes):
 def SetS2Prototypes(prototypes):
   """Set the S2 prototypes from an array or a file.
 
-  :param prototypes: : ndarray of float, str
-     The set of prototypes or a path to a file containing the prototypes.
+  :param prototypes: The set of prototypes or a path to a file containing the
+     prototypes.
+  :type prototypes: str or ndarray of float
 
   """
   if isinstance(prototypes, basestring):
@@ -1066,7 +1074,12 @@ def Verbose(flag = True):
   __VERBOSE = flag
 
 def GetExampleCorpus():
-  """Return the path to the corpus of example images."""
+  """Get an example image corpus.
+
+  :returns: Corpus path.
+  :rtype: str
+
+  """
   return os.path.join(os.path.dirname(__file__), '..', 'rc', 'example-corpus')
 
 def GetExampleImage():

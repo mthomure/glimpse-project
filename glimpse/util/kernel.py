@@ -16,7 +16,8 @@ def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
 
   :param kwidth: Width of the kernel.
   :type kwidth: odd int
-  :param float theta: Orientation of the (normal to the) preferred frequency.
+  :param float theta: Orientation of the (normal to the) preferred frequency,
+     given in radians.
   :param float gamma: Aspect ratio of Gaussian window (*gamma* = 1 means a
      circular window, while 0 < *gamma* < 1 means the window is elongated).
   :param float sigma: Standard deviation of Gaussian window (1/4 the wavelength
@@ -30,6 +31,12 @@ def MakeGaborKernel(kwidth, theta, gamma = 0.6, sigma = None, phi = 0,
      norm.
   :returns: Kernel matrix indexed by y-offset and x-offset.
   :rtype: 2D ndarray of float
+
+  Examples:
+
+  >>> kwidth, theta = 11, math.pi / 4
+  >>> kernel = MakeGaborKernel(kwidth, theta)
+  >>> assert(kernel.shape == (kwidth, kwidth))
 
   """
   from numpy import sin, cos, exp, mgrid
@@ -71,6 +78,13 @@ def MakeGaborKernels(kwidth, num_orientations, num_phases, shift_orientations,
   :returns: Kernel arrays indexed by orientation and phase.
   :rtype: 4D ndarray of float
 
+  Examples:
+
+  >>> kwidth, num_orientations, num_phases = 11, 8, 2
+  >>> kernels = MakeGaborKernels(kwidth, num_orientations, num_phases,
+          shift_orientations = True)
+  >>> assert(kernels.shape == (num_orientations, num_phases, kwidth, kwidth))
+
   """
   from math import pi
   if shift_orientations:
@@ -110,6 +124,14 @@ def MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations, num_phases,
      norm.
   :returns: Kernel arrays indexed by scale, orientation, and phase.
   :rtype: 5D ndarray of float
+
+  Examples:
+
+  >>> kwidth, num_scales, num_orientations, num_phases = 11, 4, 8, 2
+  >>> kernels = MakeMultiScaleGaborKernels(kwidth, num_scales, num_orientations,
+          num_phases, shift_orientations = True)
+  >>> assert(kernels.shape == (num_scales, num_orientations, num_phases, kwidth,
+          kwidth))
 
   """
   from math import pi
@@ -212,8 +234,16 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
   :param float mean: Center of the component-wise normal distribution.
   :param float std: Standard deviation of the component-wise normal
      distribution.
-  :returns: Array of kernel values [with N dimensions, where N = len(kshape)+1].
-  :rtype: ndarray
+  :returns: Set of kernel arrays.
+  :rtype: N-dimensional ndarray of float, where `N = len(kshape)+1`
+
+  Examples:
+
+  >>> nkernels = 10
+  >>> kshape = (8, 5, 5)
+  >>> kernels = MakeRandomKernels(nkernels, kshape)
+  >>> assert(kernels.shape[0] == nkernels)
+  >>> assert(kernels.shape[1:] == kshape)
 
   """
   shape = (nkernels,) + kshape

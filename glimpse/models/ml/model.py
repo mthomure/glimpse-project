@@ -1,3 +1,11 @@
+"""This module implements a two-stage HMAX-like model.
+
+This module implements a multi-scale analysis by applying single-scale Gabors to
+a scale pyramid of the input image. This is similar to the configuration used by
+Mutch & Lowe (2008).
+
+"""
+
 # Copyright (c) 2011 Mick Thomure
 # All rights reserved.
 #
@@ -8,7 +16,6 @@ from scipy.ndimage.interpolation import zoom
 from glimpse.models.misc import BaseState, Whiten
 from glimpse.models.viz2.model import Model as Viz2Model
 from glimpse.models.viz2.model import Layer
-from glimpse.util import docstring
 from glimpse.util import kernel
 from .params import Params
 
@@ -17,11 +24,7 @@ class State(BaseState):
   pass
 
 class Model(Viz2Model):
-  """Create a 2-part, HMAX-like hierarchy of S+C layers.
-
-  This module implements the configuration used by Mutch & Lowe (2008).
-
-  """
+  """Create a 2-part, HMAX-like hierarchy of S+C layers."""
 
   #: The datatype associated with layer descriptors for this model.
   LayerClass = Layer
