@@ -7,7 +7,32 @@ Models
 In Glimpse, the model object defines the network topology, including the
 number of layers and the operations used at each layer. When the object is
 constructed, it is given a backend implementation and a set of parameters
-that control its behavior. Several example models are discussed below.
+that control its behavior. Several example models will be discussed later.
+
+The model can be viewed as a transformation between states, where a state
+encodes the activity of all computed model layers. To process an image, we
+first wrap the image in a new state object. The model is then applied to
+transform this state to a new state, which contains activation for a higher
+layer in the network. This is shown in the following example.
+
+   >>> from glimpse.models.ml import Model, Layer
+   >>> model = Model()
+   >>> istate = model.MakeStateFromFilename("example.jpg")
+   >>> ostate = model.BuildLayer(Layer.C1, istate)
+   >>> c1 = ostate[Layer.C1]
+
+In this case, the ``c1`` variable will now contain activation for the C1 layer
+of the :mod:`ml model <glimpse.models.ml.model>`. A feature vector can then
+be derived from the activation data as:
+
+   >>> features = glimpse.util.FlattenArrays(c1)
+
+Oftentimes, it may be preferable to use the :mod:`glab <glimpse.glab>` module.
+In this case, the above example could be written as:
+
+   >>> SetModelClass("ml")
+   >>> SetLayer("C1")
+   >>> features = GetImageFeatures("example.jpg")
 
 There are currently two hierarchical models included in the Glimpse project.
 Both models specify an HMAX-like network, in which an alternating sequence
@@ -50,7 +75,6 @@ but apply them to a resized (shrunken) version of the image.
    :mod:`ml` model, in which the course-scale response maps are smaller than
    those for the fine-grained scale. This is caused by the reduced size of
    the input image for course scales.
-
 
 .. _preprocessing:
 

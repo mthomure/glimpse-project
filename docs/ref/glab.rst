@@ -4,35 +4,6 @@ glab
 
 .. automodule:: glimpse.glab
    :members:
-      ComputeFeatures,
-      CrossValidateSvm,
-      Experiment,
-      GetExperiment,
-      GetLayer,
-      GetModelClass,
-      GetParams,
-      GetPool,
-      ImprintS2Prototypes,
-      LoadExperiment,
-      MakeHistogramRandomS2Prototypes,
-      MakeModel,
-      MakeNormalRandomS2Prototypes,
-      MakeShuffledRandomS2Prototypes,
-      MakeUniformRandomS2Prototypes,
-      RunSvm,
-      Reset,
-      SetCorpus,
-      SetCorpusSubdirs,
-      SetExperiment,
-      SetLayer,
-      SetModelClass,
-      SetParams,
-      SetPool,
-      SetS2Prototypes,
-      SetTrainTestSplit,
-      SetTrainTestSplitFromDirs,
-      StoreExperiment,
-      TestSvm,
-      TrainSvm,
-      UseCluster,
-      Verbose
+
+.. autoclass:: glimpse.glab.Experiment
+   :members:

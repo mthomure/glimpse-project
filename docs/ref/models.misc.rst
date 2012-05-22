@@ -10,9 +10,15 @@ models.misc
 Functions
 ---------
 
+.. autofunction:: GetModelClass
+
 .. autofunction:: ImageLayerFromInputArray
 
-.. autofunction:: SampleC1Patches
+.. autofunction:: ImprintKernels
+
+.. autofunction:: PatchGenerator
+
+.. autofunction:: Whiten
 
 Exceptions
 ----------
@@ -20,12 +26,22 @@ Exceptions
 .. autoexception:: DependencyError
 
 .. autoexception:: InputSourceLoadException
+   :members:
 
 Classes
 -------
 
-.. autoclass:: AbstractNetwork
+.. autoclass:: BaseLayer
+   :members:
+
+.. autoclass:: BaseModel
+   :members:
+
+.. autoclass:: BaseState
+   :members:
 
 .. autoclass:: InputSource
+   :members:
 
 .. autoclass:: LayerSpec
+   :members:

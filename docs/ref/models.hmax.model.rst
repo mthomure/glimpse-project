@@ -1,8 +1,8 @@
-###############
-models.ml.model
-###############
+#################
+models.hmax.model
+#################
 
-.. module:: glimpse.models.ml.model
+.. automodule:: glimpse.models.hmax.model
 
 .. autoclass:: Layer
    :show-inheritance:

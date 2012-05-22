@@ -7,3 +7,4 @@ backends
 .. autofunction:: MakeBackend
 
 .. autoexception:: InsufficientSizeException
+   :members:
