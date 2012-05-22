@@ -35,14 +35,17 @@ import sys
 import time
 import types
 
-__all__ = ( 'SetPool', 'UseCluster', 'SetModelClass', 'SetParams', 'GetParams',
-    'MakeModel', 'GetExperiment', 'SetExperiment', 'ImprintS2Prototypes',
-    'MakeUniformRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
-    'MakeHistogramRandomS2Prototypes', 'MakeNormalRandomS2Prototypes',
-    'SetS2Prototypes', 'SetCorpus', 'SetTrainTestSplit', 'SetLayer',
-    'SetTrainTestSplitFromDirs', 'ComputeFeatures', 'CrossValidateSvm',
-    'TrainSvm', 'TestSvm', 'RunSvm', 'LoadExperiment', 'StoreExperiment',
-    'Reset', 'Verbose')
+__all__ = (
+    'ComputeFeatures', 'CrossValidateSvm', 'GetExampleCorpus',
+    'GetExampleImage', 'GetExampleImages', 'GetExperiment',
+    'GetImageFeatures', 'GetParams', 'ImprintS2Prototypes', 'LoadExperiment',
+    'MakeHistogramRandomS2Prototypes', 'MakeModel',
+    'MakeNormalRandomS2Prototypes', 'MakeShuffledRandomS2Prototypes',
+    'MakeUniformRandomS2Prototypes', 'SetCorpus', 'SetExperiment', 'SetLayer',
+    'SetModelClass', 'SetParams', 'SetPool', 'SetS2Prototypes',
+    'SetTrainTestSplit', 'SetTrainTestSplitFromDirs', 'StoreExperiment',
+    'Reset', 'RunSvm', 'TestSvm', 'TrainSvm', 'UseCluster', 'Verbose',
+    )
 
 class DirReader(object):
   """Read directory contents."""
@@ -402,13 +405,44 @@ class Experiment(object):
     self.prototype_source = 'manual'
     self.model.s2_kernels = prototypes
 
-  def ComputeFeaturesFromInputStates(self, input_states, block = True):
+  def GetImageFeatures(self, images, resize = None, raw = False,
+      save_all = False, block = True):
     """Return the activity of the model's output layer for a set of images.
 
-    :type input_states: iterable of State
-    :param input_states: Model states containing image data.
-    :rtype: iterable
+    :param input_states: Image paths.
+    :type input_states: str, or iterable of str
+    :param int resize: Fixed length of shortest side. See :class:`InputSource
+       <glimpse.models.misc.InputSource>`.
+    :param bool raw: Whether to return per-image results as a single feature
+       vector or the raw state object.
+    :param bool save_all: Whether resulting states should contain values for
+       all computed layers in the network. See :meth:`BuildLayer
+       <glimpse.models.misc.BaseModel.BuildLayer>`.
+    :param bool block: (experimental) Block while waiting for results.
+    :rtype: iterable of 1D ndarray of float
     :returns: A feature vector for each image.
+
+    """
+    states = [ self.model.MakeStateFromFilename(fn, resize = resize)
+        for fn in images ]
+    return self.GetStateFeatures(states, raw = raw, save_all = save_all,
+        block = block)
+
+  def GetStateFeatures(self, input_states, raw = False, save_all = False,
+      block = True):
+    """Return the activity of the model's output layer for a set of states.
+
+    :param input_states: Model states containing image data.
+    :type input_states: iterable of State
+    :param bool raw: Whether to return per-image results as a single feature
+       vector or the raw state object.
+    :param bool save_all: Whether resulting states should contain values for
+       all computed layers in the network. See :meth:`BuildLayer
+       <glimpse.models.misc.BaseModel.BuildLayer>`.
+    :param bool block: (experimental) Block while waiting for results.
+    :returns: Features for each image.
+    :rtype: iterable of 1D ndarray of float, or iterable of state (if raw is
+       True)
 
     """
     if self.model.s2_kernels == None:
@@ -416,13 +450,16 @@ class Experiment(object):
       if lyr.IsSublayer(lyr.S2, self.layer):
         sys.exit("Please set the S2 prototypes before computing feature vectors"
             " for layer %s." % self.layer.name)
-    builder = self.model.BuildLayerCallback(self.layer, save_all = False)
+    builder = self.model.BuildLayerCallback(self.layer, save_all = save_all)
     # Compute model states containing desired features.
     output_states = self.pool.imap(builder, input_states)
     # Look up the activity values for the output layer, and convert them all to
     # a single vector.
-    features = ( util.ArrayListToVector(state[self.layer.ident])
-        for state in output_states )
+    layer = self.layer.ident
+    if raw:
+      features = output_states
+    else:
+      features = ( util.FlattenArrays(st[layer]) for st in output_states )
     if block:
       try:
         features = list(features)  # wait for results
@@ -578,11 +615,9 @@ class Experiment(object):
     train_images = util.UngroupLists(self.train_images)
     test_images = util.UngroupLists(self.test_images)
     images = train_images + test_images
-    # Compute features for all images.
-    input_states = [ self.model.MakeStateFromFilename(f, resize = self.resize)
-        for f in images ]
     start_time = time.time()
-    features = self.ComputeFeaturesFromInputStates(input_states, block = True)
+    # Compute features for all images.
+    features = self.GetImageFeatures(images, resize = self.resize, block = True)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
     train_features, test_features = util.SplitList(features,
@@ -957,6 +992,21 @@ def ComputeFeatures():
   """" """
   GetExperiment().ComputeFeatures()
 
+@docstring.copy_dedent(Experiment.GetImageFeatures)
+def GetImageFeatures(images, resize = None, raw = False, save_all = False,
+    block = True):
+  """ """
+  if isinstance(images, basestring):
+    images = [ images ]  # Single image was passed, wrap it in a list.
+    single_input = True
+  else:
+    single_input = False
+  results = GetExperiment().GetImageFeatures(images, resize = resize, raw = raw,
+      save_all = save_all, block = block)
+  if single_input:
+    results = results[0]
+  return results
+
 @docstring.copy_dedent(Experiment.CrossValidateSvm)
 def CrossValidateSvm():
   """" """
@@ -1018,6 +1068,26 @@ def Verbose(flag = True):
 def GetExampleCorpus():
   """Return the path to the corpus of example images."""
   return os.path.join(os.path.dirname(__file__), '..', 'rc', 'example-corpus')
+
+def GetExampleImage():
+  """Get a single example image.
+
+  :returns: Image path.
+  :rtype: str
+
+  """
+  return os.path.join(GetExampleCorpus(), 'cats', 'Marcus_bed.jpg')
+
+def GetExampleImages():
+  """Get multiple example images.
+
+  :returns: Image paths.
+  :rtype: list of str
+
+  """
+  corpus = GetExampleCorpus()
+  return [ os.path.join(corpus, 'cats', 'Marcus_bed.jpg'), os.path.join(corpus,
+      'dogs', '41-27Monate1.JPG') ]
 
 #### CLI Interface ####
 
