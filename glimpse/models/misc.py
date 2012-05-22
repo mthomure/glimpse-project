@@ -94,11 +94,11 @@ class InputSource(object):
       raise InputSourceLoadException("I/O error while loading image",
           source = self)
     if self.resize != None:
-      w, h = img.size
-      ratio = float(self.resize) / min(w, h)
-      new_size = int(w * ratio), int(h * ratio)
-      logging.info("Resize image %s from (%d, %d) to %s" % (self.image_path, w,
-          h, new_size))
+      width, height = img.size
+      ratio = float(self.resize) / min(width, height)
+      new_size = int(width * ratio), int(height * ratio)
+      logging.info("Resize image %s from (%d, %d) to %s", self.image_path,
+          width, height, new_size)
       img = img.resize(new_size, Image.BICUBIC)
     return img
 
@@ -148,17 +148,17 @@ class BaseLayer(object):
   IMAGE = LayerSpec("i", "image", SOURCE)
 
   @classmethod
-  def FromId(layer_class, ident):
+  def FromId(cls, ident):
     """Lookup a LayerSpec object by ID."""
     if isinstance(ident, LayerSpec):
       return ident
-    for layer in layer_class.AllLayers():
+    for layer in cls.AllLayers():
       if layer.ident == ident:
         return layer
     raise ValueError("Unknown layer id: %r" % ident)
 
   @classmethod
-  def FromName(layer_class, name):
+  def FromName(cls, name):
     """Lookup a LayerSpec object by name."""
     if isinstance(name, LayerSpec):
       return name
@@ -166,20 +166,20 @@ class BaseLayer(object):
     # want a case-insensitive comparison. This should be fine, since this method
     # is not called often.
     name_ = name.lower()
-    for layer in layer_class.AllLayers():
+    for layer in cls.AllLayers():
       if layer.name.lower() == name_:
         return layer
     raise ValueError("Unknown layer name: %s" % name)
 
   @classmethod
-  def AllLayers(layer_class):
+  def AllLayers(cls):
     """Return the unordered set of all layers."""
-    names = [ k for k in dir(layer_class) if not k.startswith('_') ]
-    values = [ getattr(layer_class, k) for k in names ]
+    names = [ k for k in dir(cls) if not k.startswith('_') ]
+    values = [ getattr(cls, k) for k in names ]
     return [ v for v in values if isinstance(v, LayerSpec) ]
 
   @classmethod
-  def IsSublayer(layer_class, sub_layer, super_layer):
+  def IsSublayer(cls, sub_layer, super_layer):
     """Determine if one layer appears later in the network than another.
 
     :param sub_layer: Lower layer.
@@ -190,12 +190,12 @@ class BaseLayer(object):
 
     """
     for lyr in super_layer.depends:
-      if lyr == sub_layer or layer_class.IsSublayer(sub_layer, lyr):
+      if lyr == sub_layer or cls.IsSublayer(sub_layer, lyr):
         return True
     return False
 
   @classmethod
-  def TopLayer(layer_class):
+  def TopLayer(cls):
     """Determine the top layer in this network.
 
     The top-most layer is defined as the layer on which no other layer depends.
@@ -205,7 +205,7 @@ class BaseLayer(object):
     :rtype: :class:`LayerSpec`
 
     """
-    all_layers = layer_class.AllLayers()
+    all_layers = cls.AllLayers()
     for layer in all_layers:
       if any(layer in l.depends for l in all_layers):
         continue
@@ -275,11 +275,11 @@ class BaseModel(object):
     :rtype: ndarray
 
     """
-    L = self.LayerClass
-    if output_id == L.SOURCE.ident:
+    lyr = self.LayerClass
+    if output_id == lyr.SOURCE.ident:
       raise DependencyError
-    elif output_id == L.IMAGE.ident:
-      return self.BuildImageFromInput(state[L.SOURCE.ident].CreateImage())
+    elif output_id == lyr.IMAGE.ident:
+      return self.BuildImageFromInput(state[lyr.SOURCE.ident].CreateImage())
     raise ValueError("Unknown layer ID: %r" % output_id)
 
   def _BuildNode(self, output_id, state):
@@ -417,10 +417,10 @@ class BaseModel(object):
     state = self.BuildLayer(layer, state)
     data = state[layer]
 
-    def GetPatches(patch_width, count):
+    def GetPatches(patch_width, num_patches):
       try:
         patch_it = PatchGenerator(data, patch_width)
-        patches = list(islice(patch_it, count))
+        patches = list(islice(patch_it, num_patches))
       except InsufficientSizeException, ex:
         # Try to annotate exception with source information.
         ex.source = state.get(self.LayerClass.SOURCE.ident, None)
@@ -428,13 +428,13 @@ class BaseModel(object):
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.
       if normalize:
-        for patch, location in patches:
-          n = np.linalg.norm(patch)
-          if n == 0:
+        for patch, _ in patches:
+          norm = np.linalg.norm(patch)
+          if norm == 0:
             logging.warn("Normalizing empty patch")
             patch[:] = 1.0 / sqrt(patch.size)
           else:
-            patch /= n
+            patch /= norm
       return patches
 
     return [ GetPatches(w, c) for w, c in num_patches ]
@@ -583,13 +583,13 @@ def PatchGenerator(data, patch_width):
     if layer_height <= patch_width or layer_width <= patch_width:
       raise InsufficientSizeException("Layer must be larger than patch size.")
     # Choose the top-left corner of the region.
-    y = random.randint(0, layer_height - patch_width)
-    x = random.randint(0, layer_width - patch_width)
+    y0 = random.randint(0, layer_height - patch_width)
+    x0 = random.randint(0, layer_width - patch_width)
     # Copy data from all bands in the given X-Y region.
     index = [ slice(None) ] * num_bands
-    index += [ slice(y, y + patch_width), slice(x, x + patch_width) ]
+    index += [ slice(y0, y0 + patch_width), slice(x0, x0 + patch_width) ]
     patch = data_scale[ index ]
-    yield patch.copy(), (scale, y, x)
+    yield patch.copy(), (scale, y0, x0)
 
 def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
     input_states, normalize = True, pool = None):
