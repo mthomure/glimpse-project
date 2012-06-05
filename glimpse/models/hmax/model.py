@@ -264,7 +264,10 @@ class Model(BaseModel):
     assert len(s1s) == len(self.v1_params)
     c1_bands = []
     for band_params, s1_band in zip(self.v1_params, s1s):
-      c1_band = s1_band.max(0)  # pool over corresponding maps in scale band
+      # Pool over all maps in this scale band.
+      c1_band = s1_band.max(0)
+      # The step size is the fraction of one neighborhood that does not overlap
+      # the next.
       scaling = band_params.c1_kwidth - band_params.c1_overlap
       c1_band = self.backend.LocalMax(c1_band, band_params.c1_kwidth,
           scaling = scaling)

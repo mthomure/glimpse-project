@@ -46,6 +46,13 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   :param annotation: Small array to display in top-left corner of plot.
   :type annotation: 2D ndarray
   :param str title: String to display above plot.
+  :param axes: The axes object on which to draw the array contents.
+  :param bool show: Whether to show the figure on screen after it is drawn.
+  :param bool colorbar: Whether to show the meaning of the colormap as an extra
+     subplot.
+
+  Any remaining keyword arguments will be passed to
+  :func:`matplotlib.pyplot.imshow`.
 
   """
   if axes == None:
@@ -88,8 +95,8 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   if hasattr(axes.figure, 'show') and show:
     axes.figure.show()
 
-#: .. deprecated:: 0.1
-#:    Use Show2dArray instead.
+#: .. deprecated:: 0.1.0
+#:    Use :func:`Show2dArray` instead.
 Show2DArray = Show2dArray
 
 def ShowListWithCallback(xs, cb, cols = None, figure = None, nsubplots = None,
@@ -131,21 +138,33 @@ def ShowListWithCallback(xs, cb, cols = None, figure = None, nsubplots = None,
 
 def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
     colorbars = False, cols = None, center_zero = True, axes = None,
-    figure = None, show = True, titles = None, **args):
+    figure = None, show = True, title = None, titles = None, **args):
   """Display a list of 2-D arrays using matplotlib.
 
+  :param xs: Input arrays.
+  :type xs: iterable of 2D ndarray
   :param annotations: Small images to show with each array visualization.
   :type annotations: list of 2D ndarray
   :param bool normalize: Whether to use the same colormap range for all
      subplots.
   :param bool colorbar: Whether to show the meaning of the colormap as an extra
-     subplot (implies *normalize* = True).
+     subplot (implies *normalize* = True). Implies ``colorbars`` is False.
   :param bool colorbars: Whether to show a different colorbar for each subplot.
   :param int cols: Number of subplot columns to use.
   :param bool center_zero: When normalizing a range that spans zero, make sure
      zero is in the center of the colormap range.
+  :param figure: The matplotlib figure into which to plot.
+  :param bool show: Whether to show the figure on screen after it is drawn.
+  :param str title: String to display above the set of plots.
   :param titles: Title string to include above each plotted array.
   :type titles: list of str
+  :param vmin: Minimum value for colormap range.
+  :param vmax: Maximum value for colormap range.
+  :param mapper: Function to map locations in the foreground to corresponding
+     locations in the background. (Required if *bg* is set.)
+
+  Any remaining keyword arguments will be passed to
+  :func:`matplotlib.pyplot.imshow` for each 2D array.
 
   """
   if 'vmin' in args and 'vmax' in args:
@@ -164,13 +183,14 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
     assert len(annotations) == len(xs), \
         "Got %d arrays, but %d annotations (these numbers should match)" % \
         (len(xs), len(annotations))
+    assert 'mapper' in args, "Using annotations requires a 'mapper'."
   if titles == None:
     titles = [""] * len(xs)
   else:
     assert len(titles) == len(xs), \
         "Got %d arrays, but %d title strings (these numbers should match)" % \
         (len(xs), len(titles))
- # Compute rows & cols
+  # Compute rows & cols
   max_plots = 64
   if len(xs) > max_plots:
     xs = xs[:max_plots]
@@ -198,6 +218,8 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
     label_mode = "L",   # XXX value can be "L" or "1" -- what is this?
     **grid_args
   )
+  if title is not None:
+    figure.suptitle(title)
   # Add all subplots
   for i in range(len(xs)):
     Show2dArray(xs[i], annotation = annotations[i], axes = grid[i],
@@ -217,17 +239,38 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
   if hasattr(figure, 'show') and show:
     figure.show()
 
-#: .. deprecated:: 0.1
-#:    Use Show2dArrayList instead.
+#: .. deprecated:: 0.1.0
+#:    Use :func:`Show2dArrayList` instead.
 Show2DArrayList = Show2dArrayList
 
 def Show3dArray(xs, annotations = None, figure = None, **args):
   """Display slices of a 3-D array using matplotlib.
 
+  :param xs: Input arrays.
+  :type xs: N-D ndarray, where N > 2.
   :param annotations: Small images to show with each array visualization.
   :type annotations: list of 2D ndarray
   :param figure: The matplotlib figure into which to plot.
-  :param args: Arguments to pass to :func:`Show2dArrayList`.
+  :param bool normalize: Whether to use the same colormap range for all
+     subplots.
+  :param bool colorbar: Whether to show the meaning of the colormap as an extra
+     subplot (implies *normalize* = True). Implies ``colorbars`` is False.
+  :param bool colorbars: Whether to show a different colorbar for each subplot.
+  :param int cols: Number of subplot columns to use.
+  :param bool center_zero: When normalizing a range that spans zero, make sure
+     zero is in the center of the colormap range.
+  :param figure: The matplotlib figure into which to plot.
+  :param bool show: Whether to show the figure on screen after it is drawn.
+  :param str title: String to display above the set of plots.
+  :param titles: Title string to include above each plotted array.
+  :type titles: list of str
+  :param vmin: Minimum value for colormap range.
+  :param vmax: Maximum value for colormap range.
+  :param mapper: Function to map locations in the foreground to corresponding
+     locations in the background. (Required if *bg* is set.)
+
+  Any remaining keyword arguments will be passed to
+  :func:`matplotlib.pyplot.imshow` for each 2D array slice.
 
   """
   xs = xs.reshape((-1,) + xs.shape[-2:])
@@ -235,8 +278,8 @@ def Show3dArray(xs, annotations = None, figure = None, **args):
     annotations = annotations.reshape((-1,) + annotations.shape[-2:])
   Show2dArrayList(xs, annotations, figure = figure, **args)
 
-#: .. deprecated:: 0.1
-#:    Use Show3dArray instead.
+#: .. deprecated:: 0.1.0
+#:    Use :func:`Show3dArray` instead.
 Show3DArray = Show3dArray
 
 def ShowImagePowerSpectrum(data, width = None, **plot_args):
@@ -245,8 +288,9 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   :param data: Image data.
   :type data: 2D ndarray
   :param int width: Effective width of image (with padding) for FFT.
-  :param dict plot_args: Optional arguments passed to matplotlib :func:`plot`
-     command.
+
+  Any remaining keyword arguments will be passed to
+  :func:`matplotlib.pyplot.plot`.
 
   """
   freqs, power, cnts = gimage.PowerSpectrum(data, width)

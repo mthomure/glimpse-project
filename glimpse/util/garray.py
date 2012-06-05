@@ -23,7 +23,6 @@ def ArgMin(array):
 def ScaleUnitNorm(x):
   """Scale elements of vector (in place), such that result has unit norm."""
   norm = np.linalg.norm(x)
-#  norm = math.sqrt((x**2).sum())
   if norm == 0:
     x[:] = 1.0 / math.sqrt(x.size)
   else:
@@ -45,7 +44,7 @@ def ArrayToGreyscaleImage(array, normalize = True):
     # Normalize array values to lie in [0, 255].
     max_val = max(abs(array.min()), array.max())
     # Map values to lie in [-.5, .5]
-    array = array / (2 * max_val)       # makes copy of input
+    array = array / (2 * max_val)  # makes copy of input
     # Map to [0, 1]
     array += 0.5
     # Map to [0, 255]
@@ -103,6 +102,8 @@ def FlattenArrays(data):
     offset += subdata.size
   return out
 
+#: .. deprecated:: 0.1.2
+#:    Use :func:`FlattenArrays` instead.
 ArrayListToVector = FlattenArrays
 
 def PadArray(data, out_shape, cval):
