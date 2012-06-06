@@ -28,7 +28,7 @@ def Summarize(data):
   return np.array(results).T
 
 def main():
-  opts, args = util.GetOptions('a:c:C:eHi:l:o:s:St:x:y:')
+  opts, args = util.GetOptions('a:c:C:eHi:Il:o:s:St:x:y:')
   input_encoding = util.ENCODING_PICKLE
   ofname = None
   cmd = None
@@ -48,12 +48,14 @@ def main():
   except Exception:
     sys.exit("Failed to load dataset, maybe wrong input type (see -i option)?")
   plot = util.InitPlot(ofname != None)
+  from glimpse.util import gplot  # Must occur after InitPlot() call.
   line_args = [ {} for i in range(len(data_sets)) ]
   show_legend = False
   axis = None
   error_bars = False
   histogram = False
   scatter = False
+  array_image = False
 
   def add_line_arg(key, arg):
     array = arg.split(",")
@@ -72,6 +74,8 @@ def main():
       cmd = arg
     elif opt == '-e':
       error_bars = True
+    elif opt == '-I':
+      array_image = True
     elif opt == '-H':
       histogram = True
     elif opt == '-l':
@@ -98,6 +102,11 @@ def main():
       data = data.T
       data.sort(0)
       plot.scatter(data[0], data[1], **line_arg)
+    elif array_image:
+      if data.ndim == 2:
+        gplot.Show2dArray(data)
+      else:
+        gplot.Show3dArray(data)
     else:
       data.sort(0)
       data = data.T
@@ -129,6 +138,7 @@ if __name__ == '__main__':
       "  -e              Plot 2D datasets with repeated X values by showing error bars.\n"
       "  -H              Plot histogram of 1D datasets.\n"
       "  -i TYPE         Set input encoding type [one of: %s, default: %s].\n" % (", ".join(util.INPUT_ENCODINGS), util.ENCODING_PICKLE) + \
+      "  -I              Plot ND datasets as images.\n"
       "  -l LABELS       Specify comma-separated line names.\n"
       "  -o FNAME        Write plot to image file FNAME.\n"
       "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-', \n"
