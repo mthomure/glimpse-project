@@ -12,6 +12,7 @@ import random
 import unittest
 
 from glimpse import glab
+from glimpse import pools
 from glimpse.util import TempDir, TouchFile
 
 def MakeDirs(dir, *args, **kwargs):
@@ -175,10 +176,13 @@ class TestGlab(unittest.TestCase):
 class _TestGlabForModel(unittest.TestCase):
 
   MODEL_CLASS = None
+  MODEL_LAYER = None
 
   def setUp(self):
     glab.Reset()
     glab.SetModelClass(self.MODEL_CLASS)
+    glab.SetLayer(self.MODEL_LAYER)
+    #~ glab.SetPool(pools.SinglecorePool())
 
   def testImprintS2Prototypes(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
@@ -235,14 +239,32 @@ class _TestGlabForModel(unittest.TestCase):
 class TestGlabForHmax(_TestGlabForModel):
 
   MODEL_CLASS = "hmax"
+  MODEL_LAYER = "c2"
 
 class TestGlabForMl(_TestGlabForModel):
 
   MODEL_CLASS = "ml"
+  MODEL_LAYER = "c2"
 
 class TestGlabForViz2(_TestGlabForModel):
 
   MODEL_CLASS = "viz2"
+  MODEL_LAYER = "c2"
+
+class TestGlabForHmaxC1(_TestGlabForModel):
+
+  MODEL_CLASS = "hmax"
+  MODEL_LAYER = "c1"
+
+class TestGlabForMlC1(_TestGlabForModel):
+
+  MODEL_CLASS = "ml"
+  MODEL_LAYER = "c1"
+
+class TestGlabForViz2C1(_TestGlabForModel):
+
+  MODEL_CLASS = "viz2"
+  MODEL_LAYER = "c1"
 
 if __name__ == '__main__':
     unittest.main()
