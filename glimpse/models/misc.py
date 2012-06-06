@@ -881,7 +881,7 @@ def GetModelClass(name = None):
   """
   import os
   if name == None:
-    name = os.environ.get('GLIMPSE_MODEL', 'hmax')
+    name = os.environ.get('GLIMPSE_MODEL', 'viz2')
   pkg = __import__("glimpse.models.%s" % name, globals(), locals(), ['Model'],
       0)
   try:
