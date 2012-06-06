@@ -283,18 +283,23 @@ class Experiment(object):
     model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
 
-  def MakeUniformRandomS2Prototypes(self, num_prototypes):
+  def MakeUniformRandomS2Prototypes(self, num_prototypes, low = None,
+      high = None):
     """Create a set of S2 prototypes with uniformly random entries.
 
     :param int num_prototypes: The number of S2 prototype arrays to create.
 
     """
+    if low == None:
+      low = 0
+    if high == None:
+      high = 1
     start_time = time.time()
     model = self.model
     prototypes = []
     for kshape in model.s2_kernel_shapes:
       shape = (num_prototypes,) + tuple(kshape)
-      prototypes_for_size = np.random.uniform(0, 1, shape)
+      prototypes_for_size = np.random.uniform(low, high, shape)
       if model.s2_kernels_are_normed:
         for proto in prototypes_for_size:
           proto /= np.linalg.norm(proto)
@@ -369,11 +374,12 @@ class Experiment(object):
 
     """
     start_time = time.time()
+    model = self.model
     # We treat each kernel size independently. We want the histogram for each
     # kernel size to be based on ~100k C1 samples minimum. Here, we calculate
     # the number of imprinted prototypes required to get this.
     c1_samples_per_prototype = min([ reduce(operator.mul, shape)
-        for shape in self.model.s2_kernel_shapes ])
+        for shape in model.s2_kernel_shapes ])
     num_desired_c1_samples = 100000
     num_imprinted_prototypes = int(num_desired_c1_samples /
         float(c1_samples_per_prototype))
@@ -381,9 +387,9 @@ class Experiment(object):
     # For each kernel size, estimate parameters of a normal distribution and
     # sample from it.
     prototypes = []
-    for idx in range(len(self.model.s2_kernel_shapes)):
-      kernels = self.model.s2_kernels[idx]
-      shape = self.model.s2_kernel_shapes[idx]
+    for idx in range(len(model.s2_kernel_shapes)):
+      kernels = model.s2_kernels[idx]
+      shape = model.s2_kernel_shapes[idx]
       mean, std = kernels.mean(), kernels.std()
       size = (num_prototypes,) + shape
       prototypes_for_size = np.random.normal(mean, std, size = size).astype(
@@ -392,7 +398,7 @@ class Experiment(object):
         for proto in prototypes_for_size:
           proto /= np.linalg.norm(proto)
       prototypes.append(prototypes_for_size)
-    self.model.s2_kernels = prototypes
+    model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'normal'
 
@@ -919,11 +925,11 @@ def ImprintS2Prototypes(num_prototypes):
   return result
 
 @docstring.copy_dedent(Experiment.MakeUniformRandomS2Prototypes)
-def MakeUniformRandomS2Prototypes(num_prototypes):
+def MakeUniformRandomS2Prototypes(num_prototypes, low = None, high = None):
   """" """
   if __VERBOSE:
     print "Making %d uniform random prototypes" % num_prototypes
-  result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes)
+  result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes, low, high)
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
@@ -1125,7 +1131,7 @@ def _InitCli(pool_type = None, cluster_config = None, model_name = None,
     else:
       raise util.UsageException("Unknown pool type: %s" % pool_type)
   try:
-    SetModelClass(model_class)
+    SetModelClass(model_name)
   except ValueError:
     raise util.UsageException("Unknown model (-m): %s" % model_name)
   SetParams(params)
