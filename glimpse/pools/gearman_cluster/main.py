@@ -6,9 +6,7 @@
 
 # A command-line interface for managing a cluster of Glimpse workers.
 
-from . import pool
-from glimpse import util
-from glimpse.util.zmq_cluster import MakeSocket
+import ConfigParser
 import logging
 import os
 import pprint
@@ -16,6 +14,10 @@ import sys
 import threading
 import time
 import zmq
+
+from . import pool
+from glimpse import util
+from glimpse.util.zmq_cluster import MakeSocket
 
 def LaunchBroker(config):
   """Start a set of intermediate devices for the cluster on this machine.
@@ -68,18 +70,6 @@ def LaunchWorker(config, num_processes = None):
       num_processes)
   sys.exit(exit_status)
 
-def SendCommand(command_url, command):
-  """Send an arbitrary command to all workers running on the cluster.
-
-  :param str command_url: URL of command channel.
-  :param command: Command to send to workers.
-
-  """
-  context = zmq.Context()
-  socket = context.socket(zmq.PUB)
-  socket.connect(command_url)
-  socket.send_pyobj(command)
-
 def KillWorkers(config):
   """Send a *quit* command to all workers running on the cluster.
 
@@ -87,7 +77,7 @@ def KillWorkers(config):
 
   """
   command_url = config.get('client', 'command_frontend_url')
-  SendCommand(command_url, pool.COMMAND_QUIT)
+  pool.SendCommand(command_url, pool.COMMAND_QUIT)
 
 def RestartWorkers(config):
   """Send a *restart* command to any workers running on cluster.
@@ -96,7 +86,7 @@ def RestartWorkers(config):
 
   """
   command_url = config.get('client', 'command_frontend_url')
-  SendCommand(command_url, pool.COMMAND_RESTART)
+  pool.SendCommand(command_url, pool.COMMAND_RESTART)
 
 def _PingWorkers(config, wait_time = None):
   """A result generator for the *ping* command.
@@ -112,7 +102,7 @@ def _PingWorkers(config, wait_time = None):
   log_socket = MakeSocket(context, url = log_url, type = zmq.SUB, bind = False,
       options = {zmq.SUBSCRIBE : ""})
   command_url = config.get('client', 'command_frontend_url')
-  SendCommand(command_url, pool.COMMAND_PING)
+  pool.SendCommand(command_url, pool.COMMAND_PING)
   poll_timeout = 1000  # poll for one second
   wait_start_time = time.time()
   results = list()
@@ -148,7 +138,8 @@ def PingWorkers(config, wait_time = None):
     print " ".join([ "-" * w for w in widths ])
   for host in sorted(rs.keys()):
     for r in rs[host]:
-      pid, nreqs, etime, stime = r['PID'], r['NUM_REQUESTS'], r['ELAPSED_TIME'], r['START_TIME']
+      pid, nreqs, etime, stime = r['PID'], r['NUM_REQUESTS'], \
+          r['ELAPSED_TIME'], r['START_TIME']
       if nreqs > 0:
         mean_etime = etime / nreqs
       else:
@@ -179,7 +170,9 @@ def main(args = None):
     if len(config_files) == 0:
       raise util.UsageException("Must specify a socket configuration file.")
     method = eval(args[0])
-    config = pool.ReadClusterConfig(*config_files)
+    config = ConfigParser.SafeConfigParser()
+    if len(config.read(*config_files)) == 0:
+      util.UsageException("Failed to read cluster config file.")
     method(config, *args[1:])
   except pool.ConfigException, e:
     sys.exit("Configuration error: %s" % e)

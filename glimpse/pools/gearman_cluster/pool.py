@@ -46,6 +46,12 @@ COMMAND_QUIT = "quit"
 COMMAND_RESTART = "restart"
 #: Instructs the worker to respond with processing statistics.
 COMMAND_PING = "ping"
+#: Instructs the worker to add data to its stateful data store.
+COMMAND_SETMEMORY = "set-memory"
+#: Instructs the worker to clear its stateful data store.
+COMMAND_CLEARMEMORY = "clear-memory"
+#: Variable name in worker memory for cached function.
+CACHED_FUNC_KEY = "_cached_func"
 
 class Worker(gearman.GearmanWorker):
   """A Gearman worker that tracks exit status."""
@@ -56,6 +62,8 @@ class Worker(gearman.GearmanWorker):
   finish = False
   #: How to marshal data on the wire.
   data_encoder = PickleDataEncoder
+  #: Stateful memory for large, repeated request payloads.
+  memory = dict()
 
   def after_poll(self, any_activity):
     """Returns True unless the :attr:`finish` flag is set.
@@ -65,6 +73,19 @@ class Worker(gearman.GearmanWorker):
 
     """
     return not self.finish
+
+def SendCommand(command_url, command, payload = None):
+  """Send an arbitrary command to all workers running on the cluster.
+
+  :param str command_url: URL of command channel.
+  :param command: Command to send to workers.
+
+  """
+  context = zmq.Context()
+  socket = context.socket(zmq.PUB)
+  socket.connect(command_url)
+  msg = (command, payload)
+  socket.send_pyobj(msg)
 
 class ClusterPool(gearman.GearmanClient):
   """Client for the Gearman task farm."""
@@ -78,12 +99,38 @@ class ClusterPool(gearman.GearmanClient):
   #: Resubmit a job up to three times.
   max_retries = 3
 
-  def map(self, func, iterable, chunksize = None):
-    """Apply a function to a list."""
+  def __init__(self, host_list = None, command_url = None):
+    """Create a new cluster pool.
+
+    :param host_list: Gearman job server URLs.
+    :type host_list: list of str
+    :param str command_url: ZMQ channel for command messages.
+
+    """
+    super(ClusterPool, self).__init__(host_list)
+    self.command_url = command_url
+
+  def map(self, func, iterable, chunksize = None, cached_func = False):
+    """Apply a function to a list.
+
+    :param func: Callable to evaluate.
+    :param iterable: Input list.
+    :param int chunksize: Number of arguments to pack into a single request.
+    :param bool cached_func: Whether the function should be stored in the
+    cluster's stateful data store (useful for large function objects).
+    :returns: Function output for each value in input list.
+    :rtype: list
+
+    """
     if chunksize == None:
       chunksize = self.chunksize
     # chunk states into groups
     request_groups = util.GroupIterator(iterable, chunksize)
+    if func == None:
+      raise ValueError("Function must not be empty.")
+    if cached_func:
+      self.SetMemory({CACHED_FUNC_KEY : func})
+      func = None
     # make tasks by combining each group with the transform
     batch_requests = [ dict(task = GEARMAN_TASK_MAP, data = data)
         for data in itertools.izip(itertools.repeat(func), request_groups) ]
@@ -96,7 +143,8 @@ class ClusterPool(gearman.GearmanClient):
     completed = [ r.complete for r in job_requests ]
     if not all(r.complete and r.state == gearman.JOB_COMPLETE
         for r in job_requests):
-      failed_requests = [ r for r in job_requests if r.state == gearman.JOB_FAILED ]
+      failed_requests = [ r for r in job_requests
+          if r.state == gearman.JOB_FAILED ]
       if len(failed_requests) > 0:
         buff = " First failed request: %s" % (failed_requests[0],)
       else:
@@ -105,10 +153,24 @@ class ClusterPool(gearman.GearmanClient):
           (len(failed_requests), len(completed),
           len(filter((lambda x: x.timed_out), job_requests)), buff))
     results = [ r.result for r in job_requests ]
+    if cached_func:
+      self.SetMemory({CACHED_FUNC_KEY : None})
     return list(util.UngroupIterator(results))
 
   #: Not implemented. This is currently an alias for :func:`map`.
   imap = map
+
+  def SetMemory(self, memory):
+    """Set one or more variables in the cluster's stateful data store.
+
+    :param dict memory: Variables to store.
+
+    """
+    SendCommand(self.command_url, COMMAND_SETMEMORY, memory)
+
+  def ClearMemory(self):
+    """Remove all values from the cluster's stateful data store."""
+    SendCommand(self.command_url, COMMAND_CLEARMEMORY)
 
 class ConfigException(Exception):
   """Indicates that an error occurred while reading the cluster
@@ -138,7 +200,8 @@ def MakePool(config_file = None, chunksize = None):
   if len(read_files) == 0:
     raise ConfigException("Unable to read any socket configuration files.")
   job_server_url = config.get('client', 'job_server_url')
-  client = ClusterPool([job_server_url])
+  command_url = config.get('client', 'command_frontend_url')
+  client = ClusterPool(host_list = [job_server_url], command_url = command_url)
   if chunksize != None:
     client.chunksize = chunksize
   return client
@@ -167,7 +230,7 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
   while True:
     socks = dict(poller.poll())
     if cmd_socket in socks:
-      cmd = cmd_socket.recv_pyobj()
+      cmd, payload = cmd_socket.recv_pyobj()
       if cmd == COMMAND_QUIT:
         logging.info("Gearman worker quiting")
         # exit without error, so wrapper script will not restart worker
@@ -184,6 +247,16 @@ def CommandHandlerTarget(worker, cmd_future, log_future, ping_handler):
         logging.info("Gearman worker received ping")
         stats = ping_handler()
         log_socket.send_pyobj(stats)
+      elif cmd == COMMAND_SETMEMORY:
+        logging.info("Gearman worker received SETMEMORY")
+        if not isinstance(payload, dict):
+          logging.warn("Invalid payload received for SETMEMORY command")
+        memory = worker.memory
+        for k, v in payload.items():
+          memory[k] = v
+      elif cmd == COMMAND_CLEARMEMORY:
+        logging.info("Gearman worker received CLEARMEMORY")
+        worker.memory.clear()
       else:
         logging.warn("Gearman worker got unknown command: %s" % (cmd,))
 
@@ -214,6 +287,9 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
     try:
       start = time.time()
       func, args = job.data
+      if func == None:
+        logging.info("Looking up cached function")
+        func = worker.memory[CACHED_FUNC_KEY]
       logging.info("Worker processing task with %d elements" % len(args))
       results = pool.map(func, args)
       elapsed_time = time.time() - start
