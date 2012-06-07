@@ -59,13 +59,13 @@ class TestModel(unittest.TestCase):
     s2 = out_state[Layer.S2.id]
     c2 = out_state[Layer.C2.id]
     self.assertEqual(len(s1), model.num_scale_bands)
-    for s1_for_band, v1_params in zip(s1, model.v1_params):
+    for s1_for_band, v1_params in zip(s1, model.params.v1):
       self.assertEqual(s1_for_band.ndim, 4)
       num_scales_in_band, num_orientations = s1_for_band.shape[:2]
       self.assertEqual(num_scales_in_band, len(v1_params.s1_params))
       self.assertEqual(num_orientations, model.num_orientations)
     self.assertEqual(len(c1), model.num_scale_bands)
-    for c1_for_band, v1_params in zip(c1, model.v1_params):
+    for c1_for_band, v1_params in zip(c1, model.params.v1):
       self.assertEqual(c1_for_band.ndim, 3)
       self.assertEqual(c1_for_band.shape[0], model.num_orientations)
     self.assertEqual(len(s2), model.num_scale_bands)

@@ -16,10 +16,9 @@ import numpy as np
 
 from glimpse.models.misc import BaseLayer, LayerSpec, BaseState, BaseModel
 from glimpse.util import ACTIVATION_DTYPE
-from glimpse.util import kernel
 from glimpse.util import docstring
 from glimpse.util.garray import CropArray
-from .params import Params
+from .params import Params, S1Params
 
 class Layer(BaseLayer):
 
@@ -39,43 +38,6 @@ class State(BaseState):
   """A container for the :class:`Model` state."""
   pass
 
-class S1Params():
-  """Configuration for a single S1 scale."""
-
-  gamma = 0.3
-  thetas = (0, 45, 90, 135)
-  num_orientations = len(thetas)
-
-  def __init__(self, kwidth, sigma, lambda_):
-    self.kwidth, self.sigma, self.lambda_ = kwidth, sigma, lambda_
-    self._kernels = None
-
-  @property
-  def kernels(self):
-    """Get the kernel array for this configuration.
-
-    :rtype: 4D ndarray of float
-
-    """
-    if self._kernels == None:
-      kernels = [ kernel.MakeGaborKernel(self.kwidth, theta,
-          gamma = S1Params.gamma, sigma = self.sigma, phi = 0,
-          lambda_ = self.lambda_, scale_norm = True)
-          for theta in S1Params.thetas ]
-      self._kernels = np.array(kernels, dtype = ACTIVATION_DTYPE)
-    return self._kernels
-
-class V1Params():
-  """Parameters for a single V1 scale band.
-
-  This gives the configuration for a single C1 scale, and a subset of S1 scales.
-
-  """
-
-  def __init__(self, c1_kwidth, c1_overlap, *s1_params):
-    self.c1_kwidth, self.c1_overlap, self.s1_params = c1_kwidth, c1_overlap, \
-        s1_params
-
 class Model(BaseModel):
   """A two-stage, HMAX hierarchy of S+C layers."""
 
@@ -91,25 +53,6 @@ class Model(BaseModel):
   @docstring.copy(BaseModel.__init__)
   def __init__(self, backend = None, params = None):
     super(Model, self).__init__(backend, params)
-
-    #: Fixed parameters for S1 filters, arranged in bands of 2 scales each. See
-    #: Table 1 of Serre et al (2007).
-    self.v1_params = [
-      V1Params(8,   4, S1Params( 7,  2.8,  3.5), S1Params( 9,  3.6,  4.6)),
-      V1Params(10,  5, S1Params(11,  4.5,  5.6), S1Params(13,  5.4,  6.8)),
-      V1Params(12,  6, S1Params(15,  6.3,  7.9), S1Params(17,  7.3,  9.1)),
-      V1Params(14,  7, S1Params(19,  8.2, 10.3), S1Params(21,  9.2, 11.5)),
-      V1Params(16,  8, S1Params(23, 10.2, 12.7), S1Params(25, 11.3, 14.1)),
-      V1Params(18,  9, S1Params(27, 12.3, 15.4), S1Params(29, 13.4, 16.8)),
-      V1Params(20, 10, S1Params(31, 14.6, 18.2), S1Params(33, 15.8, 19.7)),
-      V1Params(22, 11, S1Params(35, 17.0, 21.2), S1Params(37, 18.2, 22.8)),
-    ]
-
-    #: Fixed value for S2 beta parameter.
-    self.s2_beta = 5.0
-
-    #: Fixed width for the S2 kernels.
-    self.s2_kwidths = (4, 8, 12, 16)
 
     # Stores the kernels for the S2 layer.
     self._s2_kernels = None
@@ -133,7 +76,7 @@ class Model(BaseModel):
     :rtype: int
 
     """
-    return len(self.v1_params)
+    return len(self.params.v1)
 
   @property
   def s1_kernels_are_normed(self):
@@ -147,8 +90,8 @@ class Model(BaseModel):
     :rtype: 2D tuple of int
 
     """
-    return tuple( (S1Params.num_orientations, kw, kw)
-        for kw in self.s2_kwidths )
+    return tuple( (self.num_orientations, kw, kw)
+        for kw in self.params.s2_kwidths )
 
   @property
   def s2_kernel_sizes(self):
@@ -157,7 +100,7 @@ class Model(BaseModel):
     :rtype: tuple of int
 
     """
-    return tuple(self.s2_kwidths)
+    return tuple(self.params.s2_kwidths)
 
   @property
   def s2_kernels_are_normed(self):
@@ -229,7 +172,7 @@ class Model(BaseModel):
     # List of 4-D arrays, where list index is scale band. Arrays are indexed by
     # offset within scale band, orientation, y-offset, x-offset.
     s1_bands = []
-    for band_params in self.v1_params:  # loop over scale bands
+    for band_params in self.params.v1:  # loop over scale bands
       # List of 3-D arrays, where list index is offset within scale band. Arrays
       # are indexed by orientation, y-offset, x-offset.
       s1_maps_for_band = []
@@ -261,16 +204,13 @@ class Model(BaseModel):
     :rtype: list of 3D ndarray of float
 
     """
-    assert len(s1s) == len(self.v1_params)
+    assert len(s1s) == len(self.params.v1)
     c1_bands = []
-    for band_params, s1_band in zip(self.v1_params, s1s):
+    for band_params, s1_band in zip(self.params.v1, s1s):
       # Pool over all maps in this scale band.
       c1_band = s1_band.max(0)
-      # The step size is the fraction of one neighborhood that does not overlap
-      # the next.
-      scaling = band_params.c1_kwidth - band_params.c1_overlap
       c1_band = self.backend.LocalMax(c1_band, band_params.c1_kwidth,
-          scaling = scaling)
+          scaling = band_params.c1_scaling)
       c1_bands.append(c1_band)
     return c1_bands
 
@@ -297,8 +237,8 @@ class Model(BaseModel):
     for c1_band in c1s:
       # Filter the input array. Result is list of 3-D array indexed by kernel
       # size and prototype offset for given size.
-      s2_band = [ self.backend.Rbf(c1_band, ks, self.s2_beta, scaling = 1)
-          for ks in self.s2_kernels ]  # loop over kernel size
+      s2_band = [ self.backend.Rbf(c1_band, ks, self.params.s2_beta,
+          scaling = 1) for ks in self.s2_kernels ]  # loop over kernel size
       # Crop to give all maps in this band the same spatial extent. The largest
       # kernel has the smallest output map.
       min_height, min_width = s2_band[-1].shape[-2:]
