@@ -15,6 +15,19 @@ using the :class:`Experiment` class directly.
 # Please see the file COPYING in this distribution for usage
 # terms.
 
+import logging
+import math
+import numpy as np
+import operator
+import os
+import sklearn.metrics
+import sklearn.pipeline
+import sklearn.preprocessing
+import sklearn.svm
+import sys
+import time
+import types
+
 from glimpse import backends
 from glimpse.backends import InsufficientSizeException
 from glimpse.models import viz2
@@ -26,14 +39,6 @@ from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
 import glimpse.models
-import logging
-import math
-import numpy as np
-import operator
-import os
-import sys
-import time
-import types
 
 __all__ = (
     'ComputeFeatures', 'CrossValidateSvm', 'GetExampleCorpus',
@@ -80,7 +85,7 @@ class Experiment(object):
 
   """
 
-  def __init__(self, model, layer, pool, scaler):
+  def __init__(self, model, layer, pool):
     """Create a new experiment.
 
     :type model: model object
@@ -88,22 +93,18 @@ class Experiment(object):
     :param LayerSpec layer: The layer activity to use for features vectors.
     :type pool: pool object
     :param pool: A serializable worker pool.
-    :param svm.Scaler scaler: Feature scaling algorithm.
 
     """
     # Default arguments should be chosen in SetExperiment()
     assert model != None
     assert layer != None
     assert pool != None
-    assert scaler != None
     #: The Glimpse model used to compute feature vectors.
     self.model = model
     #: The worker pool used for parallelization.
     self.pool = pool
     #: The model layer from which feature vectors are extracted.
     self.layer = layer
-    #: The algorithm used to scale feature vectors.
-    self.scaler = scaler
     # Initialize attributes used by an experiment
     #: (list of str) Names of image classes.
     self.classes = []
@@ -131,11 +132,9 @@ class Experiment(object):
     #: (list of 2D ndarray) Feature vectors for the test images, indexed by
     #: class, image, and then feature offset.
     self.test_features = None
-    #: (dict) SVM evaluation results on the training data, in the format
-    #: returned by :func:`Svm.Test <glimpse.util.svm.Svm.Test>`.
+    #: (dict) SVM evaluation results on the training data.
     self.train_results = None
-    #: (dict) SVM evaluation results on the test data, in the format returned by
-    #: :func:`Svm.Test <glimpse.util.svm.Svm.Test>`.
+    #: (dict) SVM evaluation results on the test data.
     self.test_results = None
     #: (bool) Flag indicating whether cross-validation was used to compute test
     #: accuracy.
@@ -162,13 +161,16 @@ class Experiment(object):
     attrs = [ a for a in attrs if not (a.startswith('_') or
         isinstance(getattr(self, a), types.MethodType) or
         isinstance(getattr(self, a), types.FunctionType)) ]
-    attrs = set(attrs) - set(('model', 'scaler', 'pool', 'dir_reader',
-        'classifier'))
+    attrs = set(attrs) - set(('model', 'pool', 'dir_reader', 'classifier'))
     for a in attrs:
       value = getattr(self, a)
       other_value = getattr(other, a)
       if a in ('test_features', 'train_features', 's2_prototypes'):
         test = util.CompareArrayLists(other_value, value)
+      elif a in ('test_results', 'train_results'):
+        test = all(other_value['predicted_labels'] == value['predicted_labels']) \
+            and all(other_value['decision_values'] == value['decision_values']) \
+            and other_value['accuracy'] == value['accuracy']
       else:
         test = other_value == value
       if not test:
@@ -256,10 +258,9 @@ class Experiment(object):
     input_states = [ model.MakeStateFromFilename(fn, resize = self.resize)
         for fn in image_files ]
     try:
-      prototypes, locations = misc.ImprintKernels(model,
-          model.LayerClass.C1, model.s2_kernel_sizes, num_prototypes,
-          input_states, normalize = model.s2_kernels_are_normed,
-          pool = self.pool)
+      prototypes, locations = misc.ImprintKernels(model, model.LayerClass.C1,
+          model.s2_kernel_sizes, num_prototypes, input_states,
+          normalize = model.s2_kernels_are_normed, pool = self.pool)
     except InputSourceLoadException, ex:
       if ex.source != None:
         path = ex.source.image_path
@@ -647,11 +648,18 @@ class Experiment(object):
     """
     if self.train_features == None:
       self.ComputeFeatures()
-    svm_model = svm.ScaledSvm(self.scaler)
-    svm_model.Train(self.train_features)
-    self.scaler = svm_model.scaler  # scaler has been trained. save it.
-    self.classifier = svm_model.classifier
-    self.train_results = svm_model.Test(self.train_features)
+    # Prepare the data
+    train_features, train_labels = svm.PrepareFeatures(self.train_features)
+    # Create the SVM classifier with feature scaling.
+    self.classifier = svm.Pipeline([ ('scaler', sklearn.preprocessing.Scaler()),
+        ('svm', sklearn.svm.LinearSVC())])
+    self.classifier.fit(train_features, train_labels)
+    # Evaluate the classifier
+    decision_values = self.classifier.decision_function(train_features)
+    predicted_labels = self.classifier.predict(train_features)
+    accuracy = sklearn.metrics.zero_one_score(train_labels, predicted_labels)
+    self.train_results = dict(decision_values = decision_values,
+        predicted_labels = predicted_labels, accuracy = accuracy)
     return self.train_results['accuracy']
 
   def TestSvm(self):
@@ -663,9 +671,14 @@ class Experiment(object):
     :rtype: float
 
     """
-    svm_model = svm.ScaledSvm(classifier = self.classifier,
-        scaler = self.scaler)
-    self.test_results = svm_model.Test(self.test_features)
+    # Prepare the data
+    test_features, test_labels = svm.PrepareFeatures(self.test_features)
+    # Evaluate the classifier
+    decision_values = self.classifier.decision_function(test_features)
+    predicted_labels = self.classifier.predict(test_features)
+    accuracy = sklearn.metrics.zero_one_score(test_labels, predicted_labels)
+    self.test_results = dict(decision_values = decision_values,
+        predicted_labels = predicted_labels, accuracy = accuracy)
     return self.test_results['accuracy']
 
   def CrossValidateSvm(self):
@@ -677,8 +690,15 @@ class Experiment(object):
     :rtype: float
 
     """
-    test_accuracy = svm.SvmCrossValidate(self.GetFeatures(),
-        num_repetitions = 10, num_splits = 10, scaler = self.scaler)
+    if self.train_features == None:
+      self.ComputeFeatures()
+    features, labels = svm.PrepareFeatures(self.GetFeatures())
+    # Create the SVM classifier with feature scaling.
+    classifier = svm.Pipeline([ ('scaler', sklearn.preprocessing.Scaler()),
+        ('svm', sklearn.svm.LinearSVC())])
+    scores = sklearn.cross_validation.cross_val_score(classifier, features,
+        labels, cv = 10, n_jobs = -1)
+    test_accuracy = scores.mean()
     self.train_results = None
     self.test_results = dict(accuracy = test_accuracy)
     self.cross_validated = True
@@ -712,22 +732,9 @@ class Experiment(object):
 
   def Store(self, root_path):
     """Save the experiment to disk."""
-    # We modify the value of the "classifier" attribute, so cache it.
-    classifier = self.classifier
     pool = self.pool
     self.pool = None  # can't serialize some pools
-    # Use "classifier" attribute to indicate whether LIBSVM classifier is
-    # present.
-    if classifier != None:
-      self.classifier = True
     util.Store(self, root_path)
-    if classifier != None:
-      # Use delayed import of LIBSVM library, so non-SVM methods are always
-      # available.
-      import svmutil
-      svmutil.svm_save_model(root_path + '.svm', classifier)
-    # Restore the value of the "classifier" and "pool" attributes.
-    self.classifier = classifier
     self.pool = pool
 
   @staticmethod
@@ -739,18 +746,6 @@ class Experiment(object):
 
     """
     experiment = util.Load(root_path)
-    if experiment.classifier != None:
-      if not isinstance(root_path, basestring):
-        logging.warn("Failed to load SVM model for experiment.")
-      else:
-        model_path = root_path + '.svm'
-        if not os.path.exists(model_path):
-          logging.warn("SVM model not found")
-        else:
-          # Use delayed import of LIBSVM library, so non-SVM methods are always
-          # available.
-          import svmutil
-          experiment.classifier = svmutil.svm_load_model(model_path)
     return experiment
 
 __POOL = None
@@ -884,7 +879,7 @@ def GetExperiment():
     SetExperiment()
   return __EXP
 
-def SetExperiment(model = None, layer = None, scaler = None):
+def SetExperiment(model = None, layer = None):
   """Manually create a new experiment.
 
   This function generally is not called directly. Instead, an experiment object
@@ -893,8 +888,6 @@ def SetExperiment(model = None, layer = None, scaler = None):
   :param model: The Glimpse model to use for processing images.
   :param layer: The layer activity to use for features vectors.
   :type layer: :class:`LayerSpec <glimpse.models.misc.LayerSpec>` or str
-  :param scaler: The feature scaling algorithm, such as the
-     :class:`RangeFeatureScaler <glimpse.util.svm.RangeFeatureScaler>`.
   :returns: The new experiment object.
   :rtype: :class:`Experiment`
 
@@ -909,9 +902,7 @@ def SetExperiment(model = None, layer = None, scaler = None):
     layer = GetLayer()
   elif isinstance(layer, str):
     layer = model.LayerClass.FromName(layer)
-  if scaler == None:
-    scaler = svm.SpheringFeatureScaler()
-  __EXP = Experiment(model, layer, pool = GetPool(), scaler = scaler)
+  __EXP = Experiment(model, layer, pool = GetPool())
   return __EXP
 
 @docstring.copy_dedent(Experiment.ImprintS2Prototypes)
@@ -929,7 +920,8 @@ def MakeUniformRandomS2Prototypes(num_prototypes, low = None, high = None):
   """" """
   if __VERBOSE:
     print "Making %d uniform random prototypes" % num_prototypes
-  result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes, low, high)
+  result = GetExperiment().MakeUniformRandomS2Prototypes(num_prototypes, low,
+      high)
   if __VERBOSE:
     print "  done: %s s" % GetExperiment().prototype_construction_time
   return result
