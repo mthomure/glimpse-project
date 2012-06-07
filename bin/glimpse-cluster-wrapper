@@ -155,8 +155,8 @@ if [[ "$GLIMPSE_CLUSTER_TYPE" == ipython ]]; then
   WORKER_FUNC=IPythonWorkerStart
 elif [[ "$GLIMPSE_CLUSTER_TYPE" == gearman ]]; then
 #  BROKER_CMD="gearmand -vvvvvvvvvvv -l $GLIMPSE_HOME/run/glimpse-cluster/belmont.cs.pdx.edu/broker.gearmand.log -d"
-  BROKER_CMD="bin/glimpse-cluster $VERBOSE LaunchBroker"
-  WORKER_CMD="bin/glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
+  BROKER_CMD="glimpse-cluster $VERBOSE LaunchBroker"
+  WORKER_CMD="glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
   WORKER_FUNC=WorkerStart
 elif [[ "$GLIMPSE_CLUSTER_TYPE" == zmq ]]; then
   BROKER_CMD="glimpse-cluster $VERBOSE LaunchBroker"
