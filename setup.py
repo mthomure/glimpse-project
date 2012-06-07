@@ -97,7 +97,7 @@ cython_backend_ext = NumpyExtension(
 
 setup(
   name = "glimpse",
-  version = "0.1.1",
+  version = "0.1.2",
   author = "Mick Thomure",
   author_email = "thomure@cs.pdx.edu",
   packages = find_packages(),
@@ -126,6 +126,7 @@ setup(
     "scipy >= 0.7.2",
     "PIL >= 1.1.6",
     "traits >= 3.4",
+    "scikit-learn >= 0.11",
   ],
   setup_requires = [
     "numpy >= 1.3",
