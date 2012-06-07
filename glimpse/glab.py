@@ -1080,6 +1080,16 @@ def GetExampleCorpus():
   """
   return os.path.join(os.path.dirname(__file__), '..', 'rc', 'example-corpus')
 
+def GetLargeExampleCorpus():
+  """Get a larger example image corpus.
+
+  :returns: Corpus path.
+  :rtype: str
+
+  """
+  return os.path.join(os.path.dirname(__file__), '..', 'rc',
+      'example-large-corpus')
+
 def GetExampleImage():
   """Get a single example image.
 

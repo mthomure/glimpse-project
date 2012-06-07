@@ -33,6 +33,7 @@ def MockDirs(*args, **kwargs):
   return temp_dir
 
 EXAMPLE_CORPUS = glab.GetExampleCorpus()
+EXAMPLE_LARGE_CORPUS = glab.GetLargeExampleCorpus()
 
 def ImageDict(num_classes, start = 1, end = 5):
   return dict(('cls%d' % c, [ 'cls%d_img%d.jpg' % (c, i)
@@ -176,13 +177,61 @@ class TestGlab(unittest.TestCase):
 class _TestGlabForModel(unittest.TestCase):
 
   MODEL_CLASS = None
-  MODEL_LAYER = None
+  MODEL_LAYER = "c1"
 
   def setUp(self):
     glab.Reset()
     glab.SetModelClass(self.MODEL_CLASS)
     glab.SetLayer(self.MODEL_LAYER)
     #~ glab.SetPool(pools.SinglecorePool())
+
+  def testRunSvm(self):
+    glab.SetCorpus(EXAMPLE_CORPUS)
+    glab.RunSvm()
+    e = glab.GetExperiment()
+    self.assertNotEqual(e.train_results['accuracy'], None)
+    self.assertNotEqual(e.test_results['accuracy'], None)
+
+  def testCrossValidateSvm(self):
+    glab.SetCorpus(EXAMPLE_LARGE_CORPUS)
+    glab.CrossValidateSvm()
+    e = glab.GetExperiment()
+    self.assertEqual(e.train_results, None)
+    self.assertNotEqual(e.test_results['accuracy'], None)
+
+  def testGetImageFeatures(self):
+    images = glab.GetExampleImages()[:2]
+    glab.SetLayer("c1")
+    features = glab.GetImageFeatures(images)
+    self.assertEqual(len(features), 2)
+    self.assertEqual(len(features[0]), len(features[1]))
+
+class _TestGlabForModelC2(_TestGlabForModel):
+
+  MODEL_CLASS = None
+  MODEL_LAYER = "c2"
+
+  def setUp(self):
+    glab.Reset()
+    glab.SetModelClass(self.MODEL_CLASS)
+    glab.SetLayer(self.MODEL_LAYER)
+    #~ glab.SetPool(pools.SinglecorePool())
+
+  def testRunSvm(self):
+    glab.SetCorpus(EXAMPLE_CORPUS)
+    glab.ImprintS2Prototypes(NUM_PROTOTYPES)
+    glab.RunSvm()
+    e = glab.GetExperiment()
+    self.assertNotEqual(e.train_results['accuracy'], None)
+    self.assertNotEqual(e.test_results['accuracy'], None)
+
+  def testCrossValidateSvm(self):
+    glab.SetCorpus(EXAMPLE_LARGE_CORPUS)
+    glab.ImprintS2Prototypes(NUM_PROTOTYPES)
+    glab.CrossValidateSvm()
+    e = glab.GetExperiment()
+    self.assertEqual(e.train_results, None)
+    self.assertNotEqual(e.test_results['accuracy'], None)
 
   def testImprintS2Prototypes(self):
     glab.SetCorpus(EXAMPLE_CORPUS)
@@ -221,50 +270,29 @@ class _TestGlabForModel(unittest.TestCase):
     self.assertEqual(map(len, e.model.s2_kernels),
         [ NUM_PROTOTYPES ] * len(e.model.s2_kernels) )
 
-  def testRunSvm(self):
-    glab.SetCorpus(EXAMPLE_CORPUS)
-    glab.ImprintS2Prototypes(NUM_PROTOTYPES)
-    glab.RunSvm()
-    e = glab.GetExperiment()
-    self.assertNotEqual(e.train_results['accuracy'], None)
-    self.assertNotEqual(e.test_results['accuracy'], None)
-
-  def testGetImageFeatures(self):
-    images = glab.GetExampleImages()[:2]
-    glab.SetLayer("c1")
-    features = glab.GetImageFeatures(images)
-    self.assertEqual(len(features), 2)
-    self.assertEqual(len(features[0]), len(features[1]))
-
-class TestGlabForHmax(_TestGlabForModel):
+class TestGlabForHmax(_TestGlabForModelC2):
 
   MODEL_CLASS = "hmax"
-  MODEL_LAYER = "c2"
 
-class TestGlabForMl(_TestGlabForModel):
+class TestGlabForMl(_TestGlabForModelC2):
 
   MODEL_CLASS = "ml"
-  MODEL_LAYER = "c2"
 
-class TestGlabForViz2(_TestGlabForModel):
+class TestGlabForViz2(_TestGlabForModelC2):
 
   MODEL_CLASS = "viz2"
-  MODEL_LAYER = "c2"
 
 class TestGlabForHmaxC1(_TestGlabForModel):
 
   MODEL_CLASS = "hmax"
-  MODEL_LAYER = "c1"
 
 class TestGlabForMlC1(_TestGlabForModel):
 
   MODEL_CLASS = "ml"
-  MODEL_LAYER = "c1"
 
 class TestGlabForViz2C1(_TestGlabForModel):
 
   MODEL_CLASS = "viz2"
-  MODEL_LAYER = "c1"
 
 if __name__ == '__main__':
     unittest.main()
