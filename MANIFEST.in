@@ -9,3 +9,4 @@ exclude glimpse/recon.py
 exclude glimpse/vis.py
 recursive-exclude glimpse/orange *
 exclude MANIFEST.in
+recursive-include glimpse/glab/data *

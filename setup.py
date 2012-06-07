@@ -142,12 +142,15 @@ setup(
   },
   entry_points = {
     'console_scripts' : [
-      'glab = glimpse.glab:main',
+      'glab = glimpse.glab.main:main',
       'glimpse-cluster = glimpse.pools.main:main [cluster]',
     ],
     'gui_scripts' : [
       'edit-glimpse-params = glimpse.models.edit_params:main [gui]',
     ],
+  },
+  package_data = {
+    'glimpse.glab' : ['data/*/*/*', 'data/*/*.txt'],
   },
   ext_modules = [ cython_backend_ext ],
 )
