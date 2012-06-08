@@ -46,7 +46,7 @@ class Params(traits.HasStrictTraits):
       desc = "subsampling factor (e.g., setting this parameter to 2 will "
       "result in a C1 array that is half the width -- and half the height "
       "-- of the S1 array)")
-  c1_whiten = traits.Bool(True, label = "C1 Whiten",
+  c1_whiten = traits.Bool(False, label = "C1 Whiten",
       desc = "whether to normalize the total energy at each C1 location")
 
   s2_beta = traits.Range(low = 0., value = 5., exclude_low = True,
