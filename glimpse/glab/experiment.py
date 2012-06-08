@@ -24,6 +24,7 @@ from glimpse import util
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
+from glimpse.backends import InsufficientSizeException
 
 class DirReader(object):
   """Read directory contents."""
@@ -631,8 +632,10 @@ class Experiment(object):
     decision_values = self.classifier.decision_function(train_features)
     predicted_labels = self.classifier.predict(train_features)
     accuracy = sklearn.metrics.zero_one_score(train_labels, predicted_labels)
+    fpr, tpr, thresholds = sklearn.metrics.roc_curve(train_labels, predicted_labels)
+    auc = sklearn.metrics.auc(fpr, tpr)
     self.train_results = dict(decision_values = decision_values,
-        predicted_labels = predicted_labels, accuracy = accuracy)
+        predicted_labels = predicted_labels, accuracy = accuracy, auc = auc)
     return self.train_results['accuracy']
 
   def TestSvm(self):
@@ -650,8 +653,10 @@ class Experiment(object):
     decision_values = self.classifier.decision_function(test_features)
     predicted_labels = self.classifier.predict(test_features)
     accuracy = sklearn.metrics.zero_one_score(test_labels, predicted_labels)
+    fpr, tpr, thresholds = sklearn.metrics.roc_curve(test_labels, predicted_labels)
+    auc = sklearn.metrics.auc(fpr, tpr)
     self.test_results = dict(decision_values = decision_values,
-        predicted_labels = predicted_labels, accuracy = accuracy)
+        predicted_labels = predicted_labels, accuracy = accuracy, auc = auc)
     return self.test_results['accuracy']
 
   def CrossValidateSvm(self):
