@@ -110,7 +110,9 @@ class ClusterPool(gearman.GearmanClient):
 
     """
     super(ClusterPool, self).__init__(host_list)
-    self.command_url = command_url
+    self.command_context = zmq.Context()
+    self.command_socket = self.command_context.socket(zmq.PUB)
+    self.command_socket.connect(command_url)
 
   def map(self, func, iterable, chunksize = None, cache_functions = None):
     """Apply a function to a list.
@@ -171,11 +173,17 @@ class ClusterPool(gearman.GearmanClient):
     :param dict memory: Variables to store.
 
     """
-    SendCommand(self.command_url, COMMAND_SETMEMORY, memory)
+    msg = (COMMAND_SETMEMORY, memory)
+    self.command_socket.send_pyobj(msg)
+    # Wait for workers to process message
+    time.sleep(1)
 
   def ClearMemory(self):
     """Remove all values from the cluster's stateful data store."""
-    SendCommand(self.command_url, COMMAND_CLEARMEMORY)
+    msg = (COMMAND_CLEARMEMORY, None)
+    self.command_socket.send_pyobj(msg)
+    # Wait for workers to process message
+    time.sleep(1)
 
 class ConfigException(Exception):
   """Indicates that an error occurred while reading the cluster
@@ -316,7 +324,7 @@ def RunWorker(job_server_url, command_url, log_url, num_processes = None):
       func, args = job.data
       if type(func) == int:
         logging.info("Looking up cached function for hash %d" % func)
-        func = worker.memory[func]
+        func = worker.memory.get(func, None)
       if func == None:
         raise Exception("No function found")
       logging.info("Worker processing task with %d elements" % len(args))
