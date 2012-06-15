@@ -176,14 +176,14 @@ class ClusterPool(gearman.GearmanClient):
     msg = (COMMAND_SETMEMORY, memory)
     self.command_socket.send_pyobj(msg)
     # Wait for workers to process message
-    time.sleep(1)
+    time.sleep(5)
 
   def ClearMemory(self):
     """Remove all values from the cluster's stateful data store."""
     msg = (COMMAND_CLEARMEMORY, None)
     self.command_socket.send_pyobj(msg)
     # Wait for workers to process message
-    time.sleep(1)
+    time.sleep(5)
 
 class ConfigException(Exception):
   """Indicates that an error occurred while reading the cluster
