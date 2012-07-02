@@ -17,6 +17,7 @@ from glimpse.models.misc import BaseState, Whiten
 from glimpse.models.viz2.model import Model as Viz2Model
 from glimpse.models.viz2.model import Layer
 from glimpse.util import kernel
+from glimpse.util import gimage
 from .params import Params
 
 class State(BaseState):
@@ -79,8 +80,8 @@ class Model(Viz2Model):
     """
     # Create scale pyramid of retinal map
     p = self.params
-    retina_scales = [ zoom(retina, 1 / p.scale_factor ** scale)
-        for scale in range(p.num_scales) ]
+    retina_scales = gimage.MakeScalePyramid(retina, p.num_scales,
+        1.0 / p.scale_factor)
     # Reshape kernel array to be 3-D: index, 1, y, x
     s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     s1s = []

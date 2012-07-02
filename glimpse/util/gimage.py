@@ -5,10 +5,13 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-from garray import ACTIVATION_DTYPE, PadArray
+import Image
 import numpy as np
 from scipy import fftpack
+from scipy.misc import fromimage, toimage
 import sys
+
+from garray import ACTIVATION_DTYPE, PadArray
 
 def ImageToArray(img, array = None, transpose = True):
   """Load image data into a 2D numpy array.
@@ -21,6 +24,9 @@ def ImageToArray(img, array = None, transpose = True):
      returning.
   :returns: Array containing image data. Note that this may be non-contiguous.
   :rtype: ndarray
+
+  .. seealso::
+     :func:`scipy.misc.misc.fromimage`.
 
   """
   def MakeBuffer():
@@ -77,15 +83,21 @@ def ShowImageOnLinux(img, fname = None):
   img.save(path)
   RunCommand("eog -n %s" % path, False, False)
 
-def PowerSpectrum2d(image):
+def PowerSpectrum2d(image, width = None):
   """Compute the 2-D power spectrum for an image.
 
   :param image: Image data.
   :type image: 2D ndarray
+  :param int width: Width of image to use for FFT (i.e., image width plus
+     padding). By default, this is the width of the image.
   :returns: Squared amplitude from FFT of image.
   :rtype: 2D ndarray
 
   """
+  if width != None:
+    image = PadArray(image,
+        np.repeat(width, 2),  # shape of padded array
+        0)  # border value
   from scipy.fftpack import fftshift, fft2
   return np.abs(fftshift(fft2(image))) ** 2
 
@@ -104,11 +116,7 @@ def PowerSpectrum(image, width = None):
   """
   # from: http://www.astrobetter.com/fourier-transforms-of-images-in-python/
   assert image.ndim == 2
-  if width != None:
-    image = PadArray(image,
-        np.repeat(width, 2),  # shape of padded array
-        0)  # border value
-  f2d = PowerSpectrum2d(image)
+  f2d = PowerSpectrum2d(image, width)
   # Get sorted radii.
   x, y = np.indices(f2d.shape)
   center_x = (x.max() - x.min()) / 2.0
@@ -138,3 +146,26 @@ def PowerSpectrum(image, width = None):
   # are many fewer low-frequency locations in the FFT.
   #~ avg_per_bin = sum_per_bin / size_per_bin
   return np.array([freq, sum_per_bin, size_per_bin])
+
+def MakeScalePyramid(data, num_layers, scale_factor):
+  """Create a pyramid of resized copies of a 2D array.
+
+  :param data: Base layer of the scale pyramid (i.e., highest frequency data).
+  :type data: 2D ndarray of float
+  :param int num_layers: Total number of layers in the pyramid, including
+     the first layer passed as an argument.
+  :param float scale_factor: Down-sampling factor between layers. Must be less
+     than 1.
+  :return: All layers of the scale pyramid.
+  :rtype: list of 2D ndarray of float
+
+  """
+  if scale_factor >= 1:
+    raise ValueError("Scale factor must be less than one.")
+  pyramid = [ data ]
+  image = toimage(data, mode = 'F')
+  for i in range(num_layers - 1):
+    size = np.array(image.size, np.int) * scale_factor
+    image = image.resize(np.round(size).astype(int), Image.ANTIALIAS)
+    pyramid.append(fromimage(image))
+  return pyramid
