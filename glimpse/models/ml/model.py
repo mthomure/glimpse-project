@@ -13,6 +13,7 @@ Mutch & Lowe (2008).
 
 from scipy.ndimage.interpolation import zoom
 
+from glimpse.backends import InsufficientSizeException
 from glimpse.models.misc import BaseState, Whiten
 from glimpse.models.viz2.model import Model as Viz2Model
 from glimpse.models.viz2.model import Layer
@@ -90,8 +91,12 @@ class Model(Viz2Model):
       # Reshape retina to be 3D array
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
-      s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
-          scaling = p.s1_sampling)
+      try:
+        s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias,
+            beta = p.s1_beta, scaling = p.s1_sampling)
+      except InsufficientSizeException, e:
+        e.message = "Image is too small to apply S1 filters at scale %d" % scale
+        raise e
       # Reshape S1 to be 4D array
       s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
           s1_.shape[-2:])
