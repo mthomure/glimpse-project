@@ -26,6 +26,46 @@ class State(BaseState):
   """A container for the :class:`Model` state."""
   pass
 
+def MinimumRetinaSize(p):
+  """Compute the smallest retinal layer that supports the given parameters.
+
+  This function discounts the effect of scaling.
+
+  :param p: Parameter settings for model.
+  :rtype: int
+  :returns: Length of smaller edge of retina.
+
+  """
+  if p.operation_type == "valid":
+    # Must support at least one S2 unit
+    c1_size = p.s2_kwidth
+    s1_size = c1_size * p.c1_sampling + p.c1_kwidth - 1
+    retina_size = s1_size * p.s1_sampling + p.s1_kwidth - 1
+  else:  # centered convolution
+    c1_size = (p.s2_kwidth - 1) / 2
+    s1_size = c1_size * p.c1_sampling + (p.c1_kwidth - 1) / 2
+    retina_size = s1_size * p.s1_sampling + (p.s1_kwidth - 1) / 2
+  return retina_size
+
+def NumScalesSupported(params, retina_size):
+  """Compute the number of scale bands supported for a given retinal size.
+
+  This ensures that at least one S2 unit can be computed for every scale band.
+
+  :param params: Parameter settings for model.
+  :param retina_size: Length of shorter edge of retina layer.
+  :type retina_size: int
+  :rtype: int
+  :return: Number of scales.
+
+  """
+  min_retina_size = MinimumRetinaSize(params)
+  num_scales = 0
+  while min_retina_size < retina_size:
+    num_scales += 1
+    min_retina_size *= params.scale_factor
+  return num_scales
+
 class Model(Viz2Model):
   """Create a 2-part, HMAX-like hierarchy of S+C layers."""
 
@@ -82,7 +122,10 @@ class Model(Viz2Model):
     """
     # Create scale pyramid of retinal map
     p = self.params
-    retina_scales = gimage.MakeScalePyramid(retina, p.num_scales,
+    num_scales = p.num_scales
+    if num_scales == 0:
+      num_scales = NumScalesSupported(p, min(retina.shape))
+    retina_scales = gimage.MakeScalePyramid(retina, num_scales,
         1.0 / p.scale_factor)
     ndp = (p.s1_operation == 'NormDotProduct')
     s1_kernels = self.s1_kernels
@@ -93,7 +136,7 @@ class Model(Viz2Model):
     s1_kernels = s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     s1s = []
     backend_op = getattr(self.backend, p.s1_operation)
-    for scale in range(p.num_scales):
+    for scale in range(num_scales):
       # Reshape retina to be 3D array
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
@@ -154,7 +197,7 @@ class Model(Viz2Model):
     p = self.params
     s2s = []
     backend_op = getattr(self.backend, p.s2_operation)
-    for scale in range(p.num_scales):
+    for scale in range(len(c1s)):
       c1 = c1s[scale]
       s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
           scaling = p.s2_sampling)

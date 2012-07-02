@@ -7,6 +7,13 @@
 from glimpse.util import traits
 from glimpse.models.viz2.params import KWidth, SLayerOperation
 
+class OperationType(traits.Enum):
+  """A trait type describing how S- and C-layer operations are applied."""
+
+  def __init__(self, value, **metadata):
+    super(OperationType, self).__init__(value, ("valid"),  #, "centered"),
+        **metadata)
+
 class Params(traits.HasStrictTraits):
   """Parameter container for the :class:`ml model
   <glimpse.models.ml.model.Model>`.
@@ -63,11 +70,15 @@ class Params(traits.HasStrictTraits):
       "-- of the C1 array)")
   s2_operation = SLayerOperation("NormRbf", label = "S2 Operation")
 
-  num_scales = traits.Range(low = 1, value = 4, label = "Number of Scales",
-      desc = "number of different scale bands")
+  operation_type = OperationType("valid", label = "Operation Type",
+      desc = "the way in which S- and C-layers are applied")
+  num_scales = traits.Range(low = 0, value = 4, label = "Number of Scales",
+      desc = "number of different scale bands (set to zero to use as many as "
+          "possible for a given image size)")
   scale_factor = traits.Range(low = 1., value = 2**0.5,
       label = "Scaling Factor",
-      desc = "Image downsampling factor between scale bands")
+      desc = "Image downsampling factor between scale bands (must be greater "
+          "than one)")
 
   def __str__(self):
     # Get list of all traits.
