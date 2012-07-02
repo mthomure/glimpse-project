@@ -14,7 +14,7 @@ Mutch & Lowe (2008).
 import numpy as np
 from scipy.ndimage.interpolation import zoom
 
-from glimpse.backends import InsufficientSizeException
+from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse.models.misc import BaseState, Whiten
 from glimpse.models.viz2.model import Model as Viz2Model
 from glimpse.models.viz2.model import Layer
@@ -112,6 +112,9 @@ class Model(Viz2Model):
             s1.shape[-2:])
         # Pool over phase.
         s1 = s1.max(1)
+      if np.isnan(s1).any():
+        raise BackendException("Found illegal values in S1 map at scale %d" % \
+            scale)
       # Append 3D array to list
       s1s.append(s1)
     return s1s
@@ -155,6 +158,9 @@ class Model(Viz2Model):
       c1 = c1s[scale]
       s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
           scaling = p.s2_sampling)
+      if np.isnan(s2).any():
+        raise BackendException("Found illegal values in S2 map at scale %d" % \
+            scale)
       # Append 3D array to list.
       s2s.append(s2)
     return s2s

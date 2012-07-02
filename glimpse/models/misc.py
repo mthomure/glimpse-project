@@ -357,7 +357,10 @@ class BaseModel(object):
     if output_id == lyr.SOURCE.ident:
       raise DependencyError
     elif output_id == lyr.IMAGE.ident:
-      return self.BuildImageFromInput(state[lyr.SOURCE.ident].CreateImage())
+      img = self.BuildImageFromInput(state[lyr.SOURCE.ident].CreateImage())
+      if np.isnan(img).any():
+        raise BackendException("Found illegal values in image layer")
+      return img
     raise ValueError("Unknown layer ID: %r" % output_id)
 
   def _BuildNode(self, output_id, state):

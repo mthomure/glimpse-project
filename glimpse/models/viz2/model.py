@@ -15,6 +15,7 @@ import numpy as np
 
 from glimpse.models.misc import BaseLayer, LayerSpec, BaseState, BaseModel, \
     Whiten
+from glimpse.backends import BackendException
 from glimpse.util import ACTIVATION_DTYPE
 from glimpse.util import kernel
 from glimpse.util import docstring
@@ -203,6 +204,8 @@ class Model(BaseModel):
       return img
     retina = self.backend.ContrastEnhance(img, kwidth = p.retina_kwidth,
         bias = p.retina_bias, scaling = 1)
+    if np.isnan(retina).any():
+      raise BackendException("Found illegal values in retinal map")
     return retina
 
   def BuildS1FromRetina(self, retina):
