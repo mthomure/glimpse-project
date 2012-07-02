@@ -110,7 +110,11 @@ class InputSource(object):
       new_size = int(width * ratio), int(height * ratio)
       logging.info("Resize image %s from (%d, %d) to %s", self.image_path,
           width, height, new_size)
-      img = img.resize(new_size, Image.BICUBIC)
+      if ratio > 1:
+        method = Image.BICUBIC  # interpolate
+      else:
+        method = Image.ANTIALIAS  # blur and down-sample
+      img = img.resize(new_size, method)
     return img
 
   def __str__(self):
@@ -141,6 +145,18 @@ def ImageLayerFromInputArray(input_, backend):
     input_ = input_.astype(np.float)
     # Map from [0, 255] to [0, 1]
     input_ /= 255
+    # Note: we could have scaled pixels to [-1, 1]. This would result in a
+    # doubling of the dynamic range of the S1 response, since each S1 activation
+    # is of the form:
+    #    y = XW
+    # where X and W are the input and weight vector, respectively. The rescaled
+    # version of X (call it X') is given by:
+    #    X' = 2X - 1
+    # so the activation is given by
+    #    y' = X'W = (2X - 1)W = 2XW - \sum w_i = 2XW
+    # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
+    # nonlinearities caused by normalization). The scaling of S1 response seems
+    # unlikely to cause a significant change in the network output.
   return backend.PrepareArray(input_)
 
 class DependencyError(Exception):
