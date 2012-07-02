@@ -34,6 +34,9 @@ def ArrayToGreyscaleImage(array, normalize = True):
 
   This function assumes range of input values contains 0.
 
+  .. seealso::
+     :func:`scipy.misc.misc.toimage`.
+
   """
   if array.dtype != np.float32:
     array = array.astype(np.float32)
@@ -57,6 +60,9 @@ def ArrayToRGBImage(array):
   """Create a color image from an array.
 
   :rtype: PIL.Image
+
+  .. seealso::
+     :func:`scipy.misc.misc.toimage`.
 
   """
   return Image.fromarray(array, 'RGB')
@@ -107,9 +113,22 @@ def FlattenArrays(data):
 ArrayListToVector = FlattenArrays
 
 def PadArray(data, out_shape, cval):
-  """Pad the border of an array with a constant value."""
+  """Pad the border of an array with a constant value.
+
+  :param data: Input data.
+  :type data: N-dim ndarray
+  :param out_shape: Dimensions of output array.
+  :type out_shape: list of int
+  :param cval: Value to use for border region of output array.
+  :rtype: N-dim ndarray
+  :return: Padded input data.
+
+  """
   out_shape = np.array(out_shape)
   in_shape = np.array(data.shape)
+  # Ensure the requested size is at least as large as the input array
+  for i in range(len(out_shape)):
+    out_shape[i] = max(out_shape[i], in_shape[i])
   result = np.empty(out_shape)
   result[:] = cval
   begin = ((out_shape - in_shape) / 2.0).astype(int)
@@ -120,11 +139,11 @@ def CropArray(data, out_shape):
   """Remove the border of an array.
 
   :param data: Input array.
-  :type data: ND ndarray
+  :type data: N-dim ndarray
   :param out_shape: Shape of central region to return. If length is less than
      `data.shape`, this is assumed to specify the range in the last axes.
   :type out_shape: list of int
-  :rtype: ND ndarray
+  :rtype: N-dim ndarray
   :returns: View of the central region of the input array.
 
   """
