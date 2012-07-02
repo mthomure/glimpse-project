@@ -5,8 +5,11 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-from glimpse.util import gimage, misc
 import math
+
+from glimpse.util import gimage
+from glimpse.util import misc
+
 # Following imports assume matplotlib environment has been initialized.
 try:
   from matplotlib import cm
@@ -34,7 +37,7 @@ def NextSubplot(figure = None):
   return figure.gca()
 
 def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
-    axes = None, show = True, colorbar = False, **fg_args):
+    axes = None, show = True, colorbar = False, alpha = None, **fg_args):
   """Show a 2-D array using matplotlib.
 
   :param fg: Foreground array to display, shown with a spectral colormap.
@@ -62,14 +65,17 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
     f_extent[1] += 1
     f_extent[2] += 1
     b_extent = f_extent
-    falpha = 1
+    if alpha == None:
+      alpha = 1.0
   else:
-    assert mapper != None
-    f_extent = map(mapper, (0, fg.shape[-1], fg.shape[-2], 0))
-    f_extent[1] += 1
-    f_extent[2] += 1
-    falpha = 0.9
+    f_extent = (0, fg.shape[-1], fg.shape[-2], 0)
+    if mapper != None:
+      f_extent = map(mapper, (0, fg.shape[-1], fg.shape[-2], 0))
+      f_extent[1] += 1
+      f_extent[2] += 1
     b_extent = (0, bg.shape[-1], bg.shape[-2], 0)
+    if alpha == None:
+      alpha = 0.5
   # Show smallest element first -- that means annotation, fg, bg
   hold = axes.ishold()
   if annotation != None:
@@ -80,7 +86,7 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   axes.hold(True)
   # Show foreground
   axes.imshow(fg, **misc.MergeDict(fg_args, # cmap = cm.spectral,
-      extent = f_extent, zorder = 2, alpha = falpha))
+      extent = f_extent, zorder = 2, alpha = alpha))
   if colorbar:
     axes.figure.colorbar(axes.images[-1], ax = axes)
   if bg != None:
@@ -281,6 +287,24 @@ def Show3dArray(xs, annotations = None, figure = None, **args):
 #: .. deprecated:: 0.1.0
 #:    Use :func:`Show3dArray` instead.
 Show3DArray = Show3dArray
+
+def Show(data, **kwargs):
+  """Display a dataset as one or more images.
+
+  :param data: Input data to display. Must be N-dim array-like.
+  :type data: N-dim ndarray, or list of 2D ndarray
+
+  """
+  if isinstance(data, np.ndarray):
+    if data.ndim == 2:
+      func = Show2dArray
+    else:
+      func = Show3dArray
+  elif misc.IsIterable(data):
+    func = Show2dArrayList
+  else:
+    raise ValueError("Data must be an array or a list.")
+  func(data, **kwargs)
 
 def ShowImagePowerSpectrum(data, width = None, **plot_args):
   """Display the 1-D power spectrum of an image.
