@@ -8,6 +8,7 @@
 
 import os
 
+from glimpse import pools
 from glimpse import util
 from .misc import *
 
