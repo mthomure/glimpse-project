@@ -4,6 +4,7 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
+from itertools import imap
 import multiprocessing
 
 class SinglecorePool(object):
@@ -15,14 +16,14 @@ class SinglecorePool(object):
 
   def imap(self, func, iterable, chunksize = 1):
     """Apply a function to an iterable."""
-    return map(func, iterable)
+    return imap(func, iterable)
 
   def imap_unordered(self, func, iterable, chunksize = 1):
     """Apply a function to an iterable, where elements are evaluated in any
     order.
 
     """
-    return map(func, iterable)
+    return imap(func, iterable)
 
 class MulticorePool(object):
   """A worker pool that utilizes multiple cores on a single machine.
