@@ -33,6 +33,11 @@ class S1Params():
           gamma = S1Params.gamma, sigma = self.sigma, phi = 0,
           lambda_ = self.lambda_, scale_norm = True)
           for theta in S1Params.thetas ]
+      # Apply circular mask to kernels (see FHLib matlab package).
+      hw = int(self.kwidth / 2)
+      Y, X = np.mgrid[-hw:hw+1, -hw:hw+1]
+      I = np.sqrt(X**2 + Y**2) < hw
+      kernels = kernels * I
       self._kernels = np.array(kernels, dtype = ACTIVATION_DTYPE)
     return self._kernels
 
