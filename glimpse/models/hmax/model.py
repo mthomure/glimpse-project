@@ -2,7 +2,9 @@
 
 This module implements a multi-scale analysis by applying Gabors corresponding
 to different edge widths. The model given here corresponds as closely as
-possible to the configuration used by Serre et al (2007).
+possible to the configuration described by Serre et al (2007).
+
+Note that this does not match the distributed Matlab implementation.
 
 """
 

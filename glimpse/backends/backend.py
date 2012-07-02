@@ -14,7 +14,7 @@ class InsufficientSizeException(Exception):
     self.source = source
 
   def __str__(self):
-    return "InsufficientSizeException(msg=%s, source=%s)" % (self.message,
+    return "InsufficientSizeException(msg='%s', source=%s)" % (self.message,
         self.source)
 
   __repr__ = __str__
@@ -90,7 +90,7 @@ class IBackend(object):
     :param kernels: Array of 3D kernels, where each kernel is expected to have
        unit vector length.
     :type kernels: 4D ndarray of float
-    :param float bias: Additive term in denominator.
+    :param float bias: Threshold for denominator.
     :param scaling: Subsampling factor.
     :type scaling: positive int
     :param out: Array in which to store result. If None, a new array will be
