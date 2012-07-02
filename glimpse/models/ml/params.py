@@ -74,6 +74,8 @@ class Params(traits.HasStrictTraits):
     traits = self.traits().keys()
     # Remove special entries from the HasTraits object.
     traits = filter((lambda t: not t.startswith("trait_")), traits)
+    # Display traits in alphabetical order.
+    traits = sorted(traits)
     # Format set of traits as a string.
     return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
         getattr(self, tn)) for tn in traits)
