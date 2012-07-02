@@ -11,6 +11,7 @@ Mutch & Lowe (2008).
 #
 # Please see the file COPYING in this distribution for usage terms.
 
+import numpy as np
 from scipy.ndimage.interpolation import zoom
 
 from glimpse.backends import InsufficientSizeException
@@ -83,8 +84,13 @@ class Model(Viz2Model):
     p = self.params
     retina_scales = gimage.MakeScalePyramid(retina, p.num_scales,
         1.0 / p.scale_factor)
+    ndp = (p.s1_operation == 'NormDotProduct')
+    s1_kernels = self.s1_kernels
+    if ndp:
+      # NDP is already phase invariant, just use one phase of filters
+      s1_kernels = self.s1_kernels[:, 0].copy()
     # Reshape kernel array to be 3-D: index, 1, y, x
-    s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
+    s1_kernels = s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     s1s = []
     backend_op = getattr(self.backend, p.s1_operation)
     for scale in range(p.num_scales):
@@ -92,16 +98,20 @@ class Model(Viz2Model):
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
       try:
-        s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias,
-            beta = p.s1_beta, scaling = p.s1_sampling)
+        s1 = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
+            scaling = p.s1_sampling)
       except InsufficientSizeException, e:
         e.message = "Image is too small to apply S1 filters at scale %d" % scale
         raise e
-      # Reshape S1 to be 4D array
-      s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
-          s1_.shape[-2:])
-      # Pool over phase.
-      s1 = s1.max(1)
+      if ndp:
+        np.abs(s1, s1)  # Take the absolute value in-place
+        # S1 is now a 3D array of phase-invariant responses
+      else:
+        # Reshape S1 to be 4D array
+        s1 = s1.reshape((p.s1_num_orientations, p.s1_num_phases) + \
+            s1.shape[-2:])
+        # Pool over phase.
+        s1 = s1.max(1)
       # Append 3D array to list
       s1s.append(s1)
     return s1s
