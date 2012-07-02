@@ -6,7 +6,7 @@
 
 from .cython_backend import CythonBackend
 from .scipy_backend import ScipyBackend
-from .backend import InsufficientSizeException
+from .backend import BackendException, InsufficientSizeException
 
 def MakeBackend():
   """Return an instance for the best available backend."""

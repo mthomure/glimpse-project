@@ -15,7 +15,7 @@ import numpy as np
 import random
 
 from glimpse import backends
-from glimpse.backends import InsufficientSizeException
+from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse import pools
 from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
 
@@ -418,7 +418,7 @@ class BaseModel(object):
       return state
     try:
       state = self._BuildNode(output_layer, state)
-    except InsufficientSizeException, ex:
+    except BackendException, ex:
       # Try to annotate exception with source information.
       ex.source = state.get(self.LayerClass.SOURCE.ident, None)
       raise ex

@@ -24,7 +24,7 @@ from glimpse import util
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
-from glimpse.backends import InsufficientSizeException
+from glimpse.backends import BackendException, InsufficientSizeException
 
 class DirReader(object):
   """Read directory contents."""
@@ -449,8 +449,15 @@ class Experiment(object):
             ex.source.image_path)
         sys.exit(-1)
       except InsufficientSizeException, ex:
-        logging.error("Failed to process image (%s): image too small",
-            ex.source.image_path)
+        logging.error("Failed to process image (%s): image too small (%s)",
+            ex.source.image_path, ex.message)
+        sys.exit(-1)
+      except BackendException, ex:
+        if ex.source == None:
+          path = "unknown image"
+        else:
+          path = ex.source.image_path
+        logging.error("Failed to process image (%s): %s", path, ex.message)
         sys.exit(-1)
     return features
 
