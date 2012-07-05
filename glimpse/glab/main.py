@@ -13,8 +13,7 @@ from glimpse import util
 from .misc import *
 
 def _InitCli(pool_type = None, cluster_config = None, model_name = None,
-    params = None, edit_params = False, layer = None, verbose = 0,
-    resize = None, **opts):
+    params = None, edit_params = False, layer = None, verbose = 0, **opts):
   if verbose > 0:
     Verbose(True)
     if verbose > 1:
@@ -41,7 +40,6 @@ def _InitCli(pool_type = None, cluster_config = None, model_name = None,
   if edit_params:
     GetParams().configure_traits()
   # At this point, all parameters needed to create Experiment object are set.
-  GetExperiment().resize = resize
 
 def _FormatCliResults(svm_decision_values = False, svm_predicted_labels = False,
     **opts):
@@ -118,11 +116,11 @@ def main():
     opts = dict()
     opts['verbose'] = 0
     opts['corpus_subdirs'] = []
-    cli_opts, _ = util.GetOptions('bc:C:el:m:n:o:p:P:r:R:st:vx',
+    cli_opts, _ = util.GetOptions('bc:C:el:m:n:o:p:P:r:st:vx',
         ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
         'compute-features', 'edit-options', 'layer=', 'model=',
         'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
-        'results=', 'resize=', 'svm', 'svm-decision-values',
+        'results=', 'svm', 'svm-decision-values',
         'svm-predicted-labels', 'pool-type=', 'verbose', 'cross-validate'])
     for opt, arg in cli_opts:
       if opt in ('-b', '--balance'):
@@ -152,8 +150,6 @@ def main():
         opts['prototypes'] = util.Load(arg)
       elif opt in ('-r', '--results'):
         opts['result_path'] = arg
-      elif opt in ('-R', '--resize'):
-        opts['resize'] = int(arg)
       elif opt in ('-s', '--svm'):
         opts['use_svm'] = True
       elif opt == '--svm-decision-values':
@@ -198,9 +194,6 @@ def main():
         "  -P, --prototypes=FILE           Read S2 prototypes from FILE "
         "(overrides -p)\n"
         "  -r, --results=FILE              Store results to FILE\n"
-        "  -R, --resize=NUM                Resize the minimum dimension of "
-        "images to NUM\n"
-        "                                  pixels\n"
         "  -s, --svm                       Train and test an SVM classifier\n"
         "      --svm-decision-values       Print the pre-thresholded SVM "
         "decision values\n"

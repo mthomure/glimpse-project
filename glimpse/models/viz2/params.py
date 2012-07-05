@@ -4,6 +4,7 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
+from glimpse.models.misc import BaseParams
 from glimpse.util import traits
 
 class KWidth(traits.BaseInt):
@@ -29,7 +30,7 @@ class SLayerOperation(traits.Enum):
     super(SLayerOperation, self).__init__(value, ("DotProduct",
         "NormDotProduct", "Rbf", "NormRbf"), **metadata)
 
-class Params(traits.HasStrictTraits):
+class Params(BaseParams):
   """Parameter container for the :class:`viz2 model
   <glimpse.models.viz2.model.Model>`.
 

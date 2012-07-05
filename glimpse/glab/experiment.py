@@ -100,9 +100,6 @@ class Experiment(object):
     #: (list of 2D ndarray) Feature vectors for the training images, indexed by
     #: class, image, and then feature offset.
     self.train_features = None
-    #: (int) If image resizing is to be used, this is the extent of the smaller
-    #: edge.
-    self.resize = None
     #: (list of 2D ndarray) Feature vectors for the test images, indexed by
     #: class, image, and then feature offset.
     self.test_features = None
@@ -206,7 +203,6 @@ class Experiment(object):
   train_test_split: %(train_test_split)s
   model: %(model)s
   layer: %(layer)s
-  resize: %(resize)s
   prototype_source: %(prototype_source)s
   train_accuracy: %(train_accuracy)s
   test_accuracy: %(test_accuracy)s""" % values
@@ -229,8 +225,7 @@ class Experiment(object):
     start_time = time.time()
     image_files = self.train_images[0]
     # Represent each image file as an empty model state.
-    input_states = [ model.MakeStateFromFilename(fn, resize = self.resize)
-        for fn in image_files ]
+    input_states = map(model.MakeStateFromFilename, image_files)
     try:
       prototypes, locations = misc.ImprintKernels(model, model.LayerClass.C1,
           model.s2_kernel_sizes, num_prototypes, input_states,
@@ -386,14 +381,12 @@ class Experiment(object):
     self.prototype_source = 'manual'
     self.model.s2_kernels = prototypes
 
-  def GetImageFeatures(self, images, resize = None, raw = False,
-      save_all = False, block = True):
+  def GetImageFeatures(self, images, raw = False, save_all = False,
+      block = True):
     """Return the activity of the model's output layer for a set of images.
 
     :param input_states: Image paths.
     :type input_states: str, or iterable of str
-    :param int resize: Fixed length of shortest side. See :class:`InputSource
-       <glimpse.models.misc.InputSource>`.
     :param bool raw: Whether to return per-image results as a single feature
        vector or the raw state object.
     :param bool save_all: Whether resulting states should contain values for
@@ -404,8 +397,7 @@ class Experiment(object):
     :returns: A feature vector for each image.
 
     """
-    states = [ self.model.MakeStateFromFilename(fn, resize = resize)
-        for fn in images ]
+    states = map(self.model.MakeStateFromFilename, images)
     return self.GetStateFeatures(states, raw = raw, save_all = save_all,
         block = block)
 
@@ -605,7 +597,7 @@ class Experiment(object):
     images = train_images + test_images
     start_time = time.time()
     # Compute features for all images.
-    features = self.GetImageFeatures(images, resize = self.resize, block = True)
+    features = self.GetImageFeatures(images, block = True)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
     train_features, test_features = util.SplitList(features,

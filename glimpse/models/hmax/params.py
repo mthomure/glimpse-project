@@ -6,6 +6,7 @@
 
 import numpy as np
 
+from glimpse.models.misc import BaseParams
 from glimpse.util import kernel
 from glimpse.util import traits
 from glimpse.util import ACTIVATION_DTYPE
@@ -58,7 +59,7 @@ class V1Params():
     # the next.
     return self.c1_kwidth - self.c1_overlap
 
-class Params(traits.HasTraits):
+class Params(BaseParams):
   """Parameter container for the :class:`hmax model
   <glimpse.models.hmax.model.Model>`.
 

@@ -4,8 +4,9 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from glimpse.util import traits
+from glimpse.models.misc import BaseParams
 from glimpse.models.viz2.params import KWidth, SLayerOperation
+from glimpse.util import traits
 
 class OperationType(traits.Enum):
   """A trait type describing how S- and C-layer operations are applied."""
@@ -14,7 +15,7 @@ class OperationType(traits.Enum):
     super(OperationType, self).__init__(value, ("valid"),  #, "centered"),
         **metadata)
 
-class Params(traits.HasStrictTraits):
+class Params(BaseParams):
   """Parameter container for the :class:`ml model
   <glimpse.models.ml.model.Model>`.
 
