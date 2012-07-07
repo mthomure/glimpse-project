@@ -212,8 +212,7 @@ class Experiment(object):
   def ImprintS2Prototypes(self, num_prototypes):
     """Imprint a set of S2 prototypes from the training images.
 
-    Only images from the first (i.e., positive) class of the training set are
-    used.
+    Patches are drawn from all classes of the training data.
 
     :param int num_prototypes: The number of C1 patches to sample.
 
@@ -223,7 +222,7 @@ class Experiment(object):
           "prototypes.")
     model = self.model
     start_time = time.time()
-    image_files = self.train_images[0]
+    image_files = util.UngroupLists(self.train_images)
     # Represent each image file as an empty model state.
     input_states = map(model.MakeStateFromFilename, image_files)
     try:
