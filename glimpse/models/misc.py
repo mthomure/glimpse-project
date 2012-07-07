@@ -432,7 +432,7 @@ class BaseModel(object):
     except BackendException, ex:
       # Try to annotate exception with source information.
       ex.source = state.get(self.LayerClass.SOURCE.ident, None)
-      raise ex
+      raise
     if not save_all:
       state_ = self.StateClass()
       # Keep output layer data
@@ -565,7 +565,7 @@ class BaseModel(object):
       except InsufficientSizeException, ex:
         # Try to annotate exception with source information.
         ex.source = state.get(self.LayerClass.SOURCE.ident, None)
-        raise ex
+        raise
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.
       if normalize:

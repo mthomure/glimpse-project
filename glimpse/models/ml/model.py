@@ -145,7 +145,7 @@ class Model(Viz2Model):
             scaling = p.s1_sampling)
       except InsufficientSizeException, e:
         e.message = "Image is too small to apply S1 filters at scale %d" % scale
-        raise e
+        raise
       if ndp:
         np.abs(s1, s1)  # Take the absolute value in-place
         # S1 is now a 3D array of phase-invariant responses
