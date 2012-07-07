@@ -111,11 +111,15 @@ function WorkerStart {
   # Decrease our priority.
   renice 10 $$
 
+  # Truncate logs files
+  echo -n "" > $JOBDIR/$NUM.log
+  echo -n "" > $JOBDIR/$NUM.err
+
   # Run the worker, relaunching if it dies with an error.
-  until $WORKER_CMD; do
-    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited with status $?, restarting.." 1>&2
+  until $WORKER_CMD 1>>$JOBDIR/$NUM.log 2>>$JOBDIR/$NUM.err; do
+    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited with status $?, restarting.." >> $JOBDIR/$NUM.err
     sleep 1
-  done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
+  done
 }
 
 ####### Command-line Parsing ####################
