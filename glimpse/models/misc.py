@@ -558,7 +558,6 @@ class BaseModel(object):
       layer = layer.ident
     state = self.BuildLayer(layer, state)
     data = state[layer]
-
     def GetPatches(patch_width, num_patches):
       try:
         patch_it = PatchGenerator(data, patch_width)
@@ -578,7 +577,6 @@ class BaseModel(object):
           else:
             patch /= norm
       return patches
-
     return [ GetPatches(w, c) for w, c in num_patches ]
 
   def SamplePatchesCallback(self, layer, num_patches, normalize = False):
@@ -751,6 +749,9 @@ def PatchGenerator(data, patch_width):
      (i.e., iterator elements are 2-tuples). Location gives top-left corner of
      region.
 
+  Note that the smallest map in the data must be at least as large as the patch
+  width.
+
   Examples:
 
   Extract 2D patches from a 3D array:
@@ -768,13 +769,16 @@ def PatchGenerator(data, patch_width):
   assert len(data) > 0
   assert all(d.ndim > 1 for d in data)
   num_scales = len(data)
+  # Check that all scales are large enough to sample from.
+  if any(scale.shape[-1] < patch_width or scale.shape[-2] < patch_width
+      for scale in data):
+    raise InsufficientSizeException("Patch size is larger than smallest scale "
+        "map from which to imprint.")
   while True:
     scale = random.randint(0, num_scales - 1)
     data_scale = data[scale]
     num_bands = data_scale.ndim - 2
     layer_height, layer_width = data_scale.shape[-2:]
-    if layer_height <= patch_width or layer_width <= patch_width:
-      raise InsufficientSizeException("Layer must be larger than patch size.")
     # Choose the top-left corner of the region.
     y0 = random.randint(0, layer_height - patch_width)
     x0 = random.randint(0, layer_width - patch_width)
@@ -808,6 +812,11 @@ def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
      offset, respectively. Each location is given as a 4-tuple, with elements
      corresponding to the input state index, scale, y-offset, and x-offset of
      the corresponding kernel.
+
+  Note that the maximum kernel size must not be larger than the smallest
+  response map at the given layer. To imprint a 7x7 kernel from C1, for example,
+  the C1 response map for the lowest frequency band must be at least 7x7 in
+  spatial extent.
 
   Examples:
 
