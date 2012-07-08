@@ -395,7 +395,13 @@ class BaseModel(object):
       for node in layer.depends:
         state = self._BuildNode(node.ident, state)
       # Compute the output node
-      state[output_id] = self._BuildSingleNode(output_id, state)
+      try:
+        state[output_id] = self._BuildSingleNode(output_id, state)
+      except BackendException, ex:
+        # Try to annotate exception with source information.
+        ex.source = state.get(self.LayerClass.SOURCE.ident, None)
+        ex.layer = output_id
+        raise
     return state
 
   def BuildLayer(self, output_layer, state, save_all = True):
@@ -427,12 +433,7 @@ class BaseModel(object):
       output_layer = output_layer.ident
     if output_layer in state:
       return state
-    try:
-      state = self._BuildNode(output_layer, state)
-    except BackendException, ex:
-      # Try to annotate exception with source information.
-      ex.source = state.get(self.LayerClass.SOURCE.ident, None)
-      raise
+    state = self._BuildNode(output_layer, state)
     if not save_all:
       state_ = self.StateClass()
       # Keep output layer data
@@ -565,6 +566,9 @@ class BaseModel(object):
       except InsufficientSizeException, ex:
         # Try to annotate exception with source information.
         ex.source = state.get(self.LayerClass.SOURCE.ident, None)
+        ex.layer = layer
+        # At this point, we know that (at least) the last scale was a problem.
+        ex.scale = self.params.num_scales - 1
         raise
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.

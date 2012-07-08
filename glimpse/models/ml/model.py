@@ -143,8 +143,12 @@ class Model(Viz2Model):
       try:
         s1 = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
             scaling = p.s1_sampling)
-      except InsufficientSizeException, e:
-        e.message = "Image is too small to apply S1 filters at scale %d" % scale
+      except InsufficientSizeException, ex:
+        ex.message = "Image is too small to apply S1 filters at scale %d" % scale
+	ex.scale = scale
+        raise
+      except BackendException, ex:
+        ex.scale = scale
         raise
       if ndp:
         np.abs(s1, s1)  # Take the absolute value in-place
@@ -199,8 +203,13 @@ class Model(Viz2Model):
     backend_op = getattr(self.backend, p.s2_operation)
     for scale in range(len(c1s)):
       c1 = c1s[scale]
-      s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
-          scaling = p.s2_sampling)
+      try:
+        s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
+            scaling = p.s2_sampling)
+      except BackendException, ex:
+        # Annotate exception with scale information.
+        ex.scale = scale
+        raise
       if np.isnan(s2).any():
         raise BackendException("Found illegal values in S2 map at scale %d" % \
             scale)
