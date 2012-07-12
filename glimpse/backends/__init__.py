@@ -8,6 +8,18 @@ from .cython_backend import CythonBackend
 from .scipy_backend import ScipyBackend
 from .backend import BackendException, InsufficientSizeException
 
-def MakeBackend():
-  """Return an instance for the best available backend."""
-  return CythonBackend()
+def MakeBackend(name = None):
+  """Return an instance of the given backend.
+
+  :param str name: Name of requested backend.
+
+  """
+  if name == None:
+    name = "cython"
+  else:
+    name = name.lower()
+  if name in ("cython", "cython_backend", "cythonbackend"):
+    return CythonBackend()
+  if name in ("scipy", "scipy_backend", "scipybackend"):
+    return ScipyBackend()
+  raise ValueError("Unknown class name: %s" % (name,))

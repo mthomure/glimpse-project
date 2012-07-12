@@ -84,13 +84,23 @@ class MulticorePool(object):
     """
     return self.pool.imap_unordered(func, iterable, chunksize)
 
-def MakePool():
-  """Return a new instance of the default worker pool.
+def MakePool(name = None, *args):
+  """Return a new instance of the given worker pool.
 
-  :returns: A serializable worker pool.
+  :param str name: Name of requested pool.
+  :param args: Arguments passed to pool constructor.
 
   """
-  return MulticorePool()
+  if name == None:
+    name = "multicore"
+  else:
+    name = name.lower()
+  if name in ("singlecore", "singlecore_pool", "singlecorepool"):
+    return SinglecorePool(*args)
+  if name in ("multicore", "multicore_pool", "multicorepool"):
+    return MulticorePool(*args)
+  pkg = GetClusterPackage(name)
+  return pkg.MakePool(*args)
 
 def GetClusterPackage(cluster_type = None):
   """Choose a cluster package by name.
