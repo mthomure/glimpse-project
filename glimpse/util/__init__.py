@@ -14,21 +14,6 @@ from gio import *
 from misc import *
 from gos import *
 
-
-import time
-class Timer:
-  def __init__(self, name, enabled = True):
-    self.start = None
-    self.name = name
-    self.enabled = enabled
-  def __enter__(self):
-    self.start = time.time()
-  def __exit__(self, type, value, traceback):
-    stop = time.time()
-    if self.enabled:
-      print "TIME(%s): %.4f secs" % (self.name, stop - self.start)
-
-
 # This method is not in util.gplot because we generally want to use it before
 # importing matplotlib (and thus before importing util.gplot).
 _MATPLOTLIB_IMPORT_FLAG = False
