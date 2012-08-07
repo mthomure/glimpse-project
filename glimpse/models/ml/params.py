@@ -80,16 +80,3 @@ class Params(BaseParams):
       label = "Scaling Factor",
       desc = "Image downsampling factor between scale bands (must be greater "
           "than one)")
-
-  def __str__(self):
-    # Get list of all traits.
-    traits = self.traits().keys()
-    # Remove special entries from the HasTraits object.
-    traits = filter((lambda t: not t.startswith("trait_")), traits)
-    # Display traits in alphabetical order.
-    traits = sorted(traits)
-    # Format set of traits as a string.
-    return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
-        getattr(self, tn)) for tn in traits)
-
-  __repr__ = __str__

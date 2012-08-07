@@ -82,16 +82,3 @@ class Params(BaseParams):
     self.s2_beta = 1.0
     #: Fixed width for the S2 kernels.
     self.s2_kwidths = (4, 8, 12, 16)
-
-  def __str__(self):
-    # Get list of all traits.
-    traits = self.traits().keys()
-    # Remove special entries from the HasTraits object.
-    traits = filter((lambda t: not t.startswith("trait_")), traits)
-    # Display traits in alphabetical order.
-    traits = sorted(traits)
-    # Format set of traits as a string.
-    return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
-        getattr(self, tn)) for tn in traits)
-
-  __repr__ = __str__

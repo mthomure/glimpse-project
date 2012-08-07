@@ -88,14 +88,3 @@ class Params(BaseParams):
 
   num_scales = traits.Range(low = 1, value = 4, label = "Number of Scales",
       desc = "number of different scale bands")
-
-  def __str__(self):
-    # Get list of all traits.
-    traits = self.traits().keys()
-    # Remove special entries from the HasTraits object.
-    traits = filter((lambda t: not t.startswith("trait_")), traits)
-    # Format set of traits as a string.
-    return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
-        getattr(self, tn)) for tn in traits)
-
-  __repr__ = __str__

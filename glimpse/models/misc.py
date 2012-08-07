@@ -316,6 +316,19 @@ class BaseParams(traits.HasStrictTraits):
       label = 'Image Resize Aspect Ratio',
       desc = 'Aspect ratio of resized image')
 
+  def __str__(self):
+    # Get list of all traits.
+    traits = self.traits().keys()
+    # Remove special entries from the HasTraits object.
+    traits = filter((lambda t: not t.startswith("trait_")), traits)
+    # Display traits in alphabetical order.
+    traits = sorted(traits)
+    # Format set of traits as a string.
+    return "%s(\n  %s\n)" % (TypeName(self), ("\n  ".join("%s = %s" % (tn,
+        getattr(self, tn)) for tn in traits)))
+
+  __repr__ = __str__
+
 class BaseModel(object):
   """Abstract base class for a Glimpse model."""
 
