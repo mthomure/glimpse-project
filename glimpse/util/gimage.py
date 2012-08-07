@@ -13,6 +13,62 @@ import sys
 
 from garray import ACTIVATION_DTYPE, PadArray
 
+def ScaleImage(img, size):
+  """Resize an image.
+
+  :param Image img: Input image.
+  :param size: Size of output image in the format (width, height).
+  :type size: 1D array-like of float or int
+  :return: Resized version of input image.
+  :rtype: Image
+
+  """
+  # Use bicubic interpolation if the new width is larger than the old width.
+  if size[0] > img.size[0]:
+    method = Image.BICUBIC  # interpolate
+  else:
+    method = Image.ANTIALIAS  # blur and down-sample
+  return img.resize(np.array(size, dtype = int), method)
+
+def ScaleAndCropImage(img, size):
+  """Resize an image by scaling and cropping.
+
+  Input is scaled to fit the target dimensions (preserving aspect ratio), and
+  then border pixels are removed.
+
+  :param Image img: Input image.
+  :param size: Size of output image in the format (width, height).
+  :type size: 1D array-like of float or int
+  :return: Resized version of input image.
+  :rtype: Image
+
+  """
+  img_width, img_height = img.size
+  image_rho = img_width / float(img_height)  # aspect ratio of input
+  target_width, target_height = np.array(size, dtype = int)
+  target_rho = target_width / float(target_height)  # aspect ratio of output
+  if image_rho > target_rho:
+    # Scale to target height (maintaining aspect ratio) and crop border pixels
+    # from left and right edges. Note that the scaled width is guaranteed to
+    # be at least as large as the target width.
+    scaled_width = int(float(target_height) * image_rho)
+    img = ScaleImage(img, size = (scaled_width, target_height))
+    border = int((scaled_width - target_width) / 2.)
+    # Bounding box format is left, upper, right, and lower; where the point
+    # (0,0) corresponds to the top-left corner of the image.
+    img = img.crop(box = (border, 0, scaled_width - border, target_height))
+  else:
+    # Scale to target width (maintaining aspect ratio) and crop border pixels
+    # from top and bottom edges. Note that the scaled height is guaranteed to
+    # be at least as large as the target height.
+    scaled_height = int(float(target_width) / image_rho)
+    img = ScaleImage(img, size = (target_width, scaled_height))
+    border = int((scaled_height - target_height) / 2.)
+    # Bounding box format is left, upper, right, and lower; where the point
+    # (0,0) corresponds to the top-left corner of the image.
+    img = img.crop(box = (0, border, target_width, scaled_height - border))
+  return img
+
 def ImageToArray(img, array = None, transpose = True):
   """Load image data into a 2D numpy array.
 

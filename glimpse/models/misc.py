@@ -19,6 +19,7 @@ from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse import pools
 from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
 from glimpse.util import traits
+from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
@@ -291,21 +292,29 @@ class ResizeMethod(traits.Enum):
   METHOD_LONG_EDGE = "scale long edge"
   METHOD_WIDTH = "scale width"
   METHOD_HEIGHT = "scale height"
+  METHOD_SCALE_AND_CROP = "scale and crop"
 
   def __init__(self, value, **metadata):
     values = (self.METHOD_NONE, self.METHOD_SHORT_EDGE, self.METHOD_LONG_EDGE,
-        self.METHOD_WIDTH, self.METHOD_HEIGHT)
+        self.METHOD_WIDTH, self.METHOD_HEIGHT, self.METHOD_SCALE_AND_CROP)
     assert value in values
     super(ResizeMethod, self).__init__(value, values, **metadata)
 
 class BaseParams(traits.HasStrictTraits):
   """Parameter container for the :class:`BaseModel`."""
 
+  # When the method is SCALE_AND_CROP, use the length parameter to specify the
+  # output image width, and the aspect_ratio parameter to specify the (relative)
+  # output image height.
   image_resize_method = ResizeMethod("none", label = "Image Resize Method",
       desc = "method for resizing input images")
 
   image_resize_length = traits.Range(0, value = 256, exclude_low = True,
       label = "Image Resize Length", desc = "Length of resized image")
+
+  image_resize_aspect_ratio = traits.Range(0., value = 1., exclude_low = True,
+      label = 'Image Resize Aspect Ratio',
+      desc = 'Aspect ratio of resized image')
 
 class BaseModel(object):
   """Abstract base class for a Glimpse model."""
@@ -623,28 +632,27 @@ class BaseModel(object):
 
     """
     resize_method = self.params.image_resize_method
-    resize_length = self.params.image_resize_length
     if resize_method != ResizeMethod.METHOD_NONE:
+      resize_length = self.params.image_resize_length
+      resize_aspect_ratio = self.params.image_resize_aspect_ratio
       # Make sure input is an image
       if not isinstance(input_, Image.Image):
         input_ = toimage(input_)
       old_size = np.array(input_.size, np.float)  # format is (width, height)
       if resize_method == ResizeMethod.METHOD_SHORT_EDGE:
-        new_size = old_size / min(old_size) * resize_length
+        input_ = ScaleImage(input_, old_size / min(old_size) * resize_length)
       elif resize_method == ResizeMethod.METHOD_LONG_EDGE:
-        new_size = old_size / max(old_size) * resize_length
+        input_ = ScaleImage(input_, old_size / max(old_size) * resize_length)
       elif resize_method == ResizeMethod.METHOD_WIDTH:
-        new_size = old_size / old_size[0] * resize_length
+        input_ = ScaleImage(input_, old_size / old_size[0] * resize_length)
       elif resize_method == ResizeMethod.METHOD_HEIGHT:
-        new_size = old_size / old_size[1] * resize_length
+        input_ = ScaleImage(input_, old_size / old_size[1] * resize_length)
+      elif resize_method == ResizeMethod.METHOD_SCALE_AND_CROP:
+        width = resize_length
+        height = width / resize_aspect_ratio
+        input_ = ScaleAndCropImage(input_, (width, height))
       else:
         raise ValueError("Unknown resize method: %s" % resize_method)
-      # This is resuing the "method" variable name, which is not great.
-      if new_size[0] > old_size[0]:  # this assumes aspect ratio is preserved
-        method = Image.BICUBIC  # interpolate
-      else:
-        method = Image.ANTIALIAS  # blur and down-sample
-      input_ = input_.resize(new_size.astype(int), method)
     return ImageLayerFromInputArray(input_, self.backend)
 
 class LayerBuilder(object):
