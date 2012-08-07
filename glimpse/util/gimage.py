@@ -23,12 +23,13 @@ def ScaleImage(img, size):
   :rtype: Image
 
   """
+  size = np.array(size, dtype = int)
   # Use bicubic interpolation if the new width is larger than the old width.
   if size[0] > img.size[0]:
     method = Image.BICUBIC  # interpolate
   else:
     method = Image.ANTIALIAS  # blur and down-sample
-  return img.resize(np.array(size, dtype = int), method)
+  return img.resize(size, method)
 
 def ScaleAndCropImage(img, size):
   """Resize an image by scaling and cropping.
@@ -43,9 +44,10 @@ def ScaleAndCropImage(img, size):
   :rtype: Image
 
   """
+  size = np.array(size, dtype = int)
   img_width, img_height = img.size
   image_rho = img_width / float(img_height)  # aspect ratio of input
-  target_width, target_height = np.array(size, dtype = int)
+  target_width, target_height = size
   target_rho = target_width / float(target_height)  # aspect ratio of output
   if image_rho > target_rho:
     # Scale to target height (maintaining aspect ratio) and crop border pixels
@@ -67,7 +69,7 @@ def ScaleAndCropImage(img, size):
     # Bounding box format is left, upper, right, and lower; where the point
     # (0,0) corresponds to the top-left corner of the image.
     img = img.crop(box = (0, border, target_width, border + target_height))
-  assert img.size == size, "Result image size is %s, but requested %s" % (img.size, size)
+  assert np.all(img.size == size), "Result image size is %s, but requested %s" % (img.size, size)
   return img
 
 def ImageToArray(img, array = None, transpose = True):
