@@ -56,7 +56,7 @@ def ScaleAndCropImage(img, size):
     border = int((scaled_width - target_width) / 2.)
     # Bounding box format is left, upper, right, and lower; where the point
     # (0,0) corresponds to the top-left corner of the image.
-    img = img.crop(box = (border, 0, scaled_width - border, target_height))
+    img = img.crop(box = (border, 0, border + target_width, target_height))
   else:
     # Scale to target width (maintaining aspect ratio) and crop border pixels
     # from top and bottom edges. Note that the scaled height is guaranteed to
@@ -66,7 +66,8 @@ def ScaleAndCropImage(img, size):
     border = int((scaled_height - target_height) / 2.)
     # Bounding box format is left, upper, right, and lower; where the point
     # (0,0) corresponds to the top-left corner of the image.
-    img = img.crop(box = (0, border, target_width, scaled_height - border))
+    img = img.crop(box = (0, border, target_width, border + target_height))
+  assert img.size == size, "Result image size is %s, but requested %s" % (img.size, size)
   return img
 
 def ImageToArray(img, array = None, transpose = True):
