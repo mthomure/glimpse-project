@@ -25,7 +25,7 @@ from glimpse.models import misc
 from glimpse import util
 from glimpse.util.grandom import HistogramSampler
 from glimpse.util import svm
-from glimpse.models.misc import InputSourceLoadException
+from glimpse.models.misc import InputSourceLoadException, InsufficientSizeException
 
 class DirReader(object):
   """Read directory contents."""
