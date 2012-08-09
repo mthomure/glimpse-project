@@ -7,6 +7,8 @@ experiment."""
 # Please see the file COPYING in this distribution for usage
 # terms.
 
+import glimpse.util.pil_fix  # must come before sklearn imports
+
 import logging
 import numpy as np
 import operator

@@ -12,6 +12,7 @@ import math
 import numpy as np
 import os
 import sys
+import time
 
 def TypeName(x):
   """Get the fully-qualified name of an object's type.
@@ -315,3 +316,15 @@ def Gabor(sigma, theta, phi, gamma, lambda_, kernel):
                       (xo**2 + gamma**2 * yo**2) / (2.0 * sigma**2)) * \
                     math.sin(phi + 2 * math.pi * xo / lambda_)
   return kernel
+
+class Timer:
+  def __init__(self, name, enabled = True):
+    self.start = None
+    self.name = name
+    self.enabled = enabled
+  def __enter__(self):
+    self.start = time.time()
+  def __exit__(self, type, value, traceback):
+    stop = time.time()
+    if self.enabled:
+      print "TIME(%s): %.4f secs" % (self.name, stop - self.start)
