@@ -123,7 +123,7 @@ setup(
   install_requires = [
     "Python >= 2.6",
     "numpy >= 1.3",
-    "scipy >= 0.7.2",
+    "scipy >= 0.7.0",
     "PIL >= 1.1.6",
     "traits >= 3.4",
     "scikit-learn >= 0.11",

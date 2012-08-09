@@ -53,10 +53,14 @@ To install all dependencies, type::
 Installing Glimpse
 ==================
 
-To build Glimpse, just unpack it and type::
+To build Glimpse, just download it, unpack, and type::
 
    > python setup.py install
 
 Alternatively, the project can be installed from the Python Package Index with::
 
    > pip install glimpse
+
+On Mac OSX, you may need build for a 32-bit architecture. For example, this happens when using 32-bit Python on a 64-bit machine. To do this, simply use the modified install command::
+
+   > ARCHFLAGS='-arch i386' python setup.py install

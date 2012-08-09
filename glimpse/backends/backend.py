@@ -3,21 +3,28 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-class InsufficientSizeException(Exception):
-  """Exception indicating that the input array was too small (spatially) to
-  support the requested backend operation."""
+class BackendException(Exception):
+  """Exception indicating an unexpected error during backend processing."""
 
-  def __init__(self, msg = None, source = None):
+  def __init__(self, msg = None, source = None, layer = None, scale = None):
     super(Exception, self).__init__(msg)
     #: The *source* of the exception. This is generally an :class:`InputSource
     #: <glimpse.models.misc.InputSource>` object.
     self.source = source
+    #: The model layer that was being computed.
+    self.layer = layer
+    #: The scale band that was being computed.
+    self.scale = scale
 
   def __str__(self):
-    return "InsufficientSizeException(msg=%s, source=%s)" % (self.message,
-        self.source)
+    return "%s(msg='%s', source=%s, layer=%s, scale=%s)" % (type(self), self.message,
+        self.source, self.layer, self.scale)
 
   __repr__ = __str__
+
+class InsufficientSizeException(BackendException):
+  """Exception indicating that the input array was too small (spatially) to
+  support the requested backend operation."""
 
 class IBackend(object):
   """Interface for backend operations."""
@@ -90,7 +97,7 @@ class IBackend(object):
     :param kernels: Array of 3D kernels, where each kernel is expected to have
        unit vector length.
     :type kernels: 4D ndarray of float
-    :param float bias: Additive term in denominator.
+    :param float bias: Threshold for denominator.
     :param scaling: Subsampling factor.
     :type scaling: positive int
     :param out: Array in which to store result. If None, a new array will be

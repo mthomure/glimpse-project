@@ -6,6 +6,7 @@
 
 import numpy as np
 
+from glimpse.models.misc import BaseParams
 from glimpse.util import kernel
 from glimpse.util import traits
 from glimpse.util import ACTIVATION_DTYPE
@@ -33,6 +34,11 @@ class S1Params():
           gamma = S1Params.gamma, sigma = self.sigma, phi = 0,
           lambda_ = self.lambda_, scale_norm = True)
           for theta in S1Params.thetas ]
+      # Apply circular mask to kernels (see FHLib matlab package).
+      hw = int(self.kwidth / 2)
+      Y, X = np.mgrid[-hw:hw+1, -hw:hw+1]
+      I = np.sqrt(X**2 + Y**2) < hw
+      kernels = kernels * I
       self._kernels = np.array(kernels, dtype = ACTIVATION_DTYPE)
     return self._kernels
 
@@ -53,7 +59,7 @@ class V1Params():
     # the next.
     return self.c1_kwidth - self.c1_overlap
 
-class Params(traits.HasTraits):
+class Params(BaseParams):
   """Parameter container for the :class:`hmax model
   <glimpse.models.hmax.model.Model>`.
 
@@ -76,14 +82,3 @@ class Params(traits.HasTraits):
     self.s2_beta = 1.0
     #: Fixed width for the S2 kernels.
     self.s2_kwidths = (4, 8, 12, 16)
-
-  def __str__(self):
-    # Get list of all traits.
-    traits = self.traits().keys()
-    # Remove special entries from the HasTraits object.
-    traits = filter((lambda t: not t.startswith("trait_")), traits)
-    # Format set of traits as a string.
-    return "Params(\n  %s\n)" % "\n  ".join("%s = %s" % (tn,
-        getattr(self, tn)) for tn in traits)
-
-  __repr__ = __str__

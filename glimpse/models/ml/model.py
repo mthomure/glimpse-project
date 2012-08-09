@@ -11,17 +11,60 @@ Mutch & Lowe (2008).
 #
 # Please see the file COPYING in this distribution for usage terms.
 
+import numpy as np
 from scipy.ndimage.interpolation import zoom
 
+from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse.models.misc import BaseState, Whiten
 from glimpse.models.viz2.model import Model as Viz2Model
 from glimpse.models.viz2.model import Layer
 from glimpse.util import kernel
+from glimpse.util import gimage
 from .params import Params
 
 class State(BaseState):
   """A container for the :class:`Model` state."""
   pass
+
+def MinimumRetinaSize(p):
+  """Compute the smallest retinal layer that supports the given parameters.
+
+  This function discounts the effect of scaling.
+
+  :param p: Parameter settings for model.
+  :rtype: int
+  :returns: Length of smaller edge of retina.
+
+  """
+  if p.operation_type == "valid":
+    # Must support at least one S2 unit
+    c1_size = p.s2_kwidth
+    s1_size = c1_size * p.c1_sampling + p.c1_kwidth - 1
+    retina_size = s1_size * p.s1_sampling + p.s1_kwidth - 1
+  else:  # centered convolution
+    c1_size = (p.s2_kwidth - 1) / 2
+    s1_size = c1_size * p.c1_sampling + (p.c1_kwidth - 1) / 2
+    retina_size = s1_size * p.s1_sampling + (p.s1_kwidth - 1) / 2
+  return retina_size
+
+def NumScalesSupported(params, retina_size):
+  """Compute the number of scale bands supported for a given retinal size.
+
+  This ensures that at least one S2 unit can be computed for every scale band.
+
+  :param params: Parameter settings for model.
+  :param retina_size: Length of shorter edge of retina layer.
+  :type retina_size: int
+  :rtype: int
+  :return: Number of scales.
+
+  """
+  min_retina_size = MinimumRetinaSize(params)
+  num_scales = 0
+  while min_retina_size < retina_size:
+    num_scales += 1
+    min_retina_size *= params.scale_factor
+  return num_scales
 
 class Model(Viz2Model):
   """Create a 2-part, HMAX-like hierarchy of S+C layers."""
@@ -79,23 +122,46 @@ class Model(Viz2Model):
     """
     # Create scale pyramid of retinal map
     p = self.params
-    retina_scales = [ zoom(retina, 1 / p.scale_factor ** scale)
-        for scale in range(p.num_scales) ]
+    num_scales = p.num_scales
+    if num_scales == 0:
+      num_scales = NumScalesSupported(p, min(retina.shape))
+    retina_scales = gimage.MakeScalePyramid(retina, num_scales,
+        1.0 / p.scale_factor)
+    ndp = (p.s1_operation == 'NormDotProduct')
+    s1_kernels = self.s1_kernels
+    if ndp:
+      # NDP is already phase invariant, just use one phase of filters
+      s1_kernels = self.s1_kernels[:, 0].copy()
     # Reshape kernel array to be 3-D: index, 1, y, x
-    s1_kernels = self.s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
+    s1_kernels = s1_kernels.reshape((-1, 1, p.s1_kwidth, p.s1_kwidth))
     s1s = []
     backend_op = getattr(self.backend, p.s1_operation)
-    for scale in range(p.num_scales):
+    for scale in range(num_scales):
       # Reshape retina to be 3D array
       retina = retina_scales[scale]
       retina_ = retina.reshape((1,) + retina.shape)
-      s1_ = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
-          scaling = p.s1_sampling)
-      # Reshape S1 to be 4D array
-      s1 = s1_.reshape((p.s1_num_orientations, p.s1_num_phases) + \
-          s1_.shape[-2:])
-      # Pool over phase.
-      s1 = s1.max(1)
+      try:
+        s1 = backend_op(retina_, s1_kernels, bias = p.s1_bias, beta = p.s1_beta,
+            scaling = p.s1_sampling)
+      except InsufficientSizeException, ex:
+        ex.message = "Image is too small to apply S1 filters at scale %d" % scale
+	ex.scale = scale
+        raise
+      except BackendException, ex:
+        ex.scale = scale
+        raise
+      if ndp:
+        np.abs(s1, s1)  # Take the absolute value in-place
+        # S1 is now a 3D array of phase-invariant responses
+      else:
+        # Reshape S1 to be 4D array
+        s1 = s1.reshape((p.s1_num_orientations, p.s1_num_phases) + \
+            s1.shape[-2:])
+        # Pool over phase.
+        s1 = s1.max(1)
+      if np.isnan(s1).any():
+        raise BackendException("Found illegal values in S1 map at scale %d" % \
+            scale)
       # Append 3D array to list
       s1s.append(s1)
     return s1s
@@ -135,10 +201,18 @@ class Model(Viz2Model):
     p = self.params
     s2s = []
     backend_op = getattr(self.backend, p.s2_operation)
-    for scale in range(p.num_scales):
+    for scale in range(len(c1s)):
       c1 = c1s[scale]
-      s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
-          scaling = p.s2_sampling)
+      try:
+        s2 = backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
+            scaling = p.s2_sampling)
+      except BackendException, ex:
+        # Annotate exception with scale information.
+        ex.scale = scale
+        raise
+      if np.isnan(s2).any():
+        raise BackendException("Found illegal values in S2 map at scale %d" % \
+            scale)
       # Append 3D array to list.
       s2s.append(s2)
     return s2s

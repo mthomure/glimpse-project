@@ -87,8 +87,17 @@ Reset()
 def SetPool(pool):
   """Set the worker pool used for this experiment."""
   global __POOL
+  if util.IsString(pool):
+    pool = pool.lower()
+    if pool == 'singlecore':
+      pool = pools.SinglecorePool()
+    elif pool == 'multicore':
+      pool = pools.MulticorePool()
+    else:
+      raise ValueError("Unknown pool type: %s" % pool)
   logging.info("Using pool type: %s", type(pool).__name__)
   __POOL = pool
+  return pool
 
 def GetPool():
   """Get the current worker pool used for new experiments."""

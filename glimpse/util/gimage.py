@@ -5,10 +5,72 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-from garray import ACTIVATION_DTYPE, PadArray
+import Image
 import numpy as np
 from scipy import fftpack
+from scipy.misc import fromimage, toimage
 import sys
+
+from garray import ACTIVATION_DTYPE, PadArray
+
+def ScaleImage(img, size):
+  """Resize an image.
+
+  :param Image img: Input image.
+  :param size: Size of output image in the format (width, height).
+  :type size: 1D array-like of float or int
+  :return: Resized version of input image.
+  :rtype: Image
+
+  """
+  size = np.array(size, dtype = int)
+  # Use bicubic interpolation if the new width is larger than the old width.
+  if size[0] > img.size[0]:
+    method = Image.BICUBIC  # interpolate
+  else:
+    method = Image.ANTIALIAS  # blur and down-sample
+  return img.resize(size, method)
+
+def ScaleAndCropImage(img, size):
+  """Resize an image by scaling and cropping.
+
+  Input is scaled to fit the target dimensions (preserving aspect ratio), and
+  then border pixels are removed.
+
+  :param Image img: Input image.
+  :param size: Size of output image in the format (width, height).
+  :type size: 1D array-like of float or int
+  :return: Resized version of input image.
+  :rtype: Image
+
+  """
+  size = np.array(size, dtype = int)
+  img_width, img_height = img.size
+  image_rho = img_width / float(img_height)  # aspect ratio of input
+  target_width, target_height = size
+  target_rho = target_width / float(target_height)  # aspect ratio of output
+  if image_rho > target_rho:
+    # Scale to target height (maintaining aspect ratio) and crop border pixels
+    # from left and right edges. Note that the scaled width is guaranteed to
+    # be at least as large as the target width.
+    scaled_width = int(float(target_height) * image_rho)
+    img = ScaleImage(img, size = (scaled_width, target_height))
+    border = int((scaled_width - target_width) / 2.)
+    # Bounding box format is left, upper, right, and lower; where the point
+    # (0,0) corresponds to the top-left corner of the image.
+    img = img.crop(box = (border, 0, border + target_width, target_height))
+  else:
+    # Scale to target width (maintaining aspect ratio) and crop border pixels
+    # from top and bottom edges. Note that the scaled height is guaranteed to
+    # be at least as large as the target height.
+    scaled_height = int(float(target_width) / image_rho)
+    img = ScaleImage(img, size = (target_width, scaled_height))
+    border = int((scaled_height - target_height) / 2.)
+    # Bounding box format is left, upper, right, and lower; where the point
+    # (0,0) corresponds to the top-left corner of the image.
+    img = img.crop(box = (0, border, target_width, border + target_height))
+  assert np.all(img.size == size), "Result image size is %s, but requested %s" % (img.size, size)
+  return img
 
 def ImageToArray(img, array = None, transpose = True):
   """Load image data into a 2D numpy array.
@@ -21,6 +83,9 @@ def ImageToArray(img, array = None, transpose = True):
      returning.
   :returns: Array containing image data. Note that this may be non-contiguous.
   :rtype: ndarray
+
+  .. seealso::
+     :func:`scipy.misc.misc.fromimage`.
 
   """
   def MakeBuffer():
@@ -77,15 +142,21 @@ def ShowImageOnLinux(img, fname = None):
   img.save(path)
   RunCommand("eog -n %s" % path, False, False)
 
-def PowerSpectrum2d(image):
+def PowerSpectrum2d(image, width = None):
   """Compute the 2-D power spectrum for an image.
 
   :param image: Image data.
   :type image: 2D ndarray
+  :param int width: Width of image to use for FFT (i.e., image width plus
+     padding). By default, this is the width of the image.
   :returns: Squared amplitude from FFT of image.
   :rtype: 2D ndarray
 
   """
+  if width != None:
+    image = PadArray(image,
+        np.repeat(width, 2),  # shape of padded array
+        0)  # border value
   from scipy.fftpack import fftshift, fft2
   return np.abs(fftshift(fft2(image))) ** 2
 
@@ -104,11 +175,7 @@ def PowerSpectrum(image, width = None):
   """
   # from: http://www.astrobetter.com/fourier-transforms-of-images-in-python/
   assert image.ndim == 2
-  if width != None:
-    image = PadArray(image,
-        np.repeat(width, 2),  # shape of padded array
-        0)  # border value
-  f2d = PowerSpectrum2d(image)
+  f2d = PowerSpectrum2d(image, width)
   # Get sorted radii.
   x, y = np.indices(f2d.shape)
   center_x = (x.max() - x.min()) / 2.0
@@ -138,3 +205,26 @@ def PowerSpectrum(image, width = None):
   # are many fewer low-frequency locations in the FFT.
   #~ avg_per_bin = sum_per_bin / size_per_bin
   return np.array([freq, sum_per_bin, size_per_bin])
+
+def MakeScalePyramid(data, num_layers, scale_factor):
+  """Create a pyramid of resized copies of a 2D array.
+
+  :param data: Base layer of the scale pyramid (i.e., highest frequency data).
+  :type data: 2D ndarray of float
+  :param int num_layers: Total number of layers in the pyramid, including
+     the first layer passed as an argument.
+  :param float scale_factor: Down-sampling factor between layers. Must be less
+     than 1.
+  :return: All layers of the scale pyramid.
+  :rtype: list of 2D ndarray of float
+
+  """
+  if scale_factor >= 1:
+    raise ValueError("Scale factor must be less than one.")
+  pyramid = [ data ]
+  image = toimage(data, mode = 'F')
+  for i in range(num_layers - 1):
+    size = np.array(image.size, np.int) * scale_factor
+    image = image.resize(np.round(size).astype(int), Image.ANTIALIAS)
+    pyramid.append(fromimage(image))
+  return pyramid

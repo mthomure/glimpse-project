@@ -111,11 +111,15 @@ function WorkerStart {
   # Decrease our priority.
   renice 10 $$
 
+  # Truncate logs files
+  echo -n "" > $JOBDIR/$NUM.log
+  echo -n "" > $JOBDIR/$NUM.err
+
   # Run the worker, relaunching if it dies with an error.
-  until $WORKER_CMD; do
-    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited with status $?, restarting.." 1>&2
+  until $WORKER_CMD 1>>$JOBDIR/$NUM.log 2>>$JOBDIR/$NUM.err; do
+    echo "GLIMPSE-CLUSTER-WRAPPER: worker command exited with status $?, restarting.." >> $JOBDIR/$NUM.err
     sleep 1
-  done 1>$JOBDIR/$NUM.log 2>$JOBDIR/$NUM.err
+  done
 }
 
 ####### Command-line Parsing ####################
@@ -146,6 +150,12 @@ export GLIMPSE_CLUSTER_TYPE
 if [[ "$VERBOSE" != "" ]]; then
   VERBOSE="-v"
 fi
+# The glimpse-cluster script has a hard-coded path to a python interpreter (the
+# interpreter used when installing glimpse). This causes problems when using
+# glimpse-cluster on NFS shares when different nodes use different Python
+# versions. Here, we fix this by using whatever Python interpreter is on the
+# path.
+GCLUSTER=$(which glimpse-cluster)
 if [[ "$GLIMPSE_CLUSTER_TYPE" == ipython ]]; then
   if [[ "$IPYTHON_PROFILE" != "" ]]; then
     IPYTHON_PROFILE="--profile=$IPYTHON_PROFILE"
@@ -155,12 +165,12 @@ if [[ "$GLIMPSE_CLUSTER_TYPE" == ipython ]]; then
   WORKER_FUNC=IPythonWorkerStart
 elif [[ "$GLIMPSE_CLUSTER_TYPE" == gearman ]]; then
 #  BROKER_CMD="gearmand -vvvvvvvvvvv -l $GLIMPSE_HOME/run/glimpse-cluster/belmont.cs.pdx.edu/broker.gearmand.log -d"
-  BROKER_CMD="bin/glimpse-cluster $VERBOSE LaunchBroker"
-  WORKER_CMD="bin/glimpse-cluster $VERBOSE LaunchWorker $NUM_PROCS"
+  BROKER_CMD="python $GCLUSTER $VERBOSE LaunchBroker"
+  WORKER_CMD="python $GCLUSTER $VERBOSE LaunchWorker $NUM_PROCS"
   WORKER_FUNC=WorkerStart
 elif [[ "$GLIMPSE_CLUSTER_TYPE" == zmq ]]; then
-  BROKER_CMD="glimpse-cluster $VERBOSE LaunchBroker"
-  WORKER_CMD="glimpes-cluster $VERBOSE LaunchWorker $NUM_PROCS"
+  BROKER_CMD="python $GCLUSTER $VERBOSE LaunchBroker"
+  WORKER_CMD="python $GCLUSTER $VERBOSE LaunchWorker $NUM_PROCS"
   WORKER_FUNC=WorkerStart
 else
   echo "unknown cluster type: $GLIMPSE_CLUSTER_TYPE" 1>&2

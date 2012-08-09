@@ -15,6 +15,7 @@ import numpy as np
 
 from glimpse.models.misc import BaseLayer, LayerSpec, BaseState, BaseModel, \
     Whiten
+from glimpse.backends import BackendException
 from glimpse.util import ACTIVATION_DTYPE
 from glimpse.util import kernel
 from glimpse.util import docstring
@@ -203,6 +204,8 @@ class Model(BaseModel):
       return img
     retina = self.backend.ContrastEnhance(img, kwidth = p.retina_kwidth,
         bias = p.retina_bias, scaling = 1)
+    if np.isnan(retina).any():
+      raise BackendException("Found illegal values in retinal map")
     return retina
 
   def BuildS1FromRetina(self, retina):
@@ -244,8 +247,15 @@ class Model(BaseModel):
 
     """
     p = self.params
-    c1s = [ self.backend.LocalMax(s1, kwidth = p.c1_kwidth,
-        scaling = p.c1_sampling) for s1 in s1s ]
+    c1s = list()
+    for scale in range(len(s1s)):
+      try:
+        c1 = self.backend.LocalMax(s1s[scale], kwidth = p.c1_kwidth,
+            scaling = p.c1_sampling)
+      except BackendException, ex:
+        ex.scale = scale
+        raise
+      c1s.append(c1)
     c1s = np.array(c1s, dtype = ACTIVATION_DTYPE)
     if p.c1_whiten:
       #~ # DEBUG: use this to whiten over orientation only
@@ -289,8 +299,12 @@ class Model(BaseModel):
     for scale in range(p.num_scales):
       c1 = c1s[scale]
       s2 = s2s[scale]
-      backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
-          scaling = p.s2_sampling, out = s2)
+      try:
+        backend_op(c1, kernels, bias = p.s2_bias, beta = p.s2_beta,
+            scaling = p.s2_sampling, out = s2)
+      except BackendException, ex:
+        ex.scale = scale
+        raise
     return s2s
 
   def BuildC2FromS2(self, s2s):

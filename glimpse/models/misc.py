@@ -13,11 +13,14 @@ import logging
 from math import sqrt
 import numpy as np
 import random
+from scipy.misc import toimage
 
 from glimpse import backends
-from glimpse.backends import InsufficientSizeException
+from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse import pools
 from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
+from glimpse.util import traits
+from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
@@ -69,29 +72,19 @@ class InputSource(object):
 
   Example:
 
-  Load a still image from disk, and resize its shorter edge to 128 pixels
-  (maintaining aspect ratio).
+  Load a still image from disk.
 
-  >>> source = InputSource(image_path = "/tmp/MyImage.jpg", resize = 128)
+  >>> source = InputSource(image_path = "/tmp/MyImage.jpg")
 
   """
 
   #: Path to an image file.
   image_path = None
 
-  #: If set, the image is resized such that its shorter edge has this length.
-  #: The resize operation preserves the aspect ratio of the image.
-  resize = None
-
-  def __init__(self, image_path = None, resize = None):
+  def __init__(self, image_path = None):
     if image_path != None and not isinstance(image_path, basestring):
       raise ValueError("Image path must be a string")
-    if resize != None:
-      resize = int(resize)
-      if resize <= 0:
-        raise ValueError("Resize value must be positive")
     self.image_path = image_path
-    self.resize = resize
 
   def CreateImage(self):
     """Reads image from this input source.
@@ -104,13 +97,6 @@ class InputSource(object):
     except IOError:
       raise InputSourceLoadException("I/O error while loading image",
           source = self)
-    if self.resize != None:
-      width, height = img.size
-      ratio = float(self.resize) / min(width, height)
-      new_size = int(width * ratio), int(height * ratio)
-      logging.info("Resize image %s from (%d, %d) to %s", self.image_path,
-          width, height, new_size)
-      img = img.resize(new_size, Image.BICUBIC)
     return img
 
   def __str__(self):
@@ -141,6 +127,18 @@ def ImageLayerFromInputArray(input_, backend):
     input_ = input_.astype(np.float)
     # Map from [0, 255] to [0, 1]
     input_ /= 255
+    # Note: we could have scaled pixels to [-1, 1]. This would result in a
+    # doubling of the dynamic range of the S1 response, since each S1 activation
+    # is of the form:
+    #    y = XW
+    # where X and W are the input and weight vector, respectively. The rescaled
+    # version of X (call it X') is given by:
+    #    X' = 2X - 1
+    # so the activation is given by
+    #    y' = X'W = (2X - 1)W = 2XW - \sum w_i = 2XW
+    # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
+    # nonlinearities caused by normalization). The scaling of S1 response seems
+    # unlikely to cause a significant change in the network output.
   return backend.PrepareArray(input_)
 
 class DependencyError(Exception):
@@ -287,6 +285,51 @@ class BaseState(dict):
       name = name.ident
     return super(BaseState, self).__getitem__(name)
 
+class ResizeMethod(traits.Enum):
+  """A trait type describing how to resize an input image."""
+
+  METHOD_NONE = "none"
+  METHOD_SHORT_EDGE = "scale short edge"
+  METHOD_LONG_EDGE = "scale long edge"
+  METHOD_WIDTH = "scale width"
+  METHOD_HEIGHT = "scale height"
+  METHOD_SCALE_AND_CROP = "scale and crop"
+
+  def __init__(self, value, **metadata):
+    values = (self.METHOD_NONE, self.METHOD_SHORT_EDGE, self.METHOD_LONG_EDGE,
+        self.METHOD_WIDTH, self.METHOD_HEIGHT, self.METHOD_SCALE_AND_CROP)
+    assert value in values
+    super(ResizeMethod, self).__init__(value, values, **metadata)
+
+class BaseParams(traits.HasStrictTraits):
+  """Parameter container for the :class:`BaseModel`."""
+
+  # When the method is SCALE_AND_CROP, use the length parameter to specify the
+  # output image width, and the aspect_ratio parameter to specify the (relative)
+  # output image height.
+  image_resize_method = ResizeMethod("none", label = "Image Resize Method",
+      desc = "method for resizing input images")
+
+  image_resize_length = traits.Range(0, value = 256, exclude_low = True,
+      label = "Image Resize Length", desc = "Length of resized image")
+
+  image_resize_aspect_ratio = traits.Range(0., value = 1., exclude_low = True,
+      label = 'Image Resize Aspect Ratio',
+      desc = 'Aspect ratio of resized image')
+
+  def __str__(self):
+    # Get list of all traits.
+    traits = self.traits().keys()
+    # Remove special entries from the HasTraits object.
+    traits = filter((lambda t: not t.startswith("trait_")), traits)
+    # Display traits in alphabetical order.
+    traits = sorted(traits)
+    # Format set of traits as a string.
+    return "%s(\n  %s\n)" % (TypeName(self), ("\n  ".join("%s = %s" % (tn,
+        getattr(self, tn)) for tn in traits)))
+
+  __repr__ = __str__
+
 class BaseModel(object):
   """Abstract base class for a Glimpse model."""
 
@@ -296,7 +339,7 @@ class BaseModel(object):
 
   #: The type of the parameter collection associated with this model. This
   #: should be over-ridden by the sub-class.
-  ParamClass = object
+  ParamClass = BaseParams
 
   #: The datatype associated with network states for this model. This should be
   #: over-ridden by the sub-class, and should generally be a descendent of
@@ -321,6 +364,10 @@ class BaseModel(object):
         raise ValueError("Params object has wrong type: expected %s, got %s" % \
             (self.ParamClass, type(params)))
       params = copy.copy(params)
+    # Make sure parameter container is sub-class of BaseParams.
+    assert isinstance(params, BaseParams), "Internal error: model " \
+        "configuration uses parameter container that does not inherit from " \
+        "BaseParams"
     self.backend = backend
     self.params = params
 
@@ -341,7 +388,10 @@ class BaseModel(object):
     if output_id == lyr.SOURCE.ident:
       raise DependencyError
     elif output_id == lyr.IMAGE.ident:
-      return self.BuildImageFromInput(state[lyr.SOURCE.ident].CreateImage())
+      img = self.BuildImageFromInput(state[lyr.SOURCE.ident].CreateImage())
+      if np.isnan(img).any():
+        raise BackendException("Found illegal values in image layer")
+      return img
     raise ValueError("Unknown layer ID: %r" % output_id)
 
   def _BuildNode(self, output_id, state):
@@ -368,7 +418,13 @@ class BaseModel(object):
       for node in layer.depends:
         state = self._BuildNode(node.ident, state)
       # Compute the output node
-      state[output_id] = self._BuildSingleNode(output_id, state)
+      try:
+        state[output_id] = self._BuildSingleNode(output_id, state)
+      except BackendException, ex:
+        # Try to annotate exception with source information.
+        ex.source = state.get(self.LayerClass.SOURCE.ident, None)
+        ex.layer = output_id
+        raise
     return state
 
   def BuildLayer(self, output_layer, state, save_all = True):
@@ -400,12 +456,7 @@ class BaseModel(object):
       output_layer = output_layer.ident
     if output_layer in state:
       return state
-    try:
-      state = self._BuildNode(output_layer, state)
-    except InsufficientSizeException, ex:
-      # Try to annotate exception with source information.
-      ex.source = state.get(self.LayerClass.SOURCE.ident, None)
-      raise ex
+    state = self._BuildNode(output_layer, state)
     if not save_all:
       state_ = self.StateClass()
       # Keep output layer data
@@ -448,11 +499,10 @@ class BaseModel(object):
       output_layer = output_layer.ident
     return LayerBuilder(self, output_layer, save_all)
 
-  def MakeStateFromFilename(self, filename, resize = None):
+  def MakeStateFromFilename(self, filename):
     """Create a model state with a single SOURCE layer.
 
     :param str filename: Path to an image file.
-    :param int resize: Scale minimum edge to fixed length.
     :returns: The new model state.
     :rtype: :class:`BaseState`
 
@@ -466,7 +516,7 @@ class BaseModel(object):
 
     """
     state = self.StateClass()
-    state[self.LayerClass.SOURCE.ident] = InputSource(filename, resize = resize)
+    state[self.LayerClass.SOURCE.ident] = InputSource(filename)
     return state
 
   def MakeStateFromImage(self, image):
@@ -532,7 +582,6 @@ class BaseModel(object):
       layer = layer.ident
     state = self.BuildLayer(layer, state)
     data = state[layer]
-
     def GetPatches(patch_width, num_patches):
       try:
         patch_it = PatchGenerator(data, patch_width)
@@ -540,7 +589,10 @@ class BaseModel(object):
       except InsufficientSizeException, ex:
         # Try to annotate exception with source information.
         ex.source = state.get(self.LayerClass.SOURCE.ident, None)
-        raise ex
+        ex.layer = layer
+        # At this point, we know that (at least) the last scale was a problem.
+        ex.scale = self.params.num_scales - 1
+        raise
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.
       if normalize:
@@ -552,7 +604,6 @@ class BaseModel(object):
           else:
             patch /= norm
       return patches
-
     return [ GetPatches(w, c) for w, c in num_patches ]
 
   def SamplePatchesCallback(self, layer, num_patches, normalize = False):
@@ -594,6 +645,28 @@ class BaseModel(object):
     :rtype: 2D ndarray of float
 
     """
+    resize_method = self.params.image_resize_method
+    if resize_method != ResizeMethod.METHOD_NONE:
+      resize_length = self.params.image_resize_length
+      resize_aspect_ratio = self.params.image_resize_aspect_ratio
+      # Make sure input is an image
+      if not isinstance(input_, Image.Image):
+        input_ = toimage(input_)
+      old_size = np.array(input_.size, np.float)  # format is (width, height)
+      if resize_method == ResizeMethod.METHOD_SHORT_EDGE:
+        input_ = ScaleImage(input_, old_size / min(old_size) * resize_length)
+      elif resize_method == ResizeMethod.METHOD_LONG_EDGE:
+        input_ = ScaleImage(input_, old_size / max(old_size) * resize_length)
+      elif resize_method == ResizeMethod.METHOD_WIDTH:
+        input_ = ScaleImage(input_, old_size / old_size[0] * resize_length)
+      elif resize_method == ResizeMethod.METHOD_HEIGHT:
+        input_ = ScaleImage(input_, old_size / old_size[1] * resize_length)
+      elif resize_method == ResizeMethod.METHOD_SCALE_AND_CROP:
+        width = resize_length
+        height = width / resize_aspect_ratio
+        input_ = ScaleAndCropImage(input_, (width, height))
+      else:
+        raise ValueError("Unknown resize method: %s" % resize_method)
     return ImageLayerFromInputArray(input_, self.backend)
 
 class LayerBuilder(object):
@@ -702,6 +775,9 @@ def PatchGenerator(data, patch_width):
      (i.e., iterator elements are 2-tuples). Location gives top-left corner of
      region.
 
+  Note that the smallest map in the data must be at least as large as the patch
+  width.
+
   Examples:
 
   Extract 2D patches from a 3D array:
@@ -719,13 +795,16 @@ def PatchGenerator(data, patch_width):
   assert len(data) > 0
   assert all(d.ndim > 1 for d in data)
   num_scales = len(data)
+  # Check that all scales are large enough to sample from.
+  if any(scale.shape[-1] < patch_width or scale.shape[-2] < patch_width
+      for scale in data):
+    raise InsufficientSizeException("Patch size is larger than smallest scale "
+        "map from which to imprint.")
   while True:
     scale = random.randint(0, num_scales - 1)
     data_scale = data[scale]
     num_bands = data_scale.ndim - 2
     layer_height, layer_width = data_scale.shape[-2:]
-    if layer_height <= patch_width or layer_width <= patch_width:
-      raise InsufficientSizeException("Layer must be larger than patch size.")
     # Choose the top-left corner of the region.
     y0 = random.randint(0, layer_height - patch_width)
     x0 = random.randint(0, layer_width - patch_width)
@@ -759,6 +838,11 @@ def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
      offset, respectively. Each location is given as a 4-tuple, with elements
      corresponding to the input state index, scale, y-offset, and x-offset of
      the corresponding kernel.
+
+  Note that the maximum kernel size must not be larger than the smallest
+  response map at the given layer. To imprint a 7x7 kernel from C1, for example,
+  the C1 response map for the lowest frequency band must be at least 7x7 in
+  spatial extent.
 
   Examples:
 
