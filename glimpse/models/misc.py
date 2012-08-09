@@ -13,6 +13,7 @@ import logging
 from math import sqrt
 import numpy as np
 import random
+from scipy.misc import toimage
 
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
