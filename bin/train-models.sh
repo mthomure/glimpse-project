@@ -20,7 +20,7 @@ PARAMS=rc/model.params
 TRAIN_DIR=training-crops
 
 if [[ "$#" < 1 ]]; then
-  NUM_PROTOTYPES=10
+  NUM_PROTOTYPES=200
 else
   NUM_PROTOTYPES=$1
 fi
