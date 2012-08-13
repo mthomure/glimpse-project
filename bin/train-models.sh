@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Usage: train-all.sh [NUM_PROTOTYPES]
-# By default, 10 prototypes will be used.
+# By default, 200 prototypes will be used.
 # Train one model for each of the classes of "dog", "leash", and "pedestrian".
 # Training data should be stored in "GLIMPSE_HOME/training-crops".
 # Trained models will be stored in "GLIMPSE_HOME/models".

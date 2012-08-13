@@ -11,7 +11,7 @@
 # Author: Mick Thomure
 # Date: 8/12/2012
 
-if [[ "$#" < 2 ]]; then
+if [[ "$#" -lt 2 ]]; then
   echo "usage: $0 MODEL INPUT" 1>&2
   exit -1
 fi

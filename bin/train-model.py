@@ -1,4 +1,6 @@
 # Called by train-models.sh. See that script for usage.
+# Author: Mick Thomure
+# Date: 8/12/2012
 
 import os
 import random

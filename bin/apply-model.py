@@ -26,6 +26,8 @@ def MakeInputState(model, image_path):
 def main(models_path, model_name, *image_paths):
   # Load the model information from disk.
   exp_path = os.path.join(models_path, model_name + ".dat")
+  if not os.path.exists(exp_path):
+    sys.exit("Model not found: %s" % model_name)
   exp = util.Load(exp_path)
   # Load image data.
   images = [ MakeInputState(exp.model, path) for path in image_paths ]
