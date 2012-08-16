@@ -139,6 +139,13 @@ def ImageLayerFromInputArray(input_, backend):
     # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
     # nonlinearities caused by normalization). The scaling of S1 response seems
     # unlikely to cause a significant change in the network output.
+  else:
+    # Check range of input data
+    if np.any(input_ < 0) or np.any(input_ > 1):
+      raise ValueError("Input array values must lie in the range [0, 1]")
+      return backend.PrepareArray(input_)
+    if input_.ndim != 2:
+      raise ValueError("Input array must be two-dimensional")
   return backend.PrepareArray(input_)
 
 class DependencyError(Exception):
