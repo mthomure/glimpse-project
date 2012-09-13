@@ -4,8 +4,6 @@
 # Please see the file COPYING in this distribution for usage
 # terms.
 
-from model import Layer
-
 class CoordinateMapper(object):
   """Converts coordinates between model layers.
 
