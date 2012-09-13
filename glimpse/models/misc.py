@@ -13,7 +13,6 @@ import logging
 from math import sqrt
 import numpy as np
 import random
-from scipy.misc import toimage
 
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
@@ -117,7 +116,7 @@ def ImageLayerFromInputArray(input_, backend):
 
   :param input_: Input data. If array, values should lie in the range [0, 1].
   :type input_: PIL.Image or 2D ndarray of float
-  :returns: Image layer data.
+  :returns: Image layer data with values in the range [0, 1].
   :rtype: 2D ndarray of float
 
   """
@@ -139,13 +138,6 @@ def ImageLayerFromInputArray(input_, backend):
     # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
     # nonlinearities caused by normalization). The scaling of S1 response seems
     # unlikely to cause a significant change in the network output.
-  else:
-    # Check range of input data
-    if np.any(input_ < 0) or np.any(input_ > 1):
-      raise ValueError("Input array values must lie in the range [0, 1]")
-      return backend.PrepareArray(input_)
-    if input_.ndim != 2:
-      raise ValueError("Input array must be two-dimensional")
   return backend.PrepareArray(input_)
 
 class DependencyError(Exception):
@@ -648,7 +640,7 @@ class BaseModel(object):
 
     :param input_: Input data. If array, values should lie in the range [0, 1].
     :type input_: PIL.Image or 2D ndarray
-    :returns: image layer data.
+    :returns: Image layer data with values in the range [0, 1].
     :rtype: 2D ndarray of float
 
     """
