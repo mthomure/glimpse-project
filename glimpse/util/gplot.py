@@ -10,6 +10,7 @@ import matplotlib
 from matplotlib import cm
 import numpy as np
 import operator
+import sys
 
 from . import gimage
 from . import gio
@@ -333,3 +334,170 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   pyplot.yticks([])
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
+
+##### Command-Line Interface #######################
+
+def _CliSummarize(data):
+  """Summarize a 2D dataset with repeated observations for X-values.
+
+  :param data: (X,Y) value pairs, not necessarily sorted by X-value.
+  :type data: 2D-ndarray
+  :returns: Mean and standard error for each unique X value, where each row has
+     the form (X, MEAN[Y], STDERR[Y]).
+  :rtype: 2D-ndarray
+
+  """
+  if data.size == 0:
+    return np.array([]).reshape(0, 3)
+  keys = data[:, 0]
+  results = []
+  for key in np.unique(keys):
+    subset = data[ keys == key ][:, 1]
+    mean = subset.mean()
+    err = subset.std() / math.sqrt(len(subset))  # compute standard error
+    results.append([ key, mean, err ])
+  return np.array(results)
+
+def _CliMain():
+  opts, args = misc.GetOptions('a:c:C:eHi:Il:o:s:St:x:y:')
+  input_encoding = gio.ENCODING_PICKLE
+  ofname = None
+  cmd = None
+  # Parse arguments needed early
+  for opt,arg in opts:
+    if opt == '-o':
+      ofname = arg
+    elif opt == '-i':
+      input_encoding = arg
+  if len(args) < 1:
+    args = [ "-" ]
+  for i in range(len(args)):
+    if args[i] == "-":
+      args[i] = sys.stdin
+  try:
+    data_sets = list(gio.LoadAll(args, input_encoding))
+  except Exception:
+    sys.exit("Failed to load dataset, maybe wrong input type (see -i option)?")
+  for data, fname in zip(data_sets, args):
+    if data.size == 0:
+      data = data.reshape(0, 2)
+    if data.ndim != 2 or data.shape[1] != 2:
+      sys.exit("Dataset has wrong shape: expected array with shape (N, 2), but"
+          " got %s for file %s" % (data.shape, fname,))
+  plot = InitPlot(ofname != None)
+  line_args = [ {} for i in range(len(data_sets)) ]
+  show_legend = False
+  axis = None
+  error_bars = False
+  histogram = False
+  scatter = False
+  array_image = False
+
+  def add_line_arg(key, arg):
+    array = arg.split(",")
+    size = min(len(array), len(data_sets))
+    array = array[:size]
+    for i in range(len(array)):
+      line_args[i][key] = array[i]
+
+  # Parse remaining command line arguments
+  for opt,arg in opts:
+    if opt == '-a':
+      axis = map(float, arg.split(","))
+    elif opt == '-c':
+      set_colors = add_line_arg('color', arg)
+    elif opt == '-C':
+      cmd = arg
+    elif opt == '-e':
+      error_bars = True
+    elif opt == '-I':
+      array_image = True
+    elif opt == '-H':
+      histogram = True
+    elif opt == '-l':
+      set_labels = add_line_arg('label', arg)
+      show_legend = True
+    elif opt == '-s':
+      set_styles = add_line_arg('linestyle', arg)
+    elif opt == '-S':
+      scatter = True
+    elif opt == '-t':
+      plot.title(arg)
+    elif opt == '-x':
+      plot.axes().set_xlabel(arg)
+    elif opt == '-y':
+      plot.axes().set_ylabel(arg)
+  # Plot the data
+  for data, line_arg in zip(data_sets, line_args):
+    if error_bars:
+      xs, ymean, yerr = _CliSummarize(data).T
+      if yerr.size == 0:
+        yerr = None
+      plot.errorbar(xs, ymean, yerr = yerr, **line_arg)
+    elif histogram:
+      plot.hist(data.flat, 100, **line_arg)
+    elif scatter:
+      data = data.T
+      data.sort(0)
+      plot.scatter(data[0], data[1], **line_arg)
+    elif array_image:
+      if data.ndim == 2:
+        Show2dArray(data)
+      else:
+        Show3dArray(data)
+    else:
+      data.sort(0)
+      data = data.T
+      plot.plot(data[0], data[1], **line_arg)
+  if axis != None:
+    plot.axis(axis)
+  if cmd != None:
+    eval(cmd, globals(), locals())
+  if show_legend:
+    plot.rcParams['legend.loc'] = 'best'
+    plot.legend()
+  if ofname == None:
+    plot.show()
+  else:
+    plot.savefig(ofname)
+
+def main():
+  try:
+    _CliMain()
+  except misc.UsageException, e:
+    if e.msg:
+      print >>sys.stderr, e.msg
+    misc.Usage(
+      "[options] [DATA ...]\n" + \
+      "options:\n"
+      "  -a X0,X1,Y0,Y1  Set range of X and Y axes to [X0,X1] and [Y0,Y1].\n"
+      "  -c COLORS       Specify comma-separated line colors. Ex: r, g, b.\n"
+      "  -C COMMAND      Specify a command to evaluate after plotting the data."
+      "\n"
+      "  -e              Plot 2D datasets with repeated X values by showing"
+      " error bars\n"
+      "                  as plus or minus the standard error (std / sqrt(#obs))"
+      ".\n"
+      "  -H              Plot histogram of 1D datasets.\n"
+      "  -i TYPE         Set input encoding type [one of:"
+      " %s, default: %s].\n" % (", ".join(gio.INPUT_ENCODINGS),
+          gio.ENCODING_PICKLE) + \
+      "  -I              Plot ND datasets as images.\n"
+      "  -l LABELS       Specify comma-separated line names.\n"
+      "  -o FNAME        Write plot to image file FNAME.\n"
+      "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-',"
+      " \n"
+      "                  dashed, '--'.\n"
+      "  -S              Show 2D datasets as a scatterplot.\n"
+      "  -t TITLE        Set chart title.\n"
+      "  -x LABEL        Set label on x-axis.\n"
+      "  -y LABEL        Set label on y-axis.\n"
+      "For more option values, see:\n"
+      "  http://matplotlib.sourceforge.net/api/pyplot_api.html#matplotlib"
+      ".pyplot.plot\n"
+      "To use log scale on the X-axis:\n"
+      "  -C 'plot.gca().set_xscale(\"log\")'"
+    )
+
+if __name__ == '__main__':
+  main()
