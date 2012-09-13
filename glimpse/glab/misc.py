@@ -142,10 +142,17 @@ def SetParams(params = None):
   """Set the parameter object that will be used to construct the next
   experiment.
 
+  :param params: Model-specific parameter object to use for future experiments. If
+     a filename is given, the parameter object is read from the given file. If no
+     parameter object is given, the model's default parameters are used.
+  :type params: object or str
+
   """
   global __PARAMS
   if params == None:
     params = GetModelClass().ParamClass()
+  elif isinstance(params, basestring):
+    params = util.Load(params)
   __PARAMS = params
   return __PARAMS
 
