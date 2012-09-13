@@ -6,20 +6,25 @@
 # Please see the file COPYING in this distribution for usage terms.
 
 import math
-
-from glimpse.util import gimage
-from glimpse.util import misc
-
-# Following imports assume matplotlib environment has been initialized.
-try:
-  from matplotlib import cm
-  from matplotlib import pyplot
-  from mpl_toolkits.axes_grid import AxesGrid
-except RuntimeError:
-  import logging
-  logging.warn("Unable to import matplotlib. Plotting may fail.")
+import matplotlib
+from matplotlib import cm
 import numpy as np
 import operator
+
+from . import gimage
+from . import gio
+from . import misc
+
+def InitPlot(use_file_output = False):
+  """Initialize matplotlib plotting library, optionally configuring it to
+  write plots to disk."""
+  if use_file_output:
+    matplotlib.use("cairo")
+  elif matplotlib.get_backend() == "":
+    matplotlib.use('TkAgg')
+  import matplotlib.pyplot as plt
+  plt.clf()
+  return plt
 
 _sp_y = _sp_x = _sp_j = 0
 def MakeSubplot(y, x):
@@ -29,6 +34,7 @@ def MakeSubplot(y, x):
   _sp_j = 1
 
 def NextSubplot(figure = None):
+  from matplotlib import pyplot  # import must be delayed
   global _sp_j
   if figure == None:
     figure = pyplot.gcf()
@@ -58,6 +64,7 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   :func:`matplotlib.pyplot.imshow`.
 
   """
+  from matplotlib import pyplot  # import must be delayed
   if axes == None:
     axes = pyplot.gca()
   if bg == None:
@@ -117,6 +124,7 @@ def ShowListWithCallback(xs, cb, cols = None, figure = None, nsubplots = None,
      number of elements in *xs*.
 
   """
+  from matplotlib import pyplot  # import must be delayed
   if figure == None:
     figure = pyplot.gcf()
   axes = figure.gca()
@@ -173,6 +181,8 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
   :func:`matplotlib.pyplot.imshow` for each 2D array.
 
   """
+  from matplotlib import pyplot  # import must be delayed
+  from mpl_toolkits.axes_grid import AxesGrid  # import must be delayed
   if 'vmin' in args and 'vmax' in args:
     vmin = args['vmin']
     vmax = args['vmax']
@@ -317,6 +327,7 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   :func:`matplotlib.pyplot.plot`.
 
   """
+  from matplotlib import pyplot  # import must be delayed
   freqs, power, cnts = gimage.PowerSpectrum(data, width)
   pyplot.plot(freqs, power, **plot_args)
   pyplot.yticks([])
