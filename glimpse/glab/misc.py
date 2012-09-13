@@ -319,9 +319,9 @@ def SetTrainTestSplit(train_images, test_images, classes):
   return GetExperiment().SetTrainTestSplit(train_images, test_images, classes)
 
 @docstring.copy_dedent(Experiment.ComputeFeatures)
-def ComputeFeatures():
+def ComputeFeatures(raw = False):
   """" """
-  GetExperiment().ComputeFeatures()
+  GetExperiment().ComputeFeatures(raw = raw)
 
 @docstring.copy_dedent(Experiment.GetImageFeatures)
 def GetImageFeatures(images, resize = None, raw = False, save_all = False,

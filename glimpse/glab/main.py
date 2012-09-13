@@ -72,9 +72,9 @@ def _FormatCliResults(svm_decision_values = False, svm_predicted_labels = False,
     print "No results available."
 
 def _RunCli(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
-    corpus = None, use_svm = False, compute_features = False,
+    corpus = None, use_svm = False, compute_features = False, raw = False,
     result_path = None, cross_validate = False, verbose = 0, balance = False,
-    corpus_subdirs = None, **opts):
+    corpus_subdirs = None, compute_raw_features = False, **opts):
   if corpus != None:
     SetCorpus(corpus, balance = balance)
   elif corpus_subdirs:  # must be not None and not empty list
@@ -97,8 +97,8 @@ def _RunCli(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     else:
       raise util.UsageException("Invalid prototype algorithm "
           "(%s), expected 'imprint' or 'random'." % prototype_algorithm)
-  if compute_features:
-    ComputeFeatures()
+  if compute_features or compute_raw_features:
+    ComputeFeatures(raw = compute_raw_features)
   if use_svm:
     RunSvm(cross_validate)
     if verbose > 0:
@@ -118,7 +118,8 @@ def main():
     opts['corpus_subdirs'] = []
     cli_opts, _ = util.GetOptions('bc:C:el:m:n:o:p:P:r:st:vx',
         ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
-        'compute-features', 'edit-options', 'layer=', 'model=',
+        'compute-features', 'compute-raw-features', 'edit-options', 
+        'layer=', 'model=',
         'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
         'results=', 'svm', 'svm-decision-values',
         'svm-predicted-labels', 'pool-type=', 'verbose', 'cross-validate'])
@@ -134,6 +135,8 @@ def main():
         opts['cluster_config'] = arg
       elif opt in ('--compute-features'):
         opts['compute_features'] = True
+      elif opt == '--compute-raw-features':
+        opts['compute_raw_features'] = True
       elif opt in ('-e', '--edit-options'):
         opts['edit_params'] = True
       elif opt in ('-l', '--layer'):
@@ -180,6 +183,9 @@ def main():
         "FILE\n"
         "      --compute-features          Compute feature vectors (implied "
         "by -s)\n"
+        "      --compute-raw-features      (advanced) Compute raw layer features "
+        "(i.e.,\n"
+        "                                  do not flatten feature vectors)\n"
         "  -e, --edit-options              Edit model options with a GUI\n"
         "  -l, --layer=LAYR                Compute feature vectors from LAYR "
         "activity\n"

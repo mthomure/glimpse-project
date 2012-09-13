@@ -580,7 +580,7 @@ class Experiment(object):
     self.train_images = train_images
     self.test_images = test_images
 
-  def ComputeFeatures(self):
+  def ComputeFeatures(self, raw = False):
     """Compute SVM feature vectors for all images.
 
     Generally, you do not need to call this method yourself, as it will be
@@ -598,20 +598,21 @@ class Experiment(object):
     images = train_images + test_images
     start_time = time.time()
     # Compute features for all images.
-    features = self.GetImageFeatures(images, block = True)
+    features = self.GetImageFeatures(images, block = True, raw = raw)
     self.compute_feature_time = time.time() - start_time
     # Split results by training/testing set
     train_features, test_features = util.SplitList(features,
         [train_size, test_size])
     # Split training set by class
-    train_features = util.SplitList(train_features, train_sizes)
+    self.train_features = util.SplitList(train_features, train_sizes)
     # Split testing set by class
-    test_features = util.SplitList(test_features, test_sizes)
-    # Store features as list of 2D arrays
-    self.train_features = [ np.array(f, util.ACTIVATION_DTYPE)
-        for f in train_features ]
-    self.test_features = [ np.array(f, util.ACTIVATION_DTYPE)
-        for f in test_features ]
+    self.test_features = util.SplitList(test_features, test_sizes)
+    if not raw:
+      # Store features as list of 2D arrays
+      self.train_features = [ np.array(f, util.ACTIVATION_DTYPE)
+          for f in self.train_features ]
+      self.test_features = [ np.array(f, util.ACTIVATION_DTYPE)
+          for f in self.test_features ]
 
   def TrainSvm(self):
     """Construct an SVM classifier from the set of training images.
