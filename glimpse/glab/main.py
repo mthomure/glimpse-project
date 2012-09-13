@@ -130,10 +130,10 @@ def main():
         opts['corpus'] = arg
       elif opt in ('-C', '--corpus-subdir'):
         opts['corpus_subdirs'].append(arg)
-      elif opt in ('--cluster-config'):
+      elif opt == '--cluster-config':
         # Use a cluster of worker nodes
         opts['cluster_config'] = arg
-      elif opt in ('--compute-features'):
+      elif opt == '--compute-features':
         opts['compute_features'] = True
       elif opt == '--compute-raw-features':
         opts['compute_raw_features'] = True
