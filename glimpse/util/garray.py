@@ -78,8 +78,10 @@ def FlattenLists(data):
   """
   # From: http://stackoverflow.com/questions/2158395
   result = []
+  if isinstance(data, np.ndarray):
+    return data
   for el in data:
-    if hasattr(el, "__iter__") and not isinstance(el, basestring):
+    if hasattr(el, "__iter__") and not (isinstance(el, basestring) or isinstance(el, dict) or isinstance(el, np.ndarray)):
       result.extend(FlattenLists(el))
     else:
       result.append(el)
