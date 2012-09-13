@@ -298,7 +298,8 @@ def SetS2Prototypes(prototypes):
   """
   if isinstance(prototypes, basestring):
     prototypes = util.Load(prototypes)
-  elif not isinstance(prototypes, np.ndarray):
+  elif not (isinstance(prototypes, np.ndarray) or isinstance(prototypes, list) \
+    or isinstance(prototypes, tuple)):
     raise ValueError("Please specify an array of prototypes, or the path to a "
         "file.")
   GetExperiment().SetS2Prototypes(prototypes)
