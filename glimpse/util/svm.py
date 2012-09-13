@@ -56,6 +56,9 @@ def EasyTrain(train_features):
   """
   Train an SVM classifier.
 
+  Feature values are "sphered" by subtracting the mean and dividing by the standard deviation, as computed on the training set.
+
+  :param train_features: Training data indexed by class, instance, and features.
   :type train_features: 3D array-like
   :rtype: sklearn.base.ClassifierMixin
 
@@ -73,7 +76,9 @@ def EasyTest(classifier, test_features):
   """
   Apply a built classifier to a set of data.
 
+  :param classifier: A trained classifier, as returned by :func:EasyTrain:.
   :type classifier: sklearn.base.ClassifierMixin
+  :param test_features: Testing data indexed by class, instance, and feature.
   :type test_features: 3D array-like
   :rtype: float
   :return: Prediction accuracy of classifier on test data.
@@ -90,7 +95,9 @@ def EasyCrossVal(classifier, features, num_folds = 5):
   """
   Compute the cross-validated accuracy of an SVM model.
 
+  :param classifier: An untrained classifier.
   :type classifier: sklearn.base.ClassifierMixin
+  :param features: Training data indexed by class, instance, and feature.
   :type features: 3D array-like
   :param int num_folds: Number of folds used for cross-validation.
   :rtype: ndarray of float
