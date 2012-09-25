@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/bin/bash -l
+
+# Note: "-l" flag on bash command needed to work around weird matlab
+# environment.
 
 # Usage: apply-model.sh MODEL INPUT_1 [... INPUT_N]
 # where MODEL is the name of a model class (e.g., "dog", "leash", etc)

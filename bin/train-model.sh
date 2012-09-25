@@ -1,4 +1,7 @@
-#!/bin/bash
+#!/bin/bash -l
+
+# Note: "-l" flag on bash command needed to work around weird matlab
+# environment.
 
 # Usage: train-model.sh MODEL POS_DIR NEG_DIR [NUM_PROTOTYPES]
 # where MODEL is the name of a model class (e.g., "dog", "leash", etc), while
