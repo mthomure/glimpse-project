@@ -335,6 +335,94 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
 
+def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
+    colors = None, ecolors = None, gwidth = .7, cwidth = 1., show = True,
+    **kwargs):
+  """Plot data as bars.
+
+  :param xs: Input data, organized by group and then category (if 2D), or just by
+     category (if 1D).
+  :type xs: 1D or 2D array-like
+  :param yerr: Size of error bars.
+  :type yerr: 1D or 2D array-like (must match shape of xs)
+  :param glabels: Label for each group (appears on X axis).
+  :type glabels: list of str
+  :param clabels: Label for each category (appears in legend).
+  :type clabels: list of str
+  :param colors: Bar color for each category.
+  :type colors: list of str
+  :param ecolors: Color of error bars for each category. Default is black.
+  :type ecolors: list of str
+  :param float gwidth: Fraction of available space to use for group of bars.
+  :param float cwidth: Fraction of available space to use for each category bar.
+  :param bool show: Whether to show the figure after plotting.
+  :param dict kwargs: Arguments passed to pyplot.bar() method.
+  :returns: Figure into which the data is plotted.
+
+  """
+  import matplotlib.pyplot as plt
+  xs = np.asarray(xs)
+  if xs.ndim > 2:
+    raise ValueError("Data array must be 1D or 2D")
+  if yerr != None:
+    yerr = np.asarray(yerr)
+    if xs.shape != yerr.shape:
+      raise ValueError("Data array and errors array must have same shape")
+  xs = np.atleast_2d(xs).T  # rotate xs to be indexed by category, then group
+  C, G = xs.shape[:2]
+  gwidth = min(1, max(0, gwidth))
+  total_gwidth = 1  # available space for each group
+  used_gwidth = total_gwidth * gwidth  # space actually used for each group
+  goffset = (total_gwidth - used_gwidth) / 2  # offset of drawable region from
+                                              # edge of group
+  gedges = np.arange(G) * total_gwidth + goffset  # edges of drawable region for
+                                                  # each group
+  cwidth = min(1, max(0, cwidth))
+  total_cwidth = used_gwidth / C  # available space for each category bar
+  used_cwidth = total_cwidth * cwidth  # space actually used for each bar
+  coffset = (total_cwidth - used_cwidth) / 2  # offset of drawable region from
+                                              # edge of category
+  gind = np.arange(G)
+  cind = np.arange(C)
+  if colors == None:
+    colors = [None] * C
+  if ecolors == None:
+    ecolors = "k" * C
+  if yerr == None:
+    yerr = [None] * C
+  else:
+    yerr = np.atleast_2d(yerr).T  # rotate yerr to be indexed first by category
+  if fig == None:
+    fig = plt.figure()
+  else:
+    fig.clf()  # clear the figure
+  ax = fig.add_subplot(111)
+  clabels = clabels or [''] * C
+  # For each category, create a bar in all groups.
+  crects = [ ax.bar(
+      (gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
+      xs[c],                # height of column
+      used_cwidth,          # column width
+      color = colors[c],    # column color
+      yerr = yerr[c],       # error
+      ecolor = ecolors[c],  # color of error bar
+      label = clabels[c],
+      **kwargs
+      ) for c in cind ]
+  if glabels == None:
+    # Disable x-ticks.
+    ax.set_xticks([])
+  else:
+    # Show x-tick labels.
+    ax.set_xticks((gind + .5) * total_gwidth)
+    ax.set_xticklabels(glabels)
+    ax.tick_params(axis = 'x', direction = 'out')
+    ax.xaxis.tick_bottom()  # hide top tick marks
+  ax.yaxis.tick_left()  # hide right tick marks
+  if show:
+    fig.show()
+  return ax
+
 ##### Command-Line Interface #######################
 
 def _CliSummarize(data):
