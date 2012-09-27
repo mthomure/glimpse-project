@@ -24,7 +24,6 @@ def InitPlot(use_file_output = False):
   elif matplotlib.get_backend() == "":
     matplotlib.use('TkAgg')
   import matplotlib.pyplot as plt
-  plt.clf()
   return plt
 
 _sp_y = _sp_x = _sp_j = 0
