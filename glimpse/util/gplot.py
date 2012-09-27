@@ -6,8 +6,6 @@
 # Please see the file COPYING in this distribution for usage terms.
 
 import math
-import matplotlib
-from matplotlib import cm
 import numpy as np
 import operator
 import sys
@@ -19,6 +17,7 @@ from . import misc
 def InitPlot(use_file_output = False):
   """Initialize matplotlib plotting library, optionally configuring it to
   write plots to disk."""
+  import matplotlib
   if use_file_output:
     matplotlib.use("cairo")
   elif matplotlib.get_backend() == "":
@@ -65,6 +64,7 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
 
   """
   from matplotlib import pyplot  # import must be delayed
+  from matplotlib import cm
   if axes == None:
     axes = pyplot.gca()
   if bg == None:
