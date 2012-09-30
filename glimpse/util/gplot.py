@@ -509,8 +509,8 @@ class Plotter(object):
   axis = None
   #: Line colors, or category colors for bar plot (list of str).
   colors = None
-  #: Category labels for bar plots (list of str).
-  bar_clabels = None
+  #: Group labels for bar plots (list of str).
+  bar_glabels = None
   #: Number of categories per group for bar plot (int).
   bar_group_size = None
   #: Whether to plot error bars (bool).
@@ -546,9 +546,9 @@ class Plotter(object):
       xs = xs.mean(-1)
     else:
       yerr = None
-    kwargs = dict(linewidth = 0)
-    BarPlot(xs, yerr = yerr, colors = self.colors, glabels = self.labels,
-        clabels = self.bar_clabels, show = False, **kwargs)
+    kwargs = dict(linewidth = 0)  # remove borders from bars
+    BarPlot(xs, yerr = yerr, colors = self.colors, glabels = self.bar_glabels,
+        clabels = self.labels, show = False, **kwargs)
 
   def HistPlot(self, data_sets):
     """Plot a collection of 1D datasets as overlapping histograms."""
@@ -624,7 +624,7 @@ class Plotter(object):
       data_sets = np.asarray(data_sets)
       # Reshape data_sets from 2D (given by file, line) to 3D (given by file
       # group, file category, line).
-      gsize = self.bar_group_size or len(data_sets)
+      gsize = self.bar_group_size or 1
       if data_sets.shape[0] % gsize != 0:
         raise ValueError("Number of datasets must be multiple of group size")
       if self.error_bars:
@@ -702,7 +702,7 @@ def _CliMain():
     elif opt == '-l':
       p.labels = arg.split(",")
     elif opt == '-L':
-      p.bar_clabels = arg.split(",")
+      p.bar_glabels = arg.split(",")
     elif opt == '-o':
       p.ofname = arg
     elif opt == '-s':
@@ -741,16 +741,16 @@ def main():
       " error bars\n"
       "                  as plus or minus the standard error (std / sqrt(#obs))"
       ".\n"
-      "  -g SIZE         Specify group size for bar plot.\n"
+      "  -g SIZE         Specify group size for bar plot (default is 1).\n"
       "  -H              Plot histogram of 1D datasets.\n"
       "  -i TYPE         Set input encoding type [one of:"
       " %s, default: %s].\n" % (", ".join(gio.INPUT_ENCODINGS),
           gio.ENCODING_PICKLE) + \
       "  -I              Plot ND datasets as images.\n"
-      "  -l LABELS       Specify comma-separated line names, or group names for "
-      "bar\n"
+      "  -l LABELS       Specify comma-separated line names, or category labels "
+      "for bar\n"
       "                  plot.\n"
-      "  -L LABELS       Specify category labels for bar plot.\n"
+      "  -L LABELS       Specify group labels for bar plot.\n"
       "  -o FNAME        Write plot to image file FNAME.\n"
       "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-',"
       " \n"
