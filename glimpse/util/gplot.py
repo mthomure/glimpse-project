@@ -385,8 +385,12 @@ def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
   cind = np.arange(C)
   if colors == None:
     colors = [None] * C
+  else:
+    colors += [None] * C  # potentially too long, but that's ok
   if ecolors == None:
     ecolors = "k" * C
+  else:
+    ecolors += "k" * C
   if yerr == None:
     yerr = [None] * C
   else:
@@ -396,7 +400,10 @@ def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
   else:
     fig.clf()  # clear the figure
   ax = fig.add_subplot(111)
-  clabels = clabels or [''] * C
+  if clabels == None:
+    clabels = [''] * C
+  else:
+    clabels += [''] * C
   # For each category, create a bar in all groups.
   crects = [ ax.bar(
       (gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
@@ -620,7 +627,10 @@ class Plotter(object):
       gsize = self.bar_group_size or len(data_sets)
       if data_sets.shape[0] % gsize != 0:
         raise ValueError("Number of datasets must be multiple of group size")
-      data_sets = data_sets.reshape(-1, gsize, data_sets.shape[-1])
+      if self.error_bars:
+        data_sets = data_sets.reshape(-1, gsize, data_sets.shape[-1])
+      else:
+        data_sets = data_sets.reshape(-1, gsize)
     elif self.plot_type == Plotter.TYPE_HIST:
       # Histograms use 1D datasets
       data_sets = map(self.loader.ReadData1D, fnames)
