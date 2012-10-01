@@ -667,7 +667,7 @@ class Plotter(object):
       plt.axes().set_ylabel(self.ylabel)
     if self.post_command:
       plot = plt
-      eval(self.post_command, globals(), locals())
+      exec self.post_command
     if self.labels:
       plt.rcParams['legend.loc'] = 'best'
       plt.legend()
