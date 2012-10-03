@@ -23,7 +23,6 @@ def InitPlot(use_file_output = False):
   elif matplotlib.get_backend() == "":
     matplotlib.use('TkAgg')
   import matplotlib.pyplot as plt
-  plt.clf()
   return plt
 
 _sp_y = _sp_x = _sp_j = 0
@@ -335,15 +334,110 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
 
+def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
+    colors = None, ecolors = None, gwidth = .7, cwidth = 1., show = True,
+    **kwargs):
+  """Plot data as bars.
+
+  :param xs: Input data, organized by group and then category (if 2D), or just by
+     category (if 1D).
+  :type xs: 1D or 2D array-like
+  :param yerr: Size of error bars.
+  :type yerr: 1D or 2D array-like (must match shape of xs)
+  :param glabels: Label for each group (appears on X axis).
+  :type glabels: list of str
+  :param clabels: Label for each category (appears in legend).
+  :type clabels: list of str
+  :param colors: Bar color for each category.
+  :type colors: list of str
+  :param ecolors: Color of error bars for each category. Default is black.
+  :type ecolors: list of str
+  :param float gwidth: Fraction of available space to use for group of bars.
+  :param float cwidth: Fraction of available space to use for each category bar.
+  :param bool show: Whether to show the figure after plotting.
+  :param dict kwargs: Arguments passed to pyplot.bar() method.
+  :returns: Figure into which the data is plotted.
+
+  """
+  import matplotlib.pyplot as plt
+  xs = np.asarray(xs)
+  if xs.ndim > 2:
+    raise ValueError("Data array must be 1D or 2D")
+  if yerr != None:
+    yerr = np.asarray(yerr)
+    if xs.shape != yerr.shape:
+      raise ValueError("Data array and errors array must have same shape")
+  xs = np.atleast_2d(xs).T  # rotate xs to be indexed by category, then group
+  C, G = xs.shape[:2]
+  gwidth = min(1, max(0, gwidth))
+  total_gwidth = 1  # available space for each group
+  used_gwidth = total_gwidth * gwidth  # space actually used for each group
+  goffset = (total_gwidth - used_gwidth) / 2  # offset of drawable region from
+                                              # edge of group
+  gedges = np.arange(G) * total_gwidth + goffset  # edges of drawable region for
+                                                  # each group
+  cwidth = min(1, max(0, cwidth))
+  total_cwidth = used_gwidth / C  # available space for each category bar
+  used_cwidth = total_cwidth * cwidth  # space actually used for each bar
+  coffset = (total_cwidth - used_cwidth) / 2  # offset of drawable region from
+                                              # edge of category
+  gind = np.arange(G)
+  cind = np.arange(C)
+  if colors == None:
+    colors = [None] * C
+  else:
+    colors += [None] * C  # potentially too long, but that's ok
+  if ecolors == None:
+    ecolors = "k" * C
+  else:
+    ecolors += "k" * C
+  if yerr == None:
+    yerr = [None] * C
+  else:
+    yerr = np.atleast_2d(yerr).T  # rotate yerr to be indexed first by category
+  if fig == None:
+    fig = plt.figure()
+  else:
+    fig.clf()  # clear the figure
+  ax = fig.add_subplot(111)
+  if clabels == None:
+    clabels = [''] * C
+  else:
+    clabels += [''] * C
+  # For each category, create a bar in all groups.
+  crects = [ ax.bar(
+      (gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
+      xs[c],                # height of column
+      used_cwidth,          # column width
+      color = colors[c],    # column color
+      yerr = yerr[c],       # error
+      ecolor = ecolors[c],  # color of error bar
+      label = clabels[c],
+      **kwargs
+      ) for c in cind ]
+  if glabels == None:
+    # Disable x-ticks.
+    ax.set_xticks([])
+  else:
+    # Show x-tick labels.
+    ax.set_xticks((gind + .5) * total_gwidth)
+    ax.set_xticklabels(glabels)
+    ax.tick_params(axis = 'x', direction = 'out')
+    ax.xaxis.tick_bottom()  # hide top tick marks
+  ax.yaxis.tick_left()  # hide right tick marks
+  if show:
+    fig.show()
+  return ax
+
 ##### Command-Line Interface #######################
 
-def _CliSummarize(data):
+def _Summarize2D(data):
   """Summarize a 2D dataset with repeated observations for X-values.
 
   :param data: (X,Y) value pairs, not necessarily sorted by X-value.
   :type data: 2D-ndarray
-  :returns: Mean and standard error for each unique X value, where each row has
-     the form (X, MEAN[Y], STDERR[Y]).
+  :returns: Mean and standard error (STDDEV / SQRT(COUNT)) for each unique X
+     value, where each row has the form (X, MEAN[Y], STDERR[Y]).
   :rtype: 2D-ndarray
 
   """
@@ -358,108 +452,275 @@ def _CliSummarize(data):
     results.append([ key, mean, err ])
   return np.array(results)
 
-def _CliMain():
-  opts, args = misc.GetOptions('a:c:C:eHi:Il:o:s:St:x:y:')
+class Loader(object):
+  """Loads data from files."""
+
+  #: File encoding used by Read* methods.
   input_encoding = gio.ENCODING_PICKLE
+
+  def Read(self, fname):
+    try:
+      return list(gio.LoadAll(fname, self.input_encoding))[0]
+    except Exception:
+      raise Exception("Failed to load dataset, maybe wrong input type (see -i "
+          "option)?")
+
+  def ReadData1D(self, fname):
+    """Read a file with a single column per line."""
+    data = np.asarray(self.Read(fname))
+    if data.ndim != 2 or data.shape[-1] != 1:
+      raise Exception("Dataset has wrong shape: expected array with shape "
+          "(N, 1), but got %s for file %s" % (data.shape, fname))
+    return data.reshape(data.shape[0])
+
+  def ReadData2D(self, fname):
+    """Read a file with multiple columns per line."""
+    data = self.Read(fname)
+    if data.size == 0:
+      data = data.reshape(0, 2)
+    if data.shape[1] != 2:
+      raise Exception("Dataset has wrong shape: expected array with shape "
+          "(N, 2), but got %s for file %s" % (data.shape, fname,))
+    return data
+
+class Plotter(object):
+
+  TYPE_BAR = 1
+  TYPE_HIST = 2
+  TYPE_IMAGE = 3
+  TYPE_LINE = 4
+  TYPE_SCATTER = 5
+
+  @staticmethod
+  def _GetPlotFunc(plot_type):
+    funcs = {
+        Plotter.TYPE_BAR : Plotter.BarPlot,
+        Plotter.TYPE_HIST : Plotter.HistPlot,
+        Plotter.TYPE_IMAGE : Plotter.ImagePlot,
+        Plotter.TYPE_LINE : Plotter.LinePlot,
+        Plotter.TYPE_SCATTER : Plotter.ScatterPlot,
+    }
+    func = funcs.get(plot_type, None)
+    if func == None:
+      raise ValueError("Unknown plot type: %s" % plot_type)
+    return func
+
+  #: Limits for y- and x-axis (4-tuple of int).
+  axis = None
+  #: Line colors, or category colors for bar plot (list of str).
+  colors = None
+  #: Group labels for bar plots (list of str).
+  bar_glabels = None
+  #: Number of categories per group for bar plot (int).
+  bar_group_size = None
+  #: Whether to plot error bars (bool).
+  error_bars = False
+  #: Number of bins to use for histogram plot (int).
+  hist_nbins = 100
+  #: Line labels, or group labels for bar plot (list of str).
+  labels = None
+  #: Line styles (list of str).
+  linestyles = None
+  loader = Loader()
+  #: Path of image file to which plot is saved (str). See PostProcess().
   ofname = None
-  cmd = None
+  #: Type of plot to generate (one of Plotter.TYPE_*).
+  plot_type = TYPE_LINE
+  #: Command to interpret after plot is generated (str).
+  post_command = None
+  #: Plot title (str).
+  title = None
+  #: Label of x-axis (str).
+  xlabel = None
+  #: Label of y-axis (str).
+  ylabel = None
+
+  def PreProcess(self):
+    self.plt = InitPlot(self.ofname != None)
+
+  def BarPlot(self, data_sets):
+    """Plot a collection of 1D datasets as groups of bars."""
+    xs = np.asarray(data_sets)
+    if self.error_bars:
+      yerr = xs.std(-1) / math.sqrt(xs.shape[-1])  # standard error
+      xs = xs.mean(-1)
+    else:
+      yerr = None
+    kwargs = dict(linewidth = 0)  # remove borders from bars
+    BarPlot(xs, yerr = yerr, colors = self.colors, glabels = self.bar_glabels,
+        clabels = self.labels, show = False, **kwargs)
+
+  def HistPlot(self, data_sets):
+    """Plot a collection of 1D datasets as overlapping histograms."""
+    N = len(data_sets)
+    keywords = ('color', 'label', 'linestyle')
+    opts = [ getattr(self, kw, None) or []
+        for kw in ('colors', 'labels', 'linestyles') ]
+    for idx in range(N):
+      data = data_sets[idx]
+      kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
+          if idx < len(opt) )
+      self.plt.hist(data.flat, self.hist_nbins, **kwargs)
+
+  def ImagePlot(self, data):
+    """Plot a single dataset as images.
+
+    :param data: Input data. If data has more than 2 dimensions, it is treated as
+       list of 2D arrays, with each plotted in a separate subplot.
+    :type data: ND array, with N>1
+
+    """
+    Show2dArray(data)
+
+  def LinePlot(self, data_sets):
+    """Plot a collection of 2D datasets as lines."""
+    N = len(data_sets)
+    keywords = ('color', 'label', 'linestyle')
+    opts = [ getattr(self, kw, None) or []
+        for kw in ('colors', 'labels', 'linestyles') ]
+    for idx in range(N):
+      data = data_sets[idx]
+      kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
+          if idx < len(opt) )
+      if self.error_bars:
+        xs, ymean, yerr = _Summarize2D(data).T
+        if yerr.size == 0:
+          yerr = None
+        self.plt.errorbar(xs, ymean, yerr = yerr, **kwargs)
+      else:
+        data.sort(0)
+        data = data.T
+        self.plt.plot(data[0], data[1], **kwargs)
+
+  def ScatterPlot(self, data_sets):
+    """Plot a collection of 2D datasets as disconnected points."""
+    N = len(data_sets)
+    keywords = ('color', 'label', 'linestyle')
+    opts = [ getattr(self, kw, None) or []
+        for kw in ('colors', 'labels', 'linestyles') ]
+    for idx in range(N):
+      data = data_sets[idx]
+      kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
+          if idx < len(opt) )
+      data = data.T
+      data.sort(0)
+      self.plt.scatter(data[0], data[1], **kwargs)
+
+  def PlotFromFile(self, *fnames, **kwargs):
+    """Plot a collection of datasets read from disk.
+
+    :param fnames: Path to datasets.
+    :type fnames: list of str
+    :param bool post_process: Whether to call :meth:`PostProcess` (default is
+       True).
+
+    If needed, :meth:`PreProcess` is called automatically.
+
+    """
+    post_process = kwargs.get('post_process', True)
+    if self.plot_type == Plotter.TYPE_BAR:
+      # Bar plots use 1D datasets
+      data_sets = map(self.loader.ReadData1D, fnames)
+      data_sets = np.asarray(data_sets)
+      # Reshape data_sets from 2D (given by file, line) to 3D (given by file
+      # group, file category, line).
+      gsize = self.bar_group_size or 1
+      if data_sets.shape[0] % gsize != 0:
+        raise ValueError("Number of datasets must be multiple of group size")
+      if self.error_bars:
+        data_sets = data_sets.reshape(-1, gsize, data_sets.shape[-1])
+      else:
+        data_sets = data_sets.reshape(-1, gsize)
+    elif self.plot_type == Plotter.TYPE_HIST:
+      # Histograms use 1D datasets
+      data_sets = map(self.loader.ReadData1D, fnames)
+    elif self.plot_type in (Plotter.TYPE_HIST, Plotter.TYPE_IMAGE,
+        Plotter.TYPE_LINE, Plotter.TYPE_SCATTER):
+      # All other plots use 2D datasets
+      data_sets = map(self.loader.ReadData2D, fnames)
+    else:
+      raise ValueError("Unknown plot type: %s" % self.plot_type)
+    plot_func = Plotter._GetPlotFunc(self.plot_type)
+    if not hasattr(self, 'plt'):
+      self.PreProcess()
+    ret = plot_func(self, data_sets)
+    if post_process:
+      self.PostProcess()
+
+  def PostProcess(self):
+    """Apply desired post-processing to generated plot, and display the result.
+
+    The plot is displayed to the screen, unless :attr:`ofname` is set. In the
+    latter case, the plot is saved to disk.
+
+    """
+    if not self.plt:
+      raise Exception("PostProcess called before PreProcess")
+    plt = self.plt
+    if self.axis:
+      plt.axis(self.axis)
+    if self.title:
+      plt.title(self.title)
+    if self.xlabel:
+      plt.axes().set_xlabel(self.xlabel)
+    if self.ylabel:
+      plt.axes().set_ylabel(self.ylabel)
+    if self.post_command:
+      plot = plt
+      exec self.post_command
+    if self.labels:
+      plt.rcParams['legend.loc'] = 'best'
+      plt.legend()
+    if self.ofname:
+      plt.savefig(self.ofname)
+    else:
+      plt.show()
+
+def _CliMain():
+  p = Plotter()
+  opts, args = misc.GetOptions('a:bc:C:eg:Hi:Il:L:o:s:St:x:y:')
   # Parse arguments needed early
-  for opt,arg in opts:
-    if opt == '-o':
-      ofname = arg
+  for opt, arg in opts:
+    if opt == '-a':
+      p.axis = map(float, arg.split(","))
+    elif opt == '-b':
+      p.plot_type = Plotter.TYPE_BAR
+    elif opt == '-c':
+      p.colors = arg.split(",")
+    elif opt == '-C':
+      p.post_command = arg
+    elif opt == '-e':
+      p.error_bars = True
+    elif opt == '-g':
+      p.bar_group_size = int(arg)
     elif opt == '-i':
-      input_encoding = arg
-  if len(args) < 1:
-    args = [ "-" ]
+      p.loader.input_encoding = arg
+    elif opt == '-I':
+      p.plot_type = Plotter.TYPE_IMAGE
+    elif opt == '-H':
+      p.plot_type = Plotter.TYPE_HIST
+    elif opt == '-l':
+      p.labels = arg.split(",")
+    elif opt == '-L':
+      p.bar_glabels = arg.split(",")
+    elif opt == '-o':
+      p.ofname = arg
+    elif opt == '-s':
+      p.linestyles = arg.split(",")
+    elif opt == '-S':
+      p.plot_type = Plotter.TYPE_SCATTER
+    elif opt == '-t':
+      p.title = arg
+    elif opt == '-x':
+      p.xlabel = arg
+    elif opt == '-y':
+      p.ylabel = arg
   for i in range(len(args)):
     if args[i] == "-":
       args[i] = sys.stdin
-  try:
-    data_sets = list(gio.LoadAll(args, input_encoding))
-  except Exception:
-    sys.exit("Failed to load dataset, maybe wrong input type (see -i option)?")
-  for data, fname in zip(data_sets, args):
-    if data.size == 0:
-      data = data.reshape(0, 2)
-    if data.ndim != 2 or data.shape[1] != 2:
-      sys.exit("Dataset has wrong shape: expected array with shape (N, 2), but"
-          " got %s for file %s" % (data.shape, fname,))
-  plot = InitPlot(ofname != None)
-  line_args = [ {} for i in range(len(data_sets)) ]
-  show_legend = False
-  axis = None
-  error_bars = False
-  histogram = False
-  scatter = False
-  array_image = False
-
-  def add_line_arg(key, arg):
-    array = arg.split(",")
-    size = min(len(array), len(data_sets))
-    array = array[:size]
-    for i in range(len(array)):
-      line_args[i][key] = array[i]
-
-  # Parse remaining command line arguments
-  for opt,arg in opts:
-    if opt == '-a':
-      axis = map(float, arg.split(","))
-    elif opt == '-c':
-      set_colors = add_line_arg('color', arg)
-    elif opt == '-C':
-      cmd = arg
-    elif opt == '-e':
-      error_bars = True
-    elif opt == '-I':
-      array_image = True
-    elif opt == '-H':
-      histogram = True
-    elif opt == '-l':
-      set_labels = add_line_arg('label', arg)
-      show_legend = True
-    elif opt == '-s':
-      set_styles = add_line_arg('linestyle', arg)
-    elif opt == '-S':
-      scatter = True
-    elif opt == '-t':
-      plot.title(arg)
-    elif opt == '-x':
-      plot.axes().set_xlabel(arg)
-    elif opt == '-y':
-      plot.axes().set_ylabel(arg)
-  # Plot the data
-  for data, line_arg in zip(data_sets, line_args):
-    if error_bars:
-      xs, ymean, yerr = _CliSummarize(data).T
-      if yerr.size == 0:
-        yerr = None
-      plot.errorbar(xs, ymean, yerr = yerr, **line_arg)
-    elif histogram:
-      plot.hist(data.flat, 100, **line_arg)
-    elif scatter:
-      data = data.T
-      data.sort(0)
-      plot.scatter(data[0], data[1], **line_arg)
-    elif array_image:
-      if data.ndim == 2:
-        Show2dArray(data)
-      else:
-        Show3dArray(data)
-    else:
-      data.sort(0)
-      data = data.T
-      plot.plot(data[0], data[1], **line_arg)
-  if axis != None:
-    plot.axis(axis)
-  if cmd != None:
-    eval(cmd, globals(), locals())
-  if show_legend:
-    plot.rcParams['legend.loc'] = 'best'
-    plot.legend()
-  if ofname == None:
-    plot.show()
-  else:
-    plot.savefig(ofname)
+  if len(args) < 1:
+    args = [ sys.stdin ]
+  p.PlotFromFile(*args)
 
 def main():
   try:
@@ -471,19 +732,25 @@ def main():
       "[options] [DATA ...]\n" + \
       "options:\n"
       "  -a X0,X1,Y0,Y1  Set range of X and Y axes to [X0,X1] and [Y0,Y1].\n"
-      "  -c COLORS       Specify comma-separated line colors. Ex: r, g, b.\n"
+      "  -c COLORS       Specify comma-separated line colors, or group colors "
+      "for bar\n"
+      "                  plot. Ex: \"r,g,b\".\n"
       "  -C COMMAND      Specify a command to evaluate after plotting the data."
       "\n"
       "  -e              Plot 2D datasets with repeated X values by showing"
       " error bars\n"
       "                  as plus or minus the standard error (std / sqrt(#obs))"
       ".\n"
+      "  -g SIZE         Specify group size for bar plot (default is 1).\n"
       "  -H              Plot histogram of 1D datasets.\n"
       "  -i TYPE         Set input encoding type [one of:"
       " %s, default: %s].\n" % (", ".join(gio.INPUT_ENCODINGS),
           gio.ENCODING_PICKLE) + \
       "  -I              Plot ND datasets as images.\n"
-      "  -l LABELS       Specify comma-separated line names.\n"
+      "  -l LABELS       Specify comma-separated line names, or category labels "
+      "for bar\n"
+      "                  plot.\n"
+      "  -L LABELS       Specify group labels for bar plot.\n"
       "  -o FNAME        Write plot to image file FNAME.\n"
       "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-',"
       " \n"
