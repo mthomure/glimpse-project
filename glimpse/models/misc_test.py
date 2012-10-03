@@ -1,12 +1,13 @@
 
 import Image
 import os
+from scipy.misc import fromimage
 import unittest
 
 from glimpse import glab
 from glimpse.models.misc import LayerSpec, InputSource, \
     InputSourceLoadException, BaseLayer, BaseState, BaseParams, BaseModel, \
-    DependencyError, ImprintKernels
+    DependencyError, ImprintKernels, BadInputException, ResizeMethod
 
 EXAMPLE_IMAGE = os.path.join(glab.GetExampleCorpus(), 'cats', 'Marcus_bed.jpg')
 EXAMPLE_IMAGE2 = os.path.join(glab.GetExampleCorpus(), 'dogs',
@@ -137,6 +138,23 @@ class TestBaseModel(unittest.TestCase):
 
   def testBuildLayer(self):
     self._testBuildLayer(use_callback = False)
+
+  def testBuildLayer_imageAsNdarray(self):
+    # Use resize method on ndarray.
+    params = BaseParams()
+    params.image_resize_method = ResizeMethod.METHOD_WIDTH
+    params.image_resize_length = 128
+    model = Model(params = params)
+    # Convert image to array of grayscale values.
+    img = Image.open(EXAMPLE_IMAGE).convert('L')
+    state = model.MakeStateFromImage(fromimage(img))
+    out_state = model.BuildLayer(Layer.RESHAPED_IMAGE, state)
+
+  def testBuildLayer_failsOnBadNdarray(self):
+    model = Model()
+    # Read image to 3D array of RGB values.
+    img = Image.open(EXAMPLE_IMAGE).convert('RGB')
+    self.assertRaises(BadInputException, model.MakeStateFromImage, fromimage(img))
 
   def testBuildLayerCallback(self):
     self._testBuildLayer(use_callback = True)
