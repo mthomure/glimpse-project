@@ -3,6 +3,9 @@
 # Note: "-l" flag on bash command needed to work around weird matlab
 # environment.
 
+# Clobber the shared library path to avoid using Matlab's glibc, etc.
+LD_LIBRARY_PATH=
+
 # Usage: apply-model.sh MODEL INPUT_1 [... INPUT_N]
 # where MODEL is the name of a model class (e.g., "dog", "leash", etc)
 # and each INPUT can be an image file (e.g., "cat1.jpg") or data in

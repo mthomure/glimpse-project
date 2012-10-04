@@ -3,6 +3,9 @@
 # Note: "-l" flag on bash command needed to work around weird matlab
 # environment.
 
+# Clobber the shared library path to avoid using Matlab's glibc, etc.
+LD_LIBRARY_PATH=
+
 # Usage: train-model.sh MODEL POS_DIR NEG_DIR [NUM_PROTOTYPES]
 # where MODEL is the name of a model class (e.g., "dog", "leash", etc), while
 # POS_DIR and NEG_DIR give the locations of positive and negative training 
