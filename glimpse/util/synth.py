@@ -43,6 +43,19 @@ def memoize(f):
   f.cache = {}
   return decorator(_memoize, f)
 
+class SingletonDict(dict):
+  """A dictionary with at most one item."""
+
+  def __setitem__(self, key, value):
+    if key not in self:
+      self.clear()
+      return super(SingletonDict, self).__setitem__(key, value)
+
+def cache_last(f):
+  """A function decorator that caches the last result."""
+  f.cache = SingletonDict()
+  return decorator(_memoize, f)
+
 @decorator
 def trace(f, *args, **kw):
   print "calling %s with args %s, %s" % (f.func_name, args, kw)
@@ -205,9 +218,9 @@ def LoadImage(*path_parts):
   path = os.path.join(*path_parts)
   return Image.open(path)
 
-@memoize
+@cache_last
 def LoadCachedImage(*path_parts):
-  """A caching image loader."""
+  """An image loader that remembers the last file from disk."""
   return LoadImage(*path_parts)
 
 def _ComputeIndices(iw, w, dx):
