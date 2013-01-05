@@ -26,7 +26,6 @@ def log(*args):
   sys.stdout.flush()
   #~ time.sleep(1)
 
-
 def _memoize(func, *args, **kw):
   if kw: # frozenset is used to ensure hashability
     key = args, frozenset(kw.iteritems())
@@ -290,7 +289,7 @@ def ObjToStr(obj, *fields):
 class MaskedCorpus(object):
 
   def __init__(self, root, image_loader = None):
-    assert os.path.isdir(root)
+    assert os.path.isdir(root), "Can't find masked corpus directory: %s" % root
     if image_loader is None:
       image_loader = LoadImage
     self.root = root
@@ -536,9 +535,47 @@ class Renderer(object):
     """
     return self._RenderVarClass(object_id, 90, .6, 60, 60, bg_images)
 
-def Render(object_id, var_class, out_dir, *bg_images):
+def Render(base_dir, object_id, var_class, out_dir, *bg_images):
+  """Render a set of images by pasting the object over background images.
+
+  For each background image, the foreground object will be randomly transformed
+  via (y-axis) rotation, scaling, and both vertical and horizontal translation.
+  The degree of variation for each type of transformation depends on the
+  variation class (var_class).
+
+  :param str base_dir: Path to directory containing masked object images.
+  :param object_id: Unique identifier of foreground object.
+  :param int var_class: Level of variation (0-6) of generated images, with
+     larger values indicating higher degree of variation.
+  :param str out_dir: Path to output directory.
+  :type bg_images: list of str
+  :param bg_images: Path to background images. Can also be one of 'black' or
+     'noise' for a flat-black background or a 1/f noise background,
+     respectively.
+
+  The base_dir directory should contain one level of sub-directories, whose
+  names correspond to object IDs. Each sub-directory should contain files of the
+  form "{object_id}_r{rotation}.png", with curly brackets for illustration.
+
+  Results will be written to the output directory with file names of the form
+  "{index}_{object_id}_r{rotation}s{scale}y{shifty}x{shiftx}_{bg_image}.png",
+  where rotation, scale, shifty and shiftx indicate the degree of variation of
+  the corresponding transformations.
+
+  Example:
+
+  Generate two images with black backgrounds from variation level three.
+
+  >>> images = Render('/aloi/masked_objects', 139, 3, '/aloi/synthetic',
+      ['black', 'black'])
+
+  Generate one image with an existing background from variation level six.
+
+  >>> image, = Render('/aloi/masked_objects', 139, 6, '/aloi/synthetic',
+     ['/aloi/backgrounds/bg1.jpg'])
+
+  """
   object_id = int(object_id)
-  base_dir = '/home/thomure/research/corpora/aloi-synthetic/working/objects'
   r = Renderer(MaskedCorpus(base_dir, LoadCachedImage))
   try:
     func = getattr(r, 'RenderVar%s' % var_class)
@@ -557,8 +594,9 @@ def Render(object_id, var_class, out_dir, *bg_images):
     img.save(path)
 
 if __name__ == '__main__':
-  if len(sys.argv) < 5:
-    sys.exit("usage: %s OBJID VAR-CLASS OUT-DIR BG-IMAGE ..." % sys.argv[0])
+  if len(sys.argv) < 6:
+    sys.exit("usage: %s OBJ-ROOT OBJ-ID VAR-CLASS OUT-DIR BG-IMAGE ..." % \
+        sys.argv[0])
   Render(*sys.argv[1:])
 
 """
