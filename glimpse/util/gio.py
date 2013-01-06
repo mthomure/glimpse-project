@@ -117,7 +117,7 @@ def LoadAll(fnames, encoding = ENCODING_PICKLE):
   :returns: Iterator over the set of all objects read.
 
   """
-  if not IsIterable(fnames) or IsString(fnames):
+  if not IsIterable(fnames) or IsString(fnames) or isinstance(fnames, file):
     fnames = (fnames,)
   for fh in fnames:
     do_close = False
