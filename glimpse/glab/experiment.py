@@ -24,6 +24,7 @@ import types
 from glimpse.models import misc
 from glimpse import util
 from glimpse.util.grandom import HistogramSampler
+from glimpse.util import kernel
 from glimpse.util import svm
 from glimpse.models.misc import InputSourceLoadException
 from glimpse.backends import BackendException, InsufficientSizeException
@@ -269,12 +270,9 @@ class Experiment(object):
     model = self.model
     prototypes = []
     for kshape in model.s2_kernel_shapes:
-      shape = (num_prototypes,) + tuple(kshape)
-      prototypes_for_size = np.random.uniform(low, high, shape)
-      if model.s2_kernels_are_normed:
-        for proto in prototypes_for_size:
-          proto /= np.linalg.norm(proto)
-      prototypes.append(prototypes_for_size)
+      prototypes.append(kernel.MakeUniformRandomKernels(num_prototypes,
+          kshape, normalize = model.s2_kernels_are_normed, low = low,
+          high = high))
     model.s2_kernels = prototypes
     self.prototype_construction_time = time.time() - start_time
     self.prototype_source = 'uniform'

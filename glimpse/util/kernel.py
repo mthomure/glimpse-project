@@ -254,6 +254,36 @@ def MakeRandomKernels(nkernels, kshape, normalize = True, mean = 0,
       k /= np.linalg.norm(k)
   return kernels
 
+def MakeUniformRandomKernels(nkernels, kshape, normalize = True, low = 0, high = 1):
+  """Create a set of N-dimensional kernel arrays whose components are sampled
+  independently from the uniform distribution.
+
+  :param int nkernels: Number of kernels to create.
+  :param kshape: Dimensions of each kernel.
+  :type kshape: list of int
+  :param bool normalize: Whether the resulting kernels should be scaled to have
+     unit norm.
+  :param float low: Minimum value of the uniform distribution.
+  :param float high: Maximum value of the uniform distribution.
+  :returns: Set of kernel arrays.
+  :rtype: N-dimensional ndarray of float, where `N = len(kshape)+1`
+
+  Examples:
+
+  >>> nkernels = 10
+  >>> kshape = (8, 5, 5)
+  >>> kernels = MakeUniformRandomKernels(nkernels, kshape)
+  >>> assert(kernels.shape[0] == nkernels)
+  >>> assert(kernels.shape[1:] == kshape)
+
+  """
+  shape = (nkernels,) + tuple(kshape)
+  kernels = np.random.uniform(low, high, shape)
+  if normalize:
+    for kernel in kernels:
+      kernel /= np.linalg.norm(kernel)
+  return kernels
+
 def MakeLanczosKernel():
   """Construct a smoothing filter based on the Lanczos window.
 

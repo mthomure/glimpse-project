@@ -74,7 +74,7 @@ def _FormatCliResults(svm_decision_values = False, svm_predicted_labels = False,
 def _RunCli(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     corpus = None, use_svm = False, compute_features = False, raw = False,
     result_path = None, cross_validate = False, verbose = 0, balance = False,
-    corpus_subdirs = None, compute_raw_features = False, **opts):
+    corpus_subdirs = None, compute_raw_features = False, high = None, **opts):
   if corpus != None:
     SetCorpus(corpus, balance = balance)
   elif corpus_subdirs:  # must be not None and not empty list
@@ -87,7 +87,7 @@ def _RunCli(prototypes = None, prototype_algorithm = None, num_prototypes = 10,
     if prototype_algorithm == 'imprint':
       ImprintS2Prototypes(num_prototypes)
     elif prototype_algorithm == 'uniform':
-      MakeUniformRandomS2Prototypes(num_prototypes)
+      MakeUniformRandomS2Prototypes(num_prototypes, high = high)
     elif prototype_algorithm == 'shuffle':
       MakeShuffledRandomS2Prototypes(num_prototypes)
     elif prototype_algorithm == 'histogram':
@@ -119,7 +119,7 @@ def main():
     cli_opts, _ = util.GetOptions('bc:C:el:m:n:o:p:P:r:st:vx',
         ['balance', 'corpus=', 'corpus-subdir=', 'cluster-config=',
         'compute-features', 'compute-raw-features', 'edit-options', 
-        'layer=', 'model=',
+        'high=', 'layer=', 'model=',
         'num-prototypes=', 'options=', 'prototype-algorithm=', 'prototypes=',
         'results=', 'svm', 'svm-decision-values',
         'svm-predicted-labels', 'pool-type=', 'verbose', 'cross-validate'])
@@ -139,6 +139,8 @@ def main():
         opts['compute_raw_features'] = True
       elif opt in ('-e', '--edit-options'):
         opts['edit_params'] = True
+      elif opt == '--high':
+        opts['high'] = float(arg)
       elif opt in ('-l', '--layer'):
         opts['layer'] = arg
       elif opt in ('-m', '--model'):
@@ -187,6 +189,7 @@ def main():
         "(i.e.,\n"
         "                                  do not flatten feature vectors)\n"
         "  -e, --edit-options              Edit model options with a GUI\n"
+        "      --high                      Maximum edge of uniform distribution\n"
         "  -l, --layer=LAYR                Compute feature vectors from LAYR "
         "activity\n"
         "  -m, --model=MODL                Use model named MODL\n"
