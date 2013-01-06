@@ -13,6 +13,7 @@ import logging
 from math import sqrt
 import numpy as np
 import random
+from scipy.misc import toimage
 
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
@@ -62,6 +63,9 @@ class InputSourceLoadException(Exception):
     return "InputSourceLoadException(%s)" % self.source
 
   __repr__ = __str__
+
+class BadInputException(Exception):
+  """Thrown when an input source was available, but invalid."""
 
 class InputSource(object):
   """Describes the input to a hierarchical model.
@@ -650,12 +654,18 @@ class BaseModel(object):
     :rtype: 2D ndarray of float
 
     """
+    is_ndarray = isinstance(input_, np.ndarray)
+    if not(is_ndarray or isinstance(input_, Image.Image)):
+      raise BadInputException("Bad input type: %s" % type(input_))
+    if is_ndarray and input_.ndim != 2:
+      raise BadInputException("Bad input array: expected 2D, but got shape %s" \
+          % (input_.shape,))
     resize_method = self.params.image_resize_method
     if resize_method != ResizeMethod.METHOD_NONE:
       resize_length = self.params.image_resize_length
       resize_aspect_ratio = self.params.image_resize_aspect_ratio
       # Make sure input is an image
-      if not isinstance(input_, Image.Image):
+      if is_ndarray:
         input_ = toimage(input_)
       old_size = np.array(input_.size, np.float)  # format is (width, height)
       if resize_method == ResizeMethod.METHOD_SHORT_EDGE:
@@ -854,8 +864,8 @@ def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
   >>> model = BaseModel()
   >>> images = glab.GetExampleImages()
   >>> states = map(model.MakeStateFromFilename, images)
-  >>> kernels, locations = ImprintKernels(model, kernel_sizes = (7, 11),
-          num_kernels = 10, states)
+  >>> kernels, locations = ImprintKernels(model, BaseLayer.IMAGE, image,
+          kernel_sizes = (7, 11), num_kernels = 10, input_state = states)
 
   The result should contain a sub-list for each of the two kernel sizes.
 

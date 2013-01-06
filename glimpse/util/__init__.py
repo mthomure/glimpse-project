@@ -8,6 +8,7 @@
 # Import the most common methods into the glimpse.util namespace
 #
 
+from . import pil_fix  # needed for garray imports
 from .garray import *
 from .gimage import *
 from .gio import *
