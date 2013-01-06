@@ -189,6 +189,13 @@ class Experiment(object):
     self.prototype_source = 'manual'
     self.model.s2_kernels = value
 
+  @property
+  def num_classes(self):
+    """The number of classes for discrimination."""
+    if self.train_images == None:
+      return 0
+    return len(self.train_images)
+
   def __str__(self):
     values = dict(self.__dict__)
     values['classes'] = ", ".join(values['classes'])
@@ -631,8 +638,12 @@ class Experiment(object):
     decision_values = self.classifier.decision_function(train_features)
     predicted_labels = self.classifier.predict(train_features)
     accuracy = sklearn.metrics.zero_one_score(train_labels, predicted_labels)
-    fpr, tpr, thresholds = sklearn.metrics.roc_curve(train_labels, predicted_labels)
-    auc = sklearn.metrics.auc(fpr, tpr)
+    if self.num_classes == 2:
+      fpr, tpr, thresholds = sklearn.metrics.roc_curve(train_labels,
+          predicted_labels)
+      auc = sklearn.metrics.auc(fpr, tpr)
+    else:
+      auc = None
     self.train_results = dict(decision_values = decision_values,
         predicted_labels = predicted_labels, accuracy = accuracy, auc = auc)
     return self.train_results['accuracy']
@@ -652,8 +663,12 @@ class Experiment(object):
     decision_values = self.classifier.decision_function(test_features)
     predicted_labels = self.classifier.predict(test_features)
     accuracy = sklearn.metrics.zero_one_score(test_labels, predicted_labels)
-    fpr, tpr, thresholds = sklearn.metrics.roc_curve(test_labels, predicted_labels)
-    auc = sklearn.metrics.auc(fpr, tpr)
+    if self.num_classes == 2:
+      fpr, tpr, thresholds = sklearn.metrics.roc_curve(test_labels,
+          decision_values)
+      auc = sklearn.metrics.auc(fpr, tpr)
+    else:
+      auc = None
     self.test_results = dict(decision_values = decision_values,
         predicted_labels = predicted_labels, accuracy = accuracy, auc = auc)
     return self.test_results['accuracy']
