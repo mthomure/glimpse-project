@@ -432,8 +432,9 @@ class BaseModel(object):
     :param output_layer: Output layer to compute. If scalar is given, this
        should be the ID of the desired layer.
     :type output_layer: :class:`LayerSpec` or scalar
-    :param state: Initial model state from which to compute the output layer.
-    :type state: StateClass
+    :param state: Initial model state from which to compute the output layer, or
+       input image as path or in-memory image.
+    :type state: StateClass or str or Image
     :param bool save_all: Whether the resulting state should contain values for
        all computed layers in the network, or just the output layer. Note that
        source information is always preserved.
@@ -450,7 +451,12 @@ class BaseModel(object):
     >>> assert(BaseLayer.IMAGE.ident in output_state)
 
     """
-    state = copy.copy(state)  # get a shallow copy of the model state
+    if isinstance(state, basestring):
+      state = self.MakeStateFromFilename(state)
+    elif isinstance(state, Image.Image):
+      state = self.MakeStateFromImage(state)
+    else:
+      state = copy.copy(state)  # get a shallow copy of the model state
     if isinstance(output_layer, LayerSpec):
       output_layer = output_layer.ident
     if output_layer in state:
