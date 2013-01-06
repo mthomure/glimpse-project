@@ -147,18 +147,79 @@ def EasyTestAUC(classifier, test_features):
   auc = sklearn.metrics.auc_score(labels, dvalues[:, 0])
   return auc
 
-def EasyCrossVal(classifier, features, num_folds = 5):
+def EasyCrossVal(classifier, all_features, num_folds = 5, score_func = None,
+    as_dvalues = False, num_jobs = 1):
   """
   Compute the cross-validated accuracy of an SVM model.
 
   :param classifier: An untrained classifier.
   :type classifier: sklearn.base.ClassifierMixin
-  :param features: Training data indexed by class, instance, and feature.
-  :type features: 3D array-like
+  :param all_features: Training data indexed by class, instance, and feature.
+  :type all_features: 3D array-like
   :param int num_folds: Number of folds used for cross-validation.
+  :param callable score_func: Function to compute score from classifier output.
+  :param bool as_dvalues: Use decision values instead of predictions.
+  :param int num_jobs: Number of processes to spawn (-1 means as many jobs as
+     there are machine cores).
   :rtype: ndarray of float
   :return: Accuracy of model for each fold.
 
   """
-  features, labels = PrepareFeatures(features)
-  return sklearn.cross_validation.cross_val_score(classifier, features, labels, cv = num_folds)
+  labels = GlimpseToSklearnLabels(all_features)
+  features = GlimpseToSklearnFeatures(all_features)
+  return cross_val_score(classifier, features, labels, cv = num_folds,
+      score_func = score_func, n_jobs = num_jobs, as_dvalues = as_dvalues)
+
+def cross_val_score(estimator, X, y = None, score_func = None,
+    cv = None, n_jobs = 1, verbose = 0, as_dvalues = False):
+  """Evaluate a score by cross-validation.
+
+  Replacement of :func:`sklearn.cross_validation.cross_val_score`, used to
+  support computation of decision values.
+
+  """
+  from sklearn.cross_validation import check_cv, check_arrays, is_classifier, \
+      Parallel, delayed, clone
+  X, y = check_arrays(X, y, sparse_format='csr')
+  cv = check_cv(cv, X, y, classifier=is_classifier(estimator))
+  if score_func is None:
+      if not hasattr(estimator, 'score'):
+          raise TypeError(
+              "If no score_func is specified, the estimator passed "
+              "should have a 'score' method. The estimator %s "
+              "does not." % estimator)
+  # We clone the estimator to make sure that all the folds are
+  # independent, and that it is pickle-able.
+  scores = Parallel(n_jobs=n_jobs, verbose=verbose)(
+      delayed(_cross_val_score)(clone(estimator), X, y, score_func, train, test,
+          verbose, as_dvalues)
+      for train, test in cv)
+  return np.array(scores)
+
+def _cross_val_score(estimator, X, y, score_func, train, test, verbose,
+    as_dvalues):
+  """Inner loop for cross validation.
+
+  Modified version of :func:`sklearn.cross_validation._cross_val_score`, used to
+  support computation of decision values.
+
+  """
+  if y is None:
+    estimator.fit(X[train])
+    if score_func is None:
+      score = estimator.score(X[test])
+    else:
+      score = score_func(X[test])
+  else:
+    estimator.fit(X[train], y[train])
+    if score_func is None:
+      score = estimator.score(X[test], y[test])
+    else:
+      if as_dvalues:
+        predicted_y = estimator.decision_function(X[test])
+      else:
+        predicted_y = estimator.predict(X[test])
+      score = score_func(y[test], predicted_y)
+  if verbose > 1:
+    print("score: %f" % score)
+  return score
