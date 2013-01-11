@@ -303,6 +303,16 @@ class BaseState(dict):
   #: sub-class.
   ModelClass = None
 
+  def __init__(self, elements = None, **kw):
+    # Keys in kw are scalars
+    super(BaseState, self).__init__(**kw)
+    if elements is not None:
+      if hasattr(elements, 'items'):
+        elements = elements.items()
+      for k, v in elements:
+        if k not in kw:
+          self[k] = v
+
   def __getitem__(self, name):
     """Lookup activation for a given layer.
 
@@ -313,6 +323,26 @@ class BaseState(dict):
     if isinstance(name, LayerSpec):
       name = name.ident
     return super(BaseState, self).__getitem__(name)
+
+  def __setitem__(self, name, value):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__setitem__(name, value)
+
+  def __delitem__(self, name):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__delitem__(name)
+
+  def __contains__(self, name):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__contains__(name)
+
+  def get(self, name, default_value = None):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).get(name, default_value)
 
 class ResizeMethod(traits.Enum):
   """A trait type describing how to resize an input image."""
