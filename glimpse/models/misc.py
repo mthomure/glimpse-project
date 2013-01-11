@@ -22,6 +22,10 @@ from glimpse.util import traits
 from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
 from glimpse.util.garray import toimage
 
+#: Model name used by :func:`MakeModelClass`, :func:`MakeModel`, and
+#: :func:`MakeParams` when no name is supplied.
+DEFAULT_MODEL_NAME = "viz2"
+
 class LayerSpec(object):
   """Describes a single layer in a model."""
 
@@ -550,6 +554,28 @@ class BaseModel(object):
     state[self.LayerClass.IMAGE.ident] = self.BuildImageFromInput(image)
     return state
 
+  def MakeState(self, source):
+    """Create a model state wrapper for the given image source.
+
+    :type state: str or Image.Image or `BaseState` subclass
+    :param state: Source information
+    :rtype: `BaseState` subclass
+
+    """
+    if isinstance(source, self.StateClass):
+      return source
+    if isinstance(source, basestring):
+      return self.MakeStateFromFilename(source)
+    elif isinstance(source, Image.Image):
+      return self.MakeStateFromImage(source)
+    elif isinstance(source, np.ndarray):
+      if source.ndim == 2:
+        state = self.StateClass()
+        state[self.LayerClass.IMAGE] = source
+        return state
+      raise ValueError("Inputs of array type must be 2D")
+    raise ValueError("Unknown image source: %s" % source)
+
   def SamplePatches(self, layer, num_patches, state, normalize = False):
     """Sample patches from the given layer for a single image.
 
@@ -962,7 +988,7 @@ def GetModelClass(name = None):
 
   :param str name: The name of the model. This corresponds to the model's
      package name. The default is read from the :envvar:`GLIMPSE_MODEL`
-     environment variable, or is ``hmax`` if this is not set.
+     environment variable, or is `DEFAULT_MODEL_NAME` if this is not set.
 
   Examples:
 
@@ -974,10 +1000,41 @@ def GetModelClass(name = None):
   """
   import os
   if name == None:
-    name = os.environ.get('GLIMPSE_MODEL', 'viz2')
+    name = os.environ.get('GLIMPSE_MODEL', DEFAULT_MODEL_NAME)
   pkg = __import__("glimpse.models.%s" % name, globals(), locals(), ['Model'],
       0)
   try:
     return getattr(pkg, 'Model')
   except AttributeError:
     raise ValueError("Unknown model name: %s" % name)
+
+def MakeParams(name = None):
+  """Create parameters for the given model."""
+  return GetModelClass().ParamClass()
+
+def MakeModel(*args):  #name = None, params = None):
+  """Create an instance of the given model.
+
+  Usage:
+
+  model = MakeModel(name)
+  model = MakeModel(params)
+  model = MakeModel(name, params)
+
+  :param str name: The name of the model.
+  :param params: Parameters for the given model.
+  :returns: Created model instance.
+
+  """
+  name = params = None
+  if len(args) == 1:
+    name = args[0]
+    if isinstance(args[0], basestring):
+      name = args[0]
+    else:
+      params = args[0]
+  elif len(args) == 2:
+    name, params = args[:2]
+  elif len(args) > 2:
+    raise ValueError("Too many parameters")
+  return GetModelClass(name)(params = params)
