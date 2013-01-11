@@ -8,25 +8,10 @@
 import Image
 import numpy as np
 from scipy import fftpack
-from scipy.misc import toimage
 import sys
 import warnings
 
-from garray import ACTIVATION_DTYPE, PadArray
-
-def fromimage(im, flatten = 0):
-  """Convert Image to numpy array."""
-  if not Image.isImageType(im):
-      raise TypeError("Input is not a PIL image.")
-  if flatten:
-    im = im.convert('F')
-  elif im.mode == '1':
-    # Add workaround to bug on converting binary image to numpy array.
-    im = im.convert('L')
-  elif im.mode == 'LA':
-    raise ValueError("Greyscale with alpha channel not supported. Convert to"
-        " RGBA first.")
-  return np.array(im)
+from garray import ACTIVATION_DTYPE, PadArray, fromimage, toimage
 
 def ScaleImage(img, size):
   """Resize an image.
@@ -99,8 +84,8 @@ def ImageToArray(img, array = None, transpose = True):
   :returns: Array containing image data. Note that this may be non-contiguous.
   :rtype: ndarray
 
-  .. seealso::
-     :func:`scipy.misc.misc.fromimage`.
+  .. deprecated::
+     Use :func:`glimpse.util.garray.fromimage` instead.
 
   """
   def MakeBuffer():

@@ -5,7 +5,7 @@
 #
 # Please see the file COPYING in this distribution for usage terms.
 
-import garray
+from garray import ToImage
 import gimage
 import itertools
 import math
@@ -179,19 +179,6 @@ def ToArray(obj):
   except AttributeError:
     pass
   raise TypeError("Don't know how to create array from %s" % type(obj))
-
-def ToImage(obj):
-  """Convert an object to an image.
-
-  :param obj: Input data.
-  :type obj: ndarray, PIL.Image, or any object with a `ToArray()` method.
-  :rtype: PIL.Image
-
-  """
-  if hasattr(obj, "load"):
-    return obj
-  obj = ToArray(obj)
-  return garray.ArrayToGreyscaleImage(obj)
 
 def Show(obj, fname = None):
   """Display an object on the screen.

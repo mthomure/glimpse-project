@@ -13,7 +13,6 @@ import logging
 from math import sqrt
 import numpy as np
 import random
-from scipy.misc import toimage
 
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
@@ -21,6 +20,7 @@ from glimpse import pools
 from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
 from glimpse.util import traits
 from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
+from glimpse.util.garray import toimage
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
