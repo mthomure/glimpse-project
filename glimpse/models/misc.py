@@ -24,7 +24,7 @@ from glimpse.util.garray import toimage
 
 #: Model name used by :func:`MakeModelClass`, :func:`MakeModel`, and
 #: :func:`MakeParams` when no name is supplied.
-DEFAULT_MODEL_NAME = "viz2"
+DEFAULT_MODEL_NAME = "ml"
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
@@ -314,8 +314,8 @@ class BaseParams(traits.HasStrictTraits):
   # When the method is SCALE_AND_CROP, use the length parameter to specify the
   # output image width, and the aspect_ratio parameter to specify the (relative)
   # output image height.
-  image_resize_method = ResizeMethod("none", label = "Image Resize Method",
-      desc = "method for resizing input images")
+  image_resize_method = ResizeMethod("scale short edge",
+      label = "Image Resize Method", desc = "method for resizing input images")
 
   image_resize_length = traits.Range(0, value = 256, exclude_low = True,
       label = "Image Resize Length", desc = "Length of resized image")
