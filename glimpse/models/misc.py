@@ -17,10 +17,10 @@ import random
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse import pools
-from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
+from glimpse.util import ACTIVATION_DTYPE, TypeName
 from glimpse.util import traits
 from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
-from glimpse.util.garray import toimage
+from glimpse.util.garray import toimage, fromimage
 
 #: Model name used by :func:`MakeModelClass`, :func:`MakeModel`, and
 #: :func:`MakeParams` when no name is supplied.
@@ -128,9 +128,8 @@ def ImageLayerFromInputArray(input_, backend):
   :rtype: 2D ndarray of float
 
   """
-  if isinstance(input_, Image.Image):
-    input_ = input_.convert('L')
-    input_ = ImageToArray(input_, transpose = True)
+  if Image.isImageType(input_):
+    input_ = fromimage(input_.convert('L'))
     input_ = input_.astype(np.float)
     # Map from [0, 255] to [0, 1]
     input_ /= 255
@@ -146,7 +145,30 @@ def ImageLayerFromInputArray(input_, backend):
     # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
     # nonlinearities caused by normalization). The scaling of S1 response seems
     # unlikely to cause a significant change in the network output.
+  elif isinstance(input_, np.ndarray):
+    if input_.ndim != 2:
+      raise ValueError("Image array must be 2D")
+  else:
+    raise ValueError("Unknown input value of type: %s" % type(input_))
   return backend.PrepareArray(input_)
+
+def ImageLayerToImage(data):
+  """Create an image from a 2D array of model activity.
+
+  :param data: Single scale of one layer of model activity, with elements in the
+     range [0,1].
+  :type data: 2D ndarray of floats
+  :rtype: Image
+  :returns: Greyscale image of layer activity.
+
+  """
+  if not (isinstance(data, np.ndarray) and data.ndim == 2 and \
+      data.dtype == ACTIVATION_DTYPE):
+    raise ValueError("Invalid image layer data")
+  data = data.copy()
+  data *= 255
+  img = toimage(data.astype(np.uint8))
+  return img
 
 class DependencyError(Exception):
   """Indicates that a dependency required to build a node in the network is
