@@ -12,7 +12,7 @@ from decorator import decorator  # need "decorator" from PyPi
 from tempfile import NamedTemporaryFile
 import subprocess
 
-from glimpse.util.gimage import fromimage, toimage
+from glimpse.util.garray import fromimage, toimage
 
 
 def debug(*names, **args):

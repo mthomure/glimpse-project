@@ -13,14 +13,18 @@ import logging
 from math import sqrt
 import numpy as np
 import random
-from scipy.misc import toimage
 
 from glimpse import backends
 from glimpse.backends import BackendException, InsufficientSizeException
 from glimpse import pools
-from glimpse.util import ImageToArray, ACTIVATION_DTYPE, TypeName
+from glimpse.util import ACTIVATION_DTYPE, TypeName
 from glimpse.util import traits
 from glimpse.util.gimage import ScaleImage, ScaleAndCropImage
+from glimpse.util.garray import toimage, fromimage
+
+#: Model name used by :func:`MakeModelClass`, :func:`MakeModel`, and
+#: :func:`MakeParams` when no name is supplied.
+DEFAULT_MODEL_NAME = "ml"
 
 class LayerSpec(object):
   """Describes a single layer in a model."""
@@ -124,9 +128,8 @@ def ImageLayerFromInputArray(input_, backend):
   :rtype: 2D ndarray of float
 
   """
-  if isinstance(input_, Image.Image):
-    input_ = input_.convert('L')
-    input_ = ImageToArray(input_, transpose = True)
+  if Image.isImageType(input_):
+    input_ = fromimage(input_.convert('L'))
     input_ = input_.astype(np.float)
     # Map from [0, 255] to [0, 1]
     input_ /= 255
@@ -142,7 +145,30 @@ def ImageLayerFromInputArray(input_, backend):
     # since W is a mean-zero Gabor filter. (This ignores retinal processing, and
     # nonlinearities caused by normalization). The scaling of S1 response seems
     # unlikely to cause a significant change in the network output.
+  elif isinstance(input_, np.ndarray):
+    if input_.ndim != 2:
+      raise ValueError("Image array must be 2D")
+  else:
+    raise ValueError("Unknown input value of type: %s" % type(input_))
   return backend.PrepareArray(input_)
+
+def ImageLayerToImage(data):
+  """Create an image from a 2D array of model activity.
+
+  :param data: Single scale of one layer of model activity, with elements in the
+     range [0,1].
+  :type data: 2D ndarray of floats
+  :rtype: Image
+  :returns: Greyscale image of layer activity.
+
+  """
+  if not (isinstance(data, np.ndarray) and data.ndim == 2 and \
+      data.dtype == ACTIVATION_DTYPE):
+    raise ValueError("Invalid image layer data")
+  data = data.copy()
+  data *= 255
+  img = toimage(data.astype(np.uint8))
+  return img
 
 class DependencyError(Exception):
   """Indicates that a dependency required to build a node in the network is
@@ -277,6 +303,16 @@ class BaseState(dict):
   #: sub-class.
   ModelClass = None
 
+  def __init__(self, elements = None, **kw):
+    # Keys in kw are scalars
+    super(BaseState, self).__init__(**kw)
+    if elements is not None:
+      if hasattr(elements, 'items'):
+        elements = elements.items()
+      for k, v in elements:
+        if k not in kw:
+          self[k] = v
+
   def __getitem__(self, name):
     """Lookup activation for a given layer.
 
@@ -287,6 +323,26 @@ class BaseState(dict):
     if isinstance(name, LayerSpec):
       name = name.ident
     return super(BaseState, self).__getitem__(name)
+
+  def __setitem__(self, name, value):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__setitem__(name, value)
+
+  def __delitem__(self, name):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__delitem__(name)
+
+  def __contains__(self, name):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).__contains__(name)
+
+  def get(self, name, default_value = None):
+    if isinstance(name, LayerSpec):
+      name = name.ident
+    return super(BaseState, self).get(name, default_value)
 
 class ResizeMethod(traits.Enum):
   """A trait type describing how to resize an input image."""
@@ -310,8 +366,8 @@ class BaseParams(traits.HasStrictTraits):
   # When the method is SCALE_AND_CROP, use the length parameter to specify the
   # output image width, and the aspect_ratio parameter to specify the (relative)
   # output image height.
-  image_resize_method = ResizeMethod("none", label = "Image Resize Method",
-      desc = "method for resizing input images")
+  image_resize_method = ResizeMethod("scale short edge",
+      label = "Image Resize Method", desc = "method for resizing input images")
 
   image_resize_length = traits.Range(0, value = 256, exclude_low = True,
       label = "Image Resize Length", desc = "Length of resized image")
@@ -556,7 +612,29 @@ class BaseModel(object):
     state[self.LayerClass.IMAGE.ident] = self.BuildImageFromInput(image)
     return state
 
-  def SamplePatches(self, layer, num_patches, state, normalize = False):
+  def MakeState(self, source):
+    """Create a model state wrapper for the given image source.
+
+    :type state: str or Image.Image or `BaseState` subclass
+    :param state: Source information
+    :rtype: `BaseState` subclass
+
+    """
+    if isinstance(source, self.StateClass):
+      return source
+    if isinstance(source, basestring):
+      return self.MakeStateFromFilename(source)
+    elif isinstance(source, Image.Image):
+      return self.MakeStateFromImage(source)
+    elif isinstance(source, np.ndarray):
+      if source.ndim == 2:
+        state = self.StateClass()
+        state[self.LayerClass.IMAGE] = source
+        return state
+      raise ValueError("Inputs of array type must be 2D")
+    raise ValueError("Unknown image source: %s" % source)
+
+  def SamplePatches(self, layer, patch_counts, state, normalize = False):
     """Sample patches from the given layer for a single image.
 
     Patches are sampled from random locations and scales.
@@ -564,9 +642,9 @@ class BaseModel(object):
     :param layer: Layer from which to extract patches. If scalar is given, this
        should be the ID of the desired layer.
     :type layer: :class:`LayerSpec` or scalar
-    :param num_patches: Number of patches to extract at each size, in the format
-       ``( (patch_size1, count1), ..., (patch_sizeN, countN) )``.
-    :type num_patches: tuple of pairs of int
+    :param patch_counts: Number of patches to extract at each size, in the
+       format ``( (patch_size1, count1), ..., (patch_sizeN, countN) )``.
+    :type patch_counts: tuple of pairs of int
     :param state: Input state for which layer activity is computed.
     :type state: StateClass
     :param bool normalize: Whether to normalize each patch.
@@ -580,27 +658,26 @@ class BaseModel(object):
     Get 10 patches from an image.
 
     >>> model = BaseModel()
-    >>> num_patches = 10
+    >>> patch_counts = ((10,10),)
     >>> image = glab.GetExampleImage()
     >>> state = model.MakeStateFromFilename(image)
-    >>> results = model.SamplePatches(BaseLayer.IMAGE, num_patches, state)
-    >>> assert(len(results) == num_patches)
+    >>> results = model.SamplePatches(BaseLayer.IMAGE, patch_counts, state)
+    >>> assert(len(results) == patch_counts)
 
     """
     if isinstance(layer, LayerSpec):
       layer = layer.ident
     state = self.BuildLayer(layer, state)
     data = state[layer]
-    def GetPatches(patch_width, num_patches):
+    all_patches = list()
+    for patch_width, num_patches in patch_counts:
       try:
-        patch_it = PatchGenerator(data, patch_width)
-        patches = list(islice(patch_it, num_patches))
+        # Create an infinite sequence of patches, and take a slice
+        patches = list(islice(PatchGenerator(data, patch_width), num_patches))
       except InsufficientSizeException, ex:
-        # Try to annotate exception with source information.
+        # Annotate exception with source information.
         ex.source = state.get(self.LayerClass.SOURCE.ident, None)
         ex.layer = layer
-        # At this point, we know that (at least) the last scale was a problem.
-        ex.scale = self.params.num_scales - 1
         raise
       # TEST CASE: single state with uniform C1 activity and using
       # normalize=True, check that result does not contain NaNs.
@@ -608,12 +685,12 @@ class BaseModel(object):
         for patch, _ in patches:
           norm = np.linalg.norm(patch)
           if norm == 0:
-            logging.warn("Normalizing empty patch")
+            logging.warn("Normalizing zero patch")
             patch[:] = 1.0 / sqrt(patch.size)
           else:
             patch /= norm
-      return patches
-    return [ GetPatches(w, c) for w, c in num_patches ]
+      all_patches.append(patches)
+    return all_patches
 
   def SamplePatchesCallback(self, layer, num_patches, normalize = False):
     """Create a function that will sample patches.
@@ -808,26 +885,34 @@ def PatchGenerator(data, patch_width):
 
   """
   assert len(data) > 0
-  assert all(d.ndim > 1 for d in data)
+  if isinstance(data, np.ndarray):
+    if data.ndim == 2:
+      # Treat 2D array as a 1-feature, 1-scale response map.
+      data = data.reshape((1, 1,) + data.shape)
+    elif data.ndim == 3:
+      # Treat 3D array as a 1-scale set of response maps.
+      data = data.reshape((1,) + data.shape)
+  assert all(d.ndim > 1 for d in data), "Data should be sequence of 3D arrays."
   num_scales = len(data)
   # Check that all scales are large enough to sample from.
-  if any(scale.shape[-1] < patch_width or scale.shape[-2] < patch_width
-      for scale in data):
-    raise InsufficientSizeException("Patch size is larger than smallest scale "
-        "map from which to imprint.")
-  while True:
-    scale = random.randint(0, num_scales - 1)
-    data_scale = data[scale]
-    num_bands = data_scale.ndim - 2
-    layer_height, layer_width = data_scale.shape[-2:]
+  for scale_idx, scale in enumerate(data):
+    if scale.shape[-1] < patch_width or scale.shape[-2] < patch_width:
+      raise InsufficientSizeException("Input data (%dx%d " % scale.shape + \
+          "at scale %d) is smaller than requested patch " % scale_idx + \
+          "size (%dx%d)" % (patch_width, patch_width))
+  while True:  # infinite sequence
+    scale_idx = random.randint(0, num_scales - 1)
+    scale = data[scale_idx]
+    num_bands = scale.ndim - 2
+    layer_height, layer_width = scale.shape[-2:]
     # Choose the top-left corner of the region.
     y0 = random.randint(0, layer_height - patch_width)
     x0 = random.randint(0, layer_width - patch_width)
     # Copy data from all bands in the given X-Y region.
     index = [ slice(None) ] * num_bands
     index += [ slice(y0, y0 + patch_width), slice(x0, x0 + patch_width) ]
-    patch = data_scale[ index ]
-    yield patch.copy(), (scale, y0, x0)
+    patch = scale[ index ]
+    yield patch.copy(), (scale_idx, y0, x0)
 
 def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
     input_states, normalize = True, pool = None):
@@ -864,17 +949,18 @@ def ImprintKernels(model, sample_layer, kernel_sizes, num_kernels,
   >>> model = BaseModel()
   >>> images = glab.GetExampleImages()
   >>> states = map(model.MakeStateFromFilename, images)
-  >>> kernels, locations = ImprintKernels(model, BaseLayer.IMAGE, image,
-          kernel_sizes = (7, 11), num_kernels = 10, input_state = states)
+  >>> kernels, locations = ImprintKernels(model, BaseLayer.IMAGE,
+      kernel_sizes = (7, 11), num_kernels = 10, input_state = states)
 
   The result should contain a sub-list for each of the two kernel sizes.
 
-  >>> assert len(kernels) == 2
-  >>> assert len(locations) == 2
+  >>> assert len(kernels) == len(images)
+  >>> assert len(locations) == len(images)
   >>> assert all(len(ks) == 10 for ps in kernels)
   >>> assert all(len(ls) == 10 for ls in locations)
 
   """
+  assert len(input_states) > 0, "No input states found"
   if pool == None:
     pool = pools.MakePool()
   if num_kernels < len(input_states):
@@ -968,7 +1054,7 @@ def GetModelClass(name = None):
 
   :param str name: The name of the model. This corresponds to the model's
      package name. The default is read from the :envvar:`GLIMPSE_MODEL`
-     environment variable, or is ``hmax`` if this is not set.
+     environment variable, or is `DEFAULT_MODEL_NAME` if this is not set.
 
   Examples:
 
@@ -980,10 +1066,41 @@ def GetModelClass(name = None):
   """
   import os
   if name == None:
-    name = os.environ.get('GLIMPSE_MODEL', 'viz2')
+    name = os.environ.get('GLIMPSE_MODEL', DEFAULT_MODEL_NAME)
   pkg = __import__("glimpse.models.%s" % name, globals(), locals(), ['Model'],
       0)
   try:
     return getattr(pkg, 'Model')
   except AttributeError:
     raise ValueError("Unknown model name: %s" % name)
+
+def MakeParams(name = None):
+  """Create parameters for the given model."""
+  return GetModelClass().ParamClass()
+
+def MakeModel(*args):  #name = None, params = None):
+  """Create an instance of the given model.
+
+  Usage:
+
+  model = MakeModel(name)
+  model = MakeModel(params)
+  model = MakeModel(name, params)
+
+  :param str name: The name of the model.
+  :param params: Parameters for the given model.
+  :returns: Created model instance.
+
+  """
+  name = params = None
+  if len(args) == 1:
+    name = args[0]
+    if isinstance(args[0], basestring):
+      name = args[0]
+    else:
+      params = args[0]
+  elif len(args) == 2:
+    name, params = args[:2]
+  elif len(args) > 2:
+    raise ValueError("Too many parameters")
+  return GetModelClass(name)(params = params)

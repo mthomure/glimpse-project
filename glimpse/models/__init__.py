@@ -5,4 +5,4 @@
 # terms.
 
 from .misc import InputSource, InputSourceLoadException, DependencyError, \
-    GetModelClass
+    GetModelClass, MakeModel, MakeParams

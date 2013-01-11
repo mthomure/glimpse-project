@@ -8,25 +8,10 @@
 import Image
 import numpy as np
 from scipy import fftpack
-from scipy.misc import toimage
 import sys
 import warnings
 
-from garray import ACTIVATION_DTYPE, PadArray
-
-def fromimage(im, flatten = 0):
-  """Convert Image to numpy array."""
-  if not Image.isImageType(im):
-      raise TypeError("Input is not a PIL image.")
-  if flatten:
-    im = im.convert('F')
-  elif im.mode == '1':
-    # Add workaround to bug on converting binary image to numpy array.
-    im = im.convert('L')
-  elif im.mode == 'LA':
-    raise ValueError("Greyscale with alpha channel not supported. Convert to"
-        " RGBA first.")
-  return np.array(im)
+from garray import ACTIVATION_DTYPE, PadArray, fromimage, toimage
 
 def ScaleImage(img, size):
   """Resize an image.
@@ -99,8 +84,8 @@ def ImageToArray(img, array = None, transpose = True):
   :returns: Array containing image data. Note that this may be non-contiguous.
   :rtype: ndarray
 
-  .. seealso::
-     :func:`scipy.misc.misc.fromimage`.
+  .. deprecated::
+     Use :func:`glimpse.util.garray.fromimage` instead.
 
   """
   def MakeBuffer():
@@ -321,3 +306,29 @@ def MakeOneOverFNoise(dim, beta):
   x = ifft2(S_f ** .5 * (cos(2 * pi * phi) + 1j * sin(2 * pi * phi)))
   # Pick just the real component.
   return np.real(x)
+
+def TileImage(data, patch_size):
+  """Split a single image into 2D set of 2D image tiles."""
+  assert data.ndim == 2
+  height, width = data.shape
+  height -= patch_size - 1  # avoid incomplete patches near border
+  width -= patch_size - 1
+  ys, xs = np.mgrid[0:height:patch_size, 0:width:patch_size]
+  patches = np.array([ data[y:y+patch_size, x:x+patch_size]
+      for y, x in zip(ys.flat, xs.flat) ])
+  patches = patches.reshape(ys.shape + patches.shape[-2:])
+  return patches
+
+def UntileImage(patches):
+  """Concatenate a 2D set of 2D image tiles."""
+  assert patches.ndim == 4
+  assert patches.shape[-1] == patches.shape[-2], "Patches must be square"
+  height, width, patch_size = patches.shape[:3]
+  height *= patch_size
+  width *= patch_size
+  data = np.ones((height, width), dtype = np.float)
+  for y0, x0 in np.ndindex(patches.shape[:2]):
+    y = y0 * patch_size
+    x = x0 * patch_size
+    data[y:y+patch_size, x:x+patch_size] = patches[y0, x0]
+  return data

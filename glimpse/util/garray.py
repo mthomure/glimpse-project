@@ -8,9 +8,34 @@
 import Image
 import math
 import numpy as np
+import scipy.misc
 
 #: Element type for an array of Glimpse activation values.
 ACTIVATION_DTYPE = np.float32
+
+def fromimage(im, flatten = 0):
+  """Convert Image to numpy array."""
+  if isinstance(im, np.ndarray):
+    return im  # make function idempotent
+  if not Image.isImageType(im):
+    raise TypeError("Input is not a PIL image.")
+  if flatten:
+    im = im.convert('F')
+  elif im.mode == '1':
+    # Add workaround to bug on converting binary image to numpy array.
+    im = im.convert('L')
+  elif im.mode == 'LA':
+    raise ValueError("Greyscale with alpha channel not supported. Convert to"
+        " RGBA first.")
+  return np.array(im)
+
+def toimage(arr, *args, **kw):
+  if Image.isImageType(arr):
+    return arr
+  return scipy.misc.toimage(arr, *args, **kw)
+
+FromImage = fromimage
+ToImage = toimage
 
 def ArgMax(array):
   """Short-hand to find array indices containing the maximum value."""
@@ -34,8 +59,8 @@ def ArrayToGreyscaleImage(array, normalize = True):
 
   This function assumes range of input values contains 0.
 
-  .. seealso::
-     :func:`scipy.misc.misc.toimage`.
+  .. deprecated::
+     Use :func:`toimage` instead.
 
   """
   if array.dtype != np.float32:
@@ -61,8 +86,8 @@ def ArrayToRGBImage(array):
 
   :rtype: PIL.Image
 
-  .. seealso::
-     :func:`scipy.misc.misc.toimage`.
+  .. deprecated::
+     Use :func:`toimage` instead.
 
   """
   return Image.fromarray(array, 'RGB')
