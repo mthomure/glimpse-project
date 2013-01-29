@@ -2,6 +2,7 @@
 
 # Operate on text files.
 
+import cPickle
 from numpy import *
 import numpy as np
 import os
@@ -15,7 +16,7 @@ class NamespaceWrapper(dict):
 
   The logic that is added includes:
     - rewrite variable name "o" to "result"
-    - process variable names "lines", "table", and "num_table" as calls to 
+    - process variable names "lines", "table", and "num_table" as calls to
     lines(), table(), and num_table(), respectively.
     - rewrite "result" (or "o") as an RVALUE to "table" when the
       variable is empty.
@@ -101,6 +102,34 @@ class HelpfulNamespaceWrapper(NamespaceWrapper):
       symbols[k] = v.__doc__
     return symbols
 
+def read_lines(path):
+  if isinstance(path, basestring):
+    fh = open(path)
+  else:
+    fh = path
+  result = list( _.strip() for _ in fh.readlines() )
+  if fh != path:
+    fh.close()
+  return result
+
+def read_table(path, delim = " "):
+  """read contents of file as a table"""
+  result = [ _.split(delim) for _ in read_lines(path) ]
+  return result
+
+def read_num_table(path, delim = " "):
+  """read contents of file as a table"""
+  result = np.array([ map(float, line) for line in read_table(path, delim) ])
+  return result
+
+def toline(xs):
+  """Format a list as a string with one line."""
+  return " ".join(map(str, xs)) if hasattr(xs, '__iter__') else str(xs)
+
+def tolines(xss):
+  """Format a 2D list as a string with multiple lines."""
+  return "\n".join(map(toline, xss)) if hasattr(xss, '__iter__') else str(xss)
+
 class FileNamespace(HelpfulNamespaceWrapper):
 
   # Caches for whole-input function calls.
@@ -111,8 +140,8 @@ class FileNamespace(HelpfulNamespaceWrapper):
   def __init__(self, vs, fh = sys.stdin, word_delimiter = " ", numeric = False):
     super(FileNamespace, self).__init__(vs,
         var_rules = dict(o = "output", result = "output", t = "table"),
-        func_rules = dict(table = self.table, lines = self.lines, 
-            num_table = self.num_table, 
+        func_rules = dict(table = self.table, lines = self.lines,
+            num_table = self.num_table,
 #            output = self.get_output
             ))
     self.fh = fh
@@ -123,19 +152,22 @@ class FileNamespace(HelpfulNamespaceWrapper):
   def lines(self):
     """input as a list of lines"""
     if self._lines == None:
-      self._lines = list( _.strip() for _ in self.fh.readlines() )
+      #~ self._lines = list( _.strip() for _ in self.fh.readlines() )
+      self._lines = read_lines(self.fh)
     return self._lines
 
   def table(self):
     """input as a 2D list of words"""
     if self._table == None:
-      self._table = [ _.split(self.word_delimiter) for _ in self.lines() ]
+      #~ self._table = [ _.split(self.word_delimiter) for _ in self.lines() ]
+      self._table = read_table(self.fh, self.word_delimiter)
     return self._table
 
   def num_table(self):
     """input as a 2D array of floats"""
     if self._num_table == None:
-      self._num_table = np.array([ map(float, _.split(self.word_delimiter)) for _ in self.lines() ])
+      #~ self._num_table = np.array([ map(float, _.split(self.word_delimiter)) for _ in self.lines() ])
+      self._num_table = read_num_table(self.fh, self.word_delimiter)
     return self._num_table
 
   def get_output(self):
@@ -151,7 +183,7 @@ class LineNamespace(HelpfulNamespaceWrapper):
   def __init__(self, vs, numeric = False):
     super(LineNamespace, self).__init__(vs,
         var_rules = dict(o = "output", result = "output", w = "words", l = "line", n = "num"),
-        func_rules = dict(num_words = self.num_words, 
+        func_rules = dict(num_words = self.num_words,
 #            output = self.get_output
         ))
     if numeric:
@@ -169,32 +201,24 @@ class LineNamespace(HelpfulNamespaceWrapper):
 #      self.vs["output"] = output
     return output
 
-def read_lines(path):
-  if isinstance(path, basestring):
-    fh = open(path)
+def pickle(obj, path = None):
+  if path == None:
+    fh = sys.stdout
   else:
-    fh = path
-  result = list( _.strip() for _ in fh.readlines() )
-  if fh != path:
+    fh = open(path, 'w')
+  cPickle.dump(obj, fh, protocol = 2)
+  if fh != sys.stdout:
+    fh.close()
+
+def unpickle(path = None):
+  if path == None:
+    fh = sys.stdin
+  else:
+    fh = open(path, 'r')
+  result = cPickle.load(fh)
+  if fh != sys.stdin:
     fh.close()
   return result
-
-def read_table(path, delim = " "):
-  """read contents of file as a table"""
-  return [ _.split(delim) for _ in read_lines(path) ]
-
-def read_num_table(path, delim = " "):
-  """read contents of file as a table"""
-  return np.array([ map(float, _) for _ in read_table(path, delim) ])
-
-def toline(xs):
-  """Format a list as a string with one line."""
-  return " ".join(map(str, xs)) if hasattr(xs, '__iter__') else str(xs)
-
-def tolines(xss):
-  """Format a 2D list as a string with multiple lines."""
-  return "\n".join(map(toline, xss)) if hasattr(xss, '__iter__') else str(xss)
-
 
 def InitPlotting():
   # If the DISPLAY environment variable is set, then assume the plot can be displayed on screen.
@@ -229,6 +253,46 @@ class Processor(object):
 
   def Evaluate(self, cmd, vs, codeobj = None):
     """Evaluate (or execute) a command on the input file."""
+
+    def format_exception():
+      lines = cmd.split("\n")
+      lines = [ "%s" % _[:100] for _ in lines ]  # truncate long lines
+      # Get stack trace
+      etype, e, tb = sys.exc_info()
+      import traceback
+      tb_entries = traceback.extract_tb(tb)[1:]
+      offset = None
+      lineno = None
+      # Determine line and column for error
+      script_frames = [ ent for ent in tb_entries if ent[0] == "<string>" ]
+      if script_frames:
+        lineno = script_frames[-1][1]
+      if isinstance(e, SyntaxError):
+        offset = e.offset
+        msg = "Syntax error"
+      else:
+        msg = "%s: %s" % (etype.__name__, str(e))
+      print >>sys.stderr, "ERROR in script:"
+      # Print traceback
+      for ent in tb_entries:
+        fn, ln, cn = ent[:3]
+        print >>sys.stderr, "  From %s, line %d%s" % \
+            ("script" if fn == "<string>"
+            else fn, ln, ", function %s" % cn if cn != "<module>" else "")
+      print >>sys.stderr, "  %s" % msg
+      # Print original script, indicating location of error
+      print >>sys.stderr, "Source:"
+      numbered_lines = [ ("[%3d] %s" % (idx+1, line))
+          for (idx, line) in enumerate(lines) ]  # number lines
+      if lineno != None:
+        # If no column is given, use offset of first non-whitespace character
+        if offset == None:
+          line = lines[lineno]
+          offset = len(line) - len(line.lstrip())
+        numbered_lines.insert(lineno, "%s^" % (" " * (6 + offset)))
+      print >>sys.stderr, "\n".join(numbered_lines)
+      sys.exit(-1)
+
     if cmd == None:
       raise ValueError("Command must not be empty")
     if codeobj == None:
@@ -237,12 +301,8 @@ class Processor(object):
       self.Log("Evaluated statement:\n  %s" % cmd)
       try:
         exec codeobj in globals(), vs
-      except SyntaxError, e:
-        sys.exit("Error: Invalid statement\n"
-              "  %s\n %s^" % (cmd, " " * e.offset))
-      except Exception, e:
-        sys.exit("Error: Invalid statement\n"
-              "  %s\n%s: %s" % (cmd, e.__class__.__name__, e))
+      except:
+        format_exception()
       if 'result' not in vs:
         self.Log("Warning: result is not set")
       result = vs.get('output', None)
@@ -250,12 +310,8 @@ class Processor(object):
       self.Log("Evaluated expression:\n  %s" % cmd)
       try:
         result = eval(codeobj, globals(), vs)
-      except SyntaxError, e:
-        sys.exit("Error: Invalid expression\n"
-              "  %s\n %s^" % (cmd, " " * e.offset))
-      except Exception, e:
-        sys.exit("Error: Invalid expression\n"
-              "  %s\n%s: %s" % (cmd, e.__class__.__name__, e))
+      except:
+        format_exception()
     return result
 
   def PrintResult(self, result, as_line = False):
@@ -311,7 +367,7 @@ class Processor(object):
     p = self
     if self.plotting:
       InitPlotting()
-    _vars = FileNamespace(locals(), fh = self.fhin, 
+    _vars = FileNamespace(locals(), fh = self.fhin,
         word_delimiter = self.word_delimiter, numeric = self.numeric)
     if not cmd:
       cmd = "lines"
@@ -371,7 +427,7 @@ def main():
   except getopt.GetoptError, e:
     Help("ERROR: %s" % (e,))
   if len(args) > 0:
-    cmd = args[0].strip()
+    cmd = args[0].rstrip()
   else:
     cmd = ""
   if len(args) > 1:
