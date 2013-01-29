@@ -336,6 +336,7 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
 
 def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
     colors = None, ecolors = None, gwidth = .7, cwidth = 1., show = True,
+    hatches = None,
     **kwargs):
   """Plot data as bars.
 
@@ -404,17 +405,20 @@ def BarPlot(xs, yerr = None, fig = None, glabels = None, clabels = None,
     clabels = [''] * C
   else:
     clabels += [''] * C
+  if hatches == None:
+    hatches = [''] * C
+  else:
+    hatches += [''] * C  # ensure list is long enough (extra elements are ignored)
   # For each category, create a bar in all groups.
-  crects = [ ax.bar(
-      (gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
+  crects = [ ax.bar((gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
       xs[c],                # height of column
       used_cwidth,          # column width
       color = colors[c],    # column color
       yerr = yerr[c],       # error
       ecolor = ecolors[c],  # color of error bar
       label = clabels[c],
-      **kwargs
-      ) for c in cind ]
+      hatch = hatches[c],
+      **kwargs) for c in cind ]
   if glabels == None:
     # Disable x-ticks.
     ax.set_xticks([])
@@ -459,11 +463,23 @@ class Loader(object):
   input_encoding = gio.ENCODING_PICKLE
 
   def Read(self, fname):
+    """Read data from a file.
+
+    Note that this may result in non-array data, or array data with more than
+    two axes (depending on the current input encoding).
+
+    :param str fname: Path to input file, or open file handle.
+    :returns: First element from input file (if binary) or 2D array (if numeric
+       text). Non-numeric text files are not supported.
+
+    """
     try:
+      # Read data from a file. Note that this may result
       return list(gio.LoadAll(fname, self.input_encoding))[0]
-    except Exception:
-      raise Exception("Failed to load dataset, maybe wrong input type (see -i "
-          "option)?")
+    except Exception, e:
+      print e
+      raise Exception(("Failed to load dataset (%s), " % fname) + \
+          "maybe wrong input type (see -i option)?")
 
   def ReadData1D(self, fname):
     """Read a file with a single column per line."""
@@ -473,14 +489,26 @@ class Loader(object):
           "(N, 1), but got %s for file %s" % (data.shape, fname))
     return data.reshape(data.shape[0])
 
-  def ReadData2D(self, fname):
+  def ReadData2D(self, fname, columns = 2):
     """Read a file with multiple columns per line."""
-    data = self.Read(fname)
+    data = np.asarray(self.Read(fname))
     if data.size == 0:
-      data = data.reshape(0, 2)
-    if data.shape[1] != 2:
+      data = data.reshape(0, columns)
+    if data.shape[1] != columns:
       raise Exception("Dataset has wrong shape: expected array with shape "
-          "(N, 2), but got %s for file %s" % (data.shape, fname,))
+          "(N, %d), but got %s for file %s" % (columns, data.shape, fname,))
+    return data
+
+  def ReadDataRelaxed(self, fname):
+    """Read a file with one or two columns per line."""
+    data = np.asarray(self.Read(fname))
+    if data.ndim > 2 or (data.ndim == 2 and data.shape[1] > 2):
+      raise Exception("Dataset has wrong shape: expected array with shape "
+          "(N,) or (N, 2), but got %s for file %s" % (data.shape, fname))
+    if data.size == 0:
+      data = data.reshape(0)
+    else:
+      data = np.squeeze(data)
     return data
 
 class Plotter(object):
@@ -505,8 +533,10 @@ class Plotter(object):
       raise ValueError("Unknown plot type: %s" % plot_type)
     return func
 
-  #: Limits for y- and x-axis (4-tuple of int).
-  axis = None
+  #: Limits for x-axis (2-tuple of int).
+  xaxis = None
+  #: Limits for y-axis (2-tuple of int).
+  yaxis = None
   #: Line colors, or category colors for bar plot (list of str).
   colors = None
   #: Group labels for bar plots (list of str).
@@ -519,13 +549,15 @@ class Plotter(object):
   hist_nbins = 100
   #: Line labels, or group labels for bar plot (list of str).
   labels = None
-  #: Line styles (list of str).
-  linestyles = None
+  #: Line and marker styles (list of str).
+  styles = None
   loader = Loader()
   #: Path of image file to which plot is saved (str). See PostProcess().
   ofname = None
   #: Type of plot to generate (one of Plotter.TYPE_*).
   plot_type = TYPE_LINE
+  #: Command to interpret before plot is generated (str).
+  pre_command = None
   #: Command to interpret after plot is generated (str).
   post_command = None
   #: Plot title (str).
@@ -534,9 +566,15 @@ class Plotter(object):
   xlabel = None
   #: Label of y-axis (str).
   ylabel = None
+  #: Whether to datasets (bool). For 2D datasets, this sorts on the X-axis.
+  use_sort = False
 
   def PreProcess(self):
     self.plt = InitPlot(self.ofname != None)
+    if self.pre_command:
+      plt = self.plt
+      import matplotlib as mpl
+      exec self.pre_command
 
   def BarPlot(self, data_sets):
     """Plot a collection of 1D datasets as groups of bars."""
@@ -546,16 +584,16 @@ class Plotter(object):
       xs = xs.mean(-1)
     else:
       yerr = None
-    kwargs = dict(linewidth = 0)  # remove borders from bars
+    kwargs = dict()  #linewidth = 0)  # remove borders from bars
     BarPlot(xs, yerr = yerr, colors = self.colors, glabels = self.bar_glabels,
-        clabels = self.labels, show = False, **kwargs)
+        clabels = self.labels, show = False, hatches = self.styles, **kwargs)
 
   def HistPlot(self, data_sets):
     """Plot a collection of 1D datasets as overlapping histograms."""
     N = len(data_sets)
     keywords = ('color', 'label', 'linestyle')
     opts = [ getattr(self, kw, None) or []
-        for kw in ('colors', 'labels', 'linestyles') ]
+        for kw in ('colors', 'labels', 'styles') ]
     for idx in range(N):
       data = data_sets[idx]
       kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
@@ -573,44 +611,72 @@ class Plotter(object):
     Show2dArray(data)
 
   def LinePlot(self, data_sets):
-    """Plot a collection of 2D datasets as lines."""
+    """Plot a collection of 1D and 2D datasets as lines."""
     N = len(data_sets)
     keywords = ('color', 'label', 'linestyle')
     opts = [ getattr(self, kw, None) or []
-        for kw in ('colors', 'labels', 'linestyles') ]
+        for kw in ('colors', 'labels', 'styles') ]
+
+    markers = None
+#    markers = ['_', '_', 'o', 'o']
+    markers = ['o', 'o']
+
+    if markers == None:
+      markers = []
+    markers += [''] * N
+
     for idx in range(N):
       data = data_sets[idx]
       kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
           if idx < len(opt) )
-      if self.error_bars:
-        xs, ymean, yerr = _Summarize2D(data).T
-        if yerr.size == 0:
-          yerr = None
-        self.plt.errorbar(xs, ymean, yerr = yerr, **kwargs)
+
+      kwargs['marker'] = markers[idx]
+      kwargs['markeredgecolor'] = kwargs['color']
+
+      if data.ndim == 1:
+        # Plot a 1D dataset
+        if self.use_sort:
+          data.sort()
+        self.plt.plot(data, **kwargs)
       else:
-        data.sort(0)
-        data = data.T
-        self.plt.plot(data[0], data[1], **kwargs)
+        if self.error_bars:
+          # Plot a 2D dataset with error bars
+          xs, ymean, yerr = _Summarize2D(data).T
+          if yerr.size == 0:
+            yerr = None
+          self.plt.errorbar(xs, ymean, yerr = yerr, **kwargs)
+        else:
+          # Plot a 2D dataset
+          if self.use_sort:
+            data.sort(0)  # sort by X-values
+          data = data.T
+          self.plt.plot(data[0], data[1], **kwargs)
 
   def ScatterPlot(self, data_sets):
-    """Plot a collection of 2D datasets as disconnected points."""
+    """Plot a collection of 1D and 2D datasets as disconnected points."""
     N = len(data_sets)
-    keywords = ('color', 'label', 'linestyle')
+    keywords = ('color', 'label', 'marker')
     opts = [ getattr(self, kw, None) or []
-        for kw in ('colors', 'labels', 'linestyles') ]
+        for kw in ('colors', 'labels', 'styles') ]
     for idx in range(N):
       data = data_sets[idx]
       kwargs = dict( (kw, opt[idx]) for kw, opt in zip(keywords, opts)
           if idx < len(opt) )
       data = data.T
-      data.sort(0)
-      self.plt.scatter(data[0], data[1], **kwargs)
+      if data.ndim == 1:
+        if self.use_sort:
+          data.sort()
+        self.plt.scatter(np.arange(len(data)), data, **kwargs)
+      else:
+        if self.use_sort:
+          data.sort(0)  # sort by X-values
+        self.plt.scatter(data[0], data[1], **kwargs)
 
   def PlotFromFile(self, *fnames, **kwargs):
     """Plot a collection of datasets read from disk.
 
     :param fnames: Path to datasets.
-    :type fnames: list of str
+    :type fnames: list of (str or open file handle)
     :param bool post_process: Whether to call :meth:`PostProcess` (default is
        True).
 
@@ -634,8 +700,9 @@ class Plotter(object):
     elif self.plot_type == Plotter.TYPE_HIST:
       # Histograms use 1D datasets
       data_sets = map(self.loader.ReadData1D, fnames)
-    elif self.plot_type in (Plotter.TYPE_HIST, Plotter.TYPE_IMAGE,
-        Plotter.TYPE_LINE, Plotter.TYPE_SCATTER):
+    elif self.plot_type in (Plotter.TYPE_LINE, Plotter.TYPE_SCATTER):
+      data_sets = map(self.loader.ReadDataRelaxed, fnames)
+    elif self.plot_type == Plotter.TYPE_IMAGE:
       # All other plots use 2D datasets
       data_sets = map(self.loader.ReadData2D, fnames)
     else:
@@ -657,8 +724,10 @@ class Plotter(object):
     if not self.plt:
       raise Exception("PostProcess called before PreProcess")
     plt = self.plt
-    if self.axis:
-      plt.axis(self.axis)
+    if self.xaxis != None:
+      plt.xlim(self.xaxis)
+    if self.yaxis != None:
+      plt.ylim(self.yaxis)
     if self.title:
       plt.title(self.title)
     if self.xlabel:
@@ -666,27 +735,64 @@ class Plotter(object):
     if self.ylabel:
       plt.axes().set_ylabel(self.ylabel)
     if self.post_command:
-      plot = plt
+      plot = plt  # use of this variable by commands is deprecated
+      import matplotlib as mpl
       exec self.post_command
     if self.labels:
-      plt.rcParams['legend.loc'] = 'best'
+      #~ plt.rcParams['legend.loc'] = 'best'  # set rc defaults instead
       plt.legend()
     if self.ofname:
       plt.savefig(self.ofname)
     else:
       plt.show()
 
+def MapType(type_, xs, size = None, undefined_input = "",
+    default_output = None):
+  """Map a list of strings to a fixed-length list of some other type.
+
+  :param callable type_: Per-element conversion function.
+  :param xs: Input elements.
+  :type xs: list of str
+  :param int size: Length of output list. If undefined, the output list is the
+     same length as the input list.
+  :param str undefined_input: Input value that signifies "undefined".
+  :param undefined_output: Output value inserted in place of "undefined" input.
+  :rtype: list
+  :returns: List of converted output elements.
+
+  """
+  if size == None:
+    size = len(xs)
+  # If the input is longer than the output, drop tail elements.
+  if size < len(xs):
+    xs = xs[:size]
+  xs = [ default_output if x.lower() == undefined_input else type_(x)
+      for x in xs ]
+  # If the input is shorter than the output, add tail elements.
+  if len(xs) < size:
+    xs += [ default_output ] * (size - len(xs))
+  return xs
+
+def SplitArg(x):
+  if len(x) == 0:
+    return None
+  return x.split(',')
+
 def _CliMain():
   p = Plotter()
-  opts, args = misc.GetOptions('a:bc:C:eg:Hi:Il:L:o:s:St:x:y:')
+  opts, args = misc.GetOptions('a:bB:c:C:eg:Hi:Il:L:o:s:St:x:X:y:Y:', ['sort'])
   # Parse arguments needed early
   for opt, arg in opts:
     if opt == '-a':
-      p.axis = map(float, arg.split(","))
+      axis = MapType(float, arg.split(","), size = 4)
+      p.xaxis = axis[:2]
+      p.yaxis = axis[2:]
     elif opt == '-b':
       p.plot_type = Plotter.TYPE_BAR
+    elif opt == '-B':
+      p.pre_command = arg
     elif opt == '-c':
-      p.colors = arg.split(",")
+      p.colors = SplitArg(arg)
     elif opt == '-C':
       p.post_command = arg
     elif opt == '-e':
@@ -700,21 +806,27 @@ def _CliMain():
     elif opt == '-H':
       p.plot_type = Plotter.TYPE_HIST
     elif opt == '-l':
-      p.labels = arg.split(",")
+      p.labels = SplitArg(arg)
     elif opt == '-L':
-      p.bar_glabels = arg.split(",")
+      p.bar_glabels = SplitArg(arg)
     elif opt == '-o':
       p.ofname = arg
     elif opt == '-s':
-      p.linestyles = arg.split(",")
+      p.styles = SplitArg(arg)
     elif opt == '-S':
       p.plot_type = Plotter.TYPE_SCATTER
+    elif opt == '--sort':
+      p.use_sort = True
     elif opt == '-t':
       p.title = arg
     elif opt == '-x':
       p.xlabel = arg
+    elif opt == '-X':
+      p.xaxis = MapType(float, arg.split(":"), size = 2)
     elif opt == '-y':
       p.ylabel = arg
+    elif opt == '-Y':
+      p.yaxis = MapType(float, arg.split(":"), size = 2)
   for i in range(len(args)):
     if args[i] == "-":
       args[i] = sys.stdin
@@ -752,13 +864,16 @@ def main():
       "                  plot.\n"
       "  -L LABELS       Specify group labels for bar plot.\n"
       "  -o FNAME        Write plot to image file FNAME.\n"
-      "  -s STYLES       Specify comma-separated line styles. Ex: solid, '-',"
-      " \n"
-      "                  dashed, '--'.\n"
+      "  -s STYLES       Specify comma-separated line and marker styles. Ex: "
+      "solid,\n"
+      "                  '-', dashed, '--'.\n"
       "  -S              Show 2D datasets as a scatterplot.\n"
+      "  --sort          Sort datasets.\n"
       "  -t TITLE        Set chart title.\n"
       "  -x LABEL        Set label on x-axis.\n"
+      "  -X MIN:MAX      Set the limits of the x-axis.\n"
       "  -y LABEL        Set label on y-axis.\n"
+      "  -Y MIN:MAX      Set the limits of the y-axis.\n"
       "For more option values, see:\n"
       "  http://matplotlib.sourceforge.net/api/pyplot_api.html#matplotlib"
       ".pyplot.plot\n"

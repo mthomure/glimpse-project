@@ -177,14 +177,18 @@ class PovrayRenderError(Exception):
     self.output = output
 
   def __str__(self):
-    lines = "\n".join(buff.split("\n")[-10:])  # last 10 lines of povray message
+    lines = "\n".join(self.output.split("\n")[-10:])  # tail of povray message
     return "Failed to render Povray object model\n\n" + \
         "== Tail of Povray Output ==\n%s" % lines
 
-def MakePovrayMaskedFg(root, object_id, rotation):
+  __repr__ = __str__
+
+def RenderPovrayModel(root, object_id, rotation, width = None):
   """Render a 3D object model using Povray.
 
-  :param bool verbose: Do not suppress data written to stderr.
+  :param str root: Path to base povray model directory.
+  :param object_id: Unique object ID.
+  :param int rotation: Object rotation to render, in degrees.
   :rtype: Image
   :returns: Rendered image with mode RGBA
 
@@ -195,6 +199,8 @@ def MakePovrayMaskedFg(root, object_id, rotation):
   # render object to temp file
   render_path = os.path.join(root, 'bin', 'render')
   cmd = map(str, (render_path, object_id, rotation, temp_path))
+  if width is not None:
+    cmd = ["env", "SIZE1=%d" % width] + cmd  # override rendered image width
   try:
     subprocess.check_output(cmd, stderr = subprocess.STDOUT)
   except subprocess.CalledProcessError, e:
@@ -203,6 +209,15 @@ def MakePovrayMaskedFg(root, object_id, rotation):
   img = Image.open(temp_path)
   assert img.mode == 'RGBA'
   img.load()  # Image data will be removed from disk when this function returns
+  return img
+
+def MakePovrayMaskedFg(*args, **kw):
+  """Render a Povray model and crop to bounding box.
+
+  See :func:`RenderPovrayModel` for parameter usage and return types.
+
+  """
+  img = RenderPovrayModel(*args, **kw)
   data = fromimage(img)
   mask = data[:, :, -1]
   xidx = np.where(mask.max(0) > 0)[0]  # find columns with non-zero values.
@@ -218,7 +233,7 @@ def LoadImage(*path_parts):
   path = os.path.join(*path_parts)
   return Image.open(path)
 
-@cache_last
+@memoize
 def LoadCachedImage(*path_parts):
   """An image loader that remembers the last file from disk."""
   return LoadImage(*path_parts)
@@ -265,8 +280,9 @@ def _MakeObjectImage(img, size, ds, dy, dx):
   # Scale image
   size = np.array(img.size) * float(ds)
   img = img.resize(size.astype(int), Image.ANTIALIAS)  # down-sample image
-  assert width >= img.size[0], "Object must fit within background"
-  assert height >= img.size[1], "Object must fit within background"
+  if width < img.size[0] or height < img.size[1]:
+    raise ValueError("Target image (%dx%d) " % (img.size[0], img.size[1]) + \
+        "is too small for foreground object (%dx%d)" % (width, height))
   # Pad/crop image to fit background
   x_in_idx, x_out_idx = _ComputeIndices(img.size[0], width, dx)
   y_in_idx, y_out_idx = _ComputeIndices(img.size[1], height, dy)
@@ -304,7 +320,7 @@ class MaskedCorpus(object):
   def __init__(self, root, image_loader = None):
     assert os.path.isdir(root), "Can't find masked corpus directory: %s" % root
     if image_loader is None:
-      image_loader = LoadImage
+      image_loader = LoadCachedImage
     self.root = root
     self.load_image = image_loader
 
@@ -363,9 +379,13 @@ class Renderer(object):
   BG_BLACK = 'black'
   BG_NOISE = 'noise'
 
-  # Dimensions of generated images.
-  width = 200
-  height = 200
+  #: Length of generated background images.
+  bg_size = 200
+
+  #: (float) Length of long edge of target object before scaling. That is, the
+  #: long edge of the masked/cropped object image will be scaled to this length,
+  #: with the `ds` parameter of :meth:`Random` applied to the result.
+  base_object_size = 100
 
   #: (str) Default background type.
   bg_type = BG_BLACK
@@ -388,9 +408,9 @@ class Renderer(object):
     if bg_type == None:
       bg_type == self.bg_type
     if bg_type == self.BG_BLACK:
-      return Image.new('L', size = (self.width, self.height), color = 0)
+      return Image.new('L', size = (self.bg_size, self.bg_size), color = 0)
     elif bg_type == self.BG_NOISE:
-      return MakeNoiseBg((self.width, self.height))
+      return MakeNoiseBg((self.bg_size, self.bg_size))
     elif isinstance(bg_type, basestring):
       return Image.open(bg_type).convert('L')
     raise ValueError("Unknown background type: %s" % bg_type)
@@ -421,6 +441,17 @@ class Renderer(object):
       bg_images):
     """Render a set of synthesized ALOI images.
 
+    :param int object_id: Unique ALOI object ID.
+    :param Range range_dr: Rotational variation.
+    :param Range range_ds: Scale variation. Final variation will be drawn from
+       scale * range_ds, where 'scale' is a constant factor that resizes the
+       object's longest edge (see `base_object_size`).
+    :param Range range_dy: Vertical translation.
+    :param Range range_dx: Horizontal translation.
+    :param bg_images: Paths to background images, or the special values BG_BLACK
+       or BG_NOISE.
+    :type bg_images: list of str
+
     Parameters with the name range_XX give the interval of values from which to
     sample, given in normalized units of variation. For range_dx and range_dy,
     the unit is one bounding box (width or height, respectively).
@@ -430,6 +461,12 @@ class Renderer(object):
     assert(len(rotations) > 0)
     rotations = [ r for r in rotations if r in range_dr ]
     assert(len(rotations) > 0)
+    max_size = max( max(self.corpus.Get(object_id, r).size)
+        for r in rotations )  # assuming caching image loader
+    scale = float(self.base_object_size) / max_size  # scale longest edge
+    range_ds = range_ds * scale
+    assert range_ds.high <= 1., "Scale range (%s) must not include 1." \
+        % range_ds
     results = []
     for bg_image in bg_images:
       args = dict(
@@ -459,14 +496,38 @@ class Renderer(object):
        or BG_NOISE.
     :type bg_images: list of str
 
-    The object image will be scaled to have a long edge of 100px before
-    requested scaling (vs) is applied.
+    The object image will be scaled to have a long edge of `base_object_size`
+    before the requested scaling (vs) is applied.
+
+    GENERATING MASKED OBJECT IMAGES: To support a given variation class (with
+    scaling of +-vs), the bounding box of the masked object (unscaled, at
+    rotation 0) must have a long edge of X, where
+      W / X * (1 + vs) <= 1
+    implies
+      X >= W * (1 + vs)  // max object width
+    where W is the long edge length of the base object size (see
+    `base_object_size`). For variation class 6 (with scaling of +-60%), X must
+    be at least 160 pixels (assuming W = 100).
+
+    CHOOSING BACKGROUND IMAGE SIZE: To support a given variation class (with
+    translation of +-vx), the background image must have a short edge of Y (see
+    `bg_size`), where
+      Y >= W * (1 + vs) + 2 * vx   // max object width and max translation
+    For variation class 6 (with scaling of +-60% and translation of +-60px), Y
+    must be at least 280 pixels (assuming W = 100).
+
+    CHOOSING BASE OBJECT SIZE: Given a choice of the background size Y, this
+    imposes a limit on the base object size W given as
+      Y >= W * (1 + vs) + 2 * vx
+    which implies
+      W <= (Y - 2 * vx) / (1 + vs)
+    For variation class 6 (with scaling of +-60% and translation of +-60px) and
+    a background image size of Y = 200, we have W <= 50px. Similarly, we have
+    W <= 107px for variation class 3.
 
     """
-    fg = self.corpus.Get(object_id, 0)
-    scale = 100. / max(fg.size)  # scale longest edge to 100px
     dr = ModRange(-vr, vr + 1, 360)
-    ds = Range((1 - vs) * scale, (1 + vs + .001) * scale)
+    ds = Range(1 - vs, 1 + vs)
     dx = Range(-vx, vx)
     dy = Range(-vy, vy)
     return self.RenderRandom(object_id, dr, ds, dy, dx, bg_images)
@@ -474,8 +535,7 @@ class Renderer(object):
   def RenderVar0(self, object_id, bg_images):
     """Render variation level 0.
 
-      x-axis translation: 0px
-      y-axis translation: 0px
+      x/y axis translation: 0px
       scaling: 0%
       rotation: 0 degrees
 
@@ -485,8 +545,7 @@ class Renderer(object):
   def RenderVar1(self, object_id, bg_images):
     """Render variation level 1.
 
-      x-axis translation: +- 10 px
-      y-axis translation: +- 10 px
+      x/y axis translation: +- 10 px
       scaling: 10%
       rotation: 15 degrees
 
@@ -496,8 +555,7 @@ class Renderer(object):
   def RenderVar2(self, object_id, bg_images):
     """Render variation level 2.
 
-      x-axis translation: +- 20 px
-      y-axis translation: +- 20 px
+      x/y axis translation: +- 20 px
       scaling: 20%
       rotation: 30 degrees
 
@@ -507,8 +565,7 @@ class Renderer(object):
   def RenderVar3(self, object_id, bg_images):
     """Render variation level 3.
 
-      x-axis translation: +- 30 px
-      y-axis translation: +- 30 px
+      x/y axis translation: +- 30 px
       scaling: 30%
       rotation: 45 degrees
 
@@ -518,8 +575,7 @@ class Renderer(object):
   def RenderVar4(self, object_id, bg_images):
     """Render variation level 4.
 
-      x-axis translation: +- 40 px
-      y-axis translation: +- 40 px
+      x/y axis translation: +- 40 px
       scaling: 40%
       rotation: 60 degrees
 
@@ -529,8 +585,7 @@ class Renderer(object):
   def RenderVar5(self, object_id, bg_images):
     """Render variation level 5.
 
-      x-axis translation: +- 50 px
-      y-axis translation: +- 50 px
+      x/y axis translation: +- 50 px
       scaling: 50%
       rotation: 75 degrees
 
@@ -540,8 +595,7 @@ class Renderer(object):
   def RenderVar6(self, object_id, bg_images):
     """Render variation level 6.
 
-      x-axis translation: +- 60 px
-      y-axis translation: +- 60 px
+      x/y axis translation: +- 60 px
       scaling: 60%
       rotation: 90 degrees
 
@@ -588,7 +642,7 @@ def Render(base_dir, object_id, var_class, out_dir, *bg_images):
      ['/aloi/backgrounds/bg1.jpg'])
 
   """
-  object_id = int(object_id)
+  object_id = object_id
   r = Renderer(MaskedCorpus(base_dir, LoadCachedImage))
   try:
     func = getattr(r, 'RenderVar%s' % var_class)
@@ -604,6 +658,7 @@ def Render(base_dir, object_id, var_class, out_dir, *bg_images):
     path += "%(dy)03.fx%(dx)03.f_%(fname)s.png" % args
     path = os.path.join(out_dir, path)
     print os.path.basename(path)
+    img = img.convert('L')  # remove color
     img.save(path)
 
 if __name__ == '__main__':
