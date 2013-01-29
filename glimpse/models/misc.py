@@ -1098,6 +1098,7 @@ def MakeModel(*args):  #name = None, params = None):
     if isinstance(args[0], basestring):
       name = args[0]
     else:
+      name = None
       params = args[0]
   elif len(args) == 2:
     name, params = args[:2]
