@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Wizard</class>
+ <widget class="QWizard" name="Wizard">
+  <property name="windowModality">
+   <enum>Qt::WindowModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>458</width>
+    <height>300</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Wizard</string>
+  </property>
+  <property name="wizardStyle">
+   <enum>QWizard::NStyles</enum>
+  </property>
+  <widget class="QWizardPage" name="param_page">
+   <layout class="QVBoxLayout" name="verticalLayout_2">
+    <item>
+     <widget class="QGroupBox" name="param_group_box">
+      <property name="title">
+       <string>Model Parameters</string>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QScrollArea" name="scrollArea">
+         <property name="widgetResizable">
+          <bool>true</bool>
+         </property>
+         <widget class="QWidget" name="params">
+          <property name="geometry">
+           <rect>
+            <x>0</x>
+            <y>0</y>
+            <width>394</width>
+            <height>193</height>
+           </rect>
+          </property>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="feature_page">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QGroupBox" name="groupBox_2">
+      <property name="title">
+       <string>Model Layer for Features</string>
+      </property>
+      <layout class="QHBoxLayout" name="horizontalLayout_4">
+       <item>
+        <widget class="QComboBox" name="feature_type">
+         <property name="editable">
+          <bool>false</bool>
+         </property>
+         <property name="currentIndex">
+          <number>4</number>
+         </property>
+         <item>
+          <property name="text">
+           <string>Pixels</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>S1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>C1</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>S2</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>C2</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="proto_page">
+   <layout class="QVBoxLayout" name="verticalLayout_3">
+    <item>
+     <widget class="QGroupBox" name="groupBox_3">
+      <property name="title">
+       <string>Source of S2 Prototypes</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_6">
+       <item>
+        <widget class="QComboBox" name="proto_source">
+         <item>
+          <property name="text">
+           <string>Imprinted</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Random</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>From File</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="proto_file_group">
+      <property name="title">
+       <string>Prototype File</string>
+      </property>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="proto_file_lbl">
+         <property name="text">
+          <string>(path)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QPushButton" name="proto_file_btn">
+         <property name="maximumSize">
+          <size>
+           <width>149</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Choose File</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="corpus_page">
+   <layout class="QVBoxLayout" name="verticalLayout_4">
+    <item>
+     <widget class="QGroupBox" name="groupBox_4">
+      <property name="title">
+       <string>Image Corpus</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_10">
+       <item>
+        <widget class="QLabel" name="corpus_lbl">
+         <property name="text">
+          <string>(path)</string>
+         </property>
+         <property name="scaledContents">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="corpus_btn">
+         <property name="maximumSize">
+          <size>
+           <width>149</width>
+           <height>16777215</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>Choose Directory</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="groupBox_7">
+      <property name="title">
+       <string>Corpus Type</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_5">
+       <item>
+        <widget class="QLabel" name="corpus_type">
+         <property name="minimumSize">
+          <size>
+           <width>0</width>
+           <height>40</height>
+          </size>
+         </property>
+         <property name="text">
+          <string>(type)</string>
+         </property>
+         <property name="alignment">
+          <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="eval_page">
+   <layout class="QVBoxLayout" name="verticalLayout_7">
+    <item>
+     <widget class="QGroupBox" name="groupBox_5">
+      <property name="title">
+       <string>Evaluation Method for Classification</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_8">
+       <item>
+        <widget class="QComboBox" name="eval_criteria">
+         <item>
+          <property name="text">
+           <string>Fixed-Split</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Cross-Validation</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+    <item>
+     <widget class="QGroupBox" name="groupBox_8">
+      <property name="title">
+       <string>Performance Measure</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_9">
+       <item>
+        <widget class="QComboBox" name="perf_measure">
+         <item>
+          <property name="text">
+           <string>Accuracy</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>AUC</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="debug_page">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="QTextEdit" name="debug">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="lineWrapMode">
+       <enum>QTextEdit::NoWrap</enum>
+      </property>
+      <property name="readOnly">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="confirm_page">
+   <layout class="QFormLayout" name="formLayout">
+    <item row="0" column="0">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>(show settings and confirm)</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="run_page">
+   <layout class="QGridLayout" name="gridLayout_2">
+    <item row="0" column="0">
+     <widget class="QGroupBox" name="groupBox_6">
+      <property name="title">
+       <string>Running experiments</string>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_12">
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Maximum</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QProgressBar" name="progress_bar">
+         <property name="value">
+          <number>24</number>
+         </property>
+        </widget>
+       </item>
+      </layout>
+      <zorder>verticalSpacer_2</zorder>
+      <zorder>progressBar</zorder>
+      <zorder>progress_bar</zorder>
+      <zorder>verticalSpacer</zorder>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QWizardPage" name="results_page">
+   <layout class="QVBoxLayout" name="verticalLayout_11">
+    <item>
+     <widget class="QGroupBox" name="groupBox">
+      <property name="title">
+       <string>Results</string>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

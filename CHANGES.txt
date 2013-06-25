@@ -1,0 +1,5 @@
+v0.1, 2012-05-07 -- Initial release.
+v0.1.1, 2012-05-14 -- Bug fixes to glab commands.
+v0.1.2, 2012-06-07 -- Bug fixes to glab, HMAX model added, LIBSVM swapped for sklearn.
+v0.1.3, 2012-06-07 -- Bug fixes to glab, add example glab corpora.
+v0.2.1, 2013-06-25 -- Significant redesign.

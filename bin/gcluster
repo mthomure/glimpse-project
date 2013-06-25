@@ -1,0 +1,158 @@
+#!/bin/bash
+
+D=$(dirname $0)
+
+if [[ "$TERM"x == xtermx ]]; then
+  CLR_RESET=$(tput sgr0)
+  CLR_RED=$(tput setaf 1)
+  CLR_GREEN=$(tput setaf 2)
+fi
+
+if [[ "$GLIMPSE_HOME"x == x ]]; then
+  echo "The GLIMPSE_HOME environment variable must be set!" 1>&2
+  exit -1
+fi
+
+function GetHosts {
+  if [[ $# == 1 ]]; then
+    if [[ "$1"x == "localx" || "$1"x == "localhostx" || "$1"x == "nonex" ]]; then
+      echo ""
+    else
+      echo "$1"
+    fi
+  elif [[ $# > 0 ]]; then
+    # Output newline-separated hosts
+    for HOST in "$@"; do
+      echo $HOST
+    done
+  else
+    cat $D/../rc/hosts
+  fi
+}
+
+# Bring the cluster up. If the controller is not running, it is launched. Also,
+# engines are launched on any worker node that doesn't already have them
+# running.
+# To constrain the number of engines per host, use the ENGINES environment var.
+function StartCluster {
+  # Start local controller and engines.
+  ps x | grep -v grep | grep -q ipcluster
+  if [[ $? == 0 ]]; then
+    printf "%-20s " "controller/$(hostname -s)"
+    echo "running"
+  else
+    (
+      cd $GLIMPSE_HOME
+      # Launch the controller and a set of engines on the local node.
+      IP=$(hostname -i)
+      nice ipcluster start --profile=gcluster \
+          --LocalControllerLauncher.controller_args="['--ip=$IP']" \
+          --n=0 \
+          --daemonize 2>/dev/null
+    )
+    printf "%-20s " "controller/$(hostname -s)"
+    echo "launched"
+  fi
+  # Start remote engines.
+  GetHosts "$@" \
+  | xargs -P 0 -I{} ssh -q {} "ENGINES=$ENGINES $GLIMPSE_HOME/bin/gcluster start-inner"
+}
+
+function StartClusterInner {
+  HOST=$(hostname -s)
+  ps x | grep -v grep | grep -q ipcluster
+  if [[ $? == 0 ]]; then
+    printf "%-20s " "engines/$HOST"
+    echo "running"
+  else
+    # Launch a set of engines on the local node.
+    cd $GLIMPSE_HOME
+    if [[ "$ENGINES" == "" ]]; then
+      ENGINES_ARG=""
+    else
+      ENGINES_ARG="--n $ENGINES"
+    fi
+    nice ipcluster engines $ENGINES_ARG --profile=gcluster --daemonize 2>/dev/null
+    printf "%-20s " "engines/$HOST"
+    echo "launched"
+  fi
+}
+
+# Get the status of each worker node.
+function ClusterStatus {
+  # Check local controller.
+  STATUS=$(ps x -o "%a" | grep -v grep | grep -q ipcluster && echo ON || echo OFF)
+  if [[ "$STATUS"x == "ON"x ]]; then
+    COLOR=$CLR_GREEN
+  else
+    COLOR=$CLR_RED
+  fi
+  printf "controller/%-11s" $(hostname -s)
+  echo $COLOR$STATUS$CLR_RESET
+  # Check remote engines.
+  GetHosts "$@" \
+  | xargs -P 0 -I{} ssh {} "STATUS=\$(ps x -o '%a' | grep -v grep \
+    | grep -q ipcluster && echo '${CLR_GREEN}ON${CLR_RESET}' || \
+      echo '${CLR_RED}OFF${CLR_RESET}'); \
+    printf 'engines/%-14s' \$(hostname -s); \
+    echo \$STATUS" 2>/dev/null
+}
+
+# Bring down the controller and any connected engines across all worker nodes.
+function StopCluster {
+  ipython --profile=gcluster -c 'from IPython.parallel import Client; \
+      Client().shutdown(hub = True, block = True)'
+}
+
+# Connect to each host and manually kill the engines.
+function KillCluster {
+  GetHosts "$@" \
+  | xargs -P 0 -I{} ssh {} "ps x -o pgid,command \
+      | awk '/ipcluster/ && !/awk/ {print \$1}' \
+      | while read GID; do kill -- -\$GID; done;
+      printf '%-20s ' \"engines/\$(hostname -s)\"
+      echo done"
+}
+
+if [[ $# -eq 0 ]]; then
+  echo "usage $0 COMMAND [options]" 1>&2
+  exit -1
+fi
+
+CMD=$1
+shift
+
+case "$CMD" in
+
+start)
+    StartCluster "$@"
+    ;;
+
+start-inner)
+    StartClusterInner
+    ;;
+
+status)
+    ClusterStatus "$@"
+    ;;
+
+stop)
+    StopCluster
+    ;;
+
+kill)
+    KillCluster "$@"
+    ;;
+
+client)
+    export PYTHONPATH=$GLIMPSE_HOME:$PYTHON_PATH
+    ipython --profile=gcluster "$@"
+    ;;
+
+*)
+  echo "unknown command: $CMD" 1>&2
+  exit -1
+  ;;
+
+esac
+

@@ -1,0 +1,35 @@
+# Bash completions for gcluster
+# To use, just "source _gcluster"
+
+_gcluster() {
+  local first cur prev opts base
+  COMPREPLY=()
+  first="${COMP_WORDS[1]}"
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  #
+  #  The basic options we'll complete.
+  #
+  opts="start status kill stop client"
+
+  #
+  #  Complete the arguments to some of the basic commands.
+  #
+  case "${first}" in
+    start | status | kill)
+      COMPREPLY=( $(compgen -A hostname ${cur}) )
+      return 0
+      ;;
+    stop | client)
+      return 0
+      ;;
+    *)
+      ;;
+  esac
+
+  COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
+  return 0
+}
+
+complete -F _gcluster gcluster

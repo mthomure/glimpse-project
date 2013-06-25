@@ -1,0 +1,5 @@
+#!/bin/bash
+
+D=$(dirname $0)/..
+export PYTHONPATH=$D:$PYTHONPATH
+python -c 'from glimpse.glab.cli import Main; Main()' "$@"

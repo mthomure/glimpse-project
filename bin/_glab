@@ -1,0 +1,21 @@
+# Bash completions for glab
+# To use, just "source _glab"
+
+_glab() {
+  local first cur prev opts base
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  opts="--corpus-subdir --no-activity --options --prototypes --balance \
+      --corpus --help --input --layer --num_prototypes --output \
+      --prototype-algorithm --svm --pool-type --verbose --cross-validate"
+
+  if [[ ${cur} == -* ]] ; then
+    COMPREPLY=( $(compgen -W "${opts}" -- ${cur}) )
+  fi
+
+  return 0
+}
+
+complete -F _glab glab

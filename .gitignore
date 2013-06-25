@@ -1,0 +1,3 @@
+*.pyc
+build
+glimpse/backends/_base_backend.so
