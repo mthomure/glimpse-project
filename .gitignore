@@ -1,3 +1,0 @@
-*.pyc
-build
-glimpse/backends/cython_backend/filter.so

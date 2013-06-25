@@ -1,9 +1,0 @@
-#!/bin/bash
-
-# Copyright (c) 2011 Mick Thomure
-# All rights reserved.
-#
-# Please see the file COPYING in this distribution for usage
-# terms.
-
-$(dirname $0)/codex -c 'o.min(), o.max(), o.mean(), o.std()' $@
