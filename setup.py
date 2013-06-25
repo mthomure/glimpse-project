@@ -120,6 +120,9 @@ setup(
   description = "Library for hierarchical visual models in C++ and Python",
   long_description = open('README.txt').read(),
   platforms = ["Linux", "Mac OS-X", "Unix"],
+  entry_points = {
+    'console_scripts' :
+        ['glab = glimpse.glab.cli:Main']},
   classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
