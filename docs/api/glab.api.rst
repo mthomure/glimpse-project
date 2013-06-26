@@ -10,6 +10,16 @@ glimpse.glab.api
 .. autofunction:: Reset
 .. autofunction:: SetParams
 .. autofunction:: SetParamsWithGui
+
+   This presents a display similar to that shown in :ref:`Figure 1 <param-editor>`.
+
+.. _param-editor:
+.. figure:: ../_static/glimpse-param-editor.png
+   :scale: 50%
+   :align: center
+
+   Figure 1: A screenshot of the editor for model parameters.
+
 .. autofunction:: LoadParams
 .. autofunction:: SetLayer
 .. autofunction:: StoreExperiment

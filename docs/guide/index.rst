@@ -24,10 +24,10 @@ and its performance on the task.
 The :mod:`glimpse.experiment` package implements the :class:`ExperimentData
 <glimpse.experiment.ExperimentData>` data structure, as well as functions
 that operate on this structure to conduct an experiment. The
-:mod:`glimpse.glab` package provides high-level, psuedo-declarative
-interfaces for specifying and running experiments with a minimum of
-programming. The rest of the Glimpse library is composed of the low-level
-components needed to run an experiment, such as hierarchical model
+:mod:`glimpse.glab <glimpse.glab.api>` package provides high-level,
+psuedo-declarative interfaces for specifying and running experiments with a
+minimum of programming. The rest of the Glimpse library is composed of the
+low-level components needed to run an experiment, such as hierarchical model
 implementations in :mod:`glimpse.models`, “worker pools” for parallel
 computation in :mod:`glimpse.pools`, and prototype learning algorithms in
 :mod:`glimpse.prototypes`.
@@ -41,7 +41,11 @@ The easiest way to conduct an experiment is to use the GLAB application
 programming interface (API), which provides a simplified MATLAB-like
 interface to specify the experimental protocol and drive the computation of
 results. This section walks through an example use of this API. We start by
-launching Python, and then setting up the environment::
+launching IPython (the recommended way to use Glimpse)::
+
+  $ ipython --pylab
+
+and then setting up the environment::
 
   >>> from glimpse.glab.api import *
 
@@ -52,9 +56,10 @@ activity to the console.
 
 .. note::
 
-  The ``>>>`` denotes text that is submitted
-  to the Python interpreter, or written as commands in a script. Lines without
-  this marker indicate logging output.
+  Note that the “$” prefix used here denotes a command that is entered at
+  the shell. The ``>>>`` denotes text that is submitted to the Python
+  interpreter, or written as commands in a script. Lines without either
+  marker indicate logging output.
 
 The next step is to specify the experimental protocol and configure the
 model. We first tell Glimpse where to find the image corpora. The simplest
@@ -112,8 +117,7 @@ prototypes, for example, then we would have imprinted 10 prototypes at 7x7,
 and another 10 at 11x11, or 20 prototypes total.)
 
 Finally, the model is used to extract features for each image, and the
-classifier is tested in the resulting feature space. This is done with the
-EvaluateClassifier function, as shown below::
+classifier is tested in the resulting feature space. ::
 
   >>> EvaluateClassifier()
   INFO:root:Computing C2 activation maps for 8 images
@@ -161,11 +165,6 @@ corpus, the -p and -n flags choose the prototype learning method and number
 of prototypes, and the -E flag evaluates the resulting feature vectors with
 a linear SVM classifier. The glab command has many more possible arguments,
 which are documented in the :mod:`GLAB CLI reference <glimpse.glab.cli>`.
-
-.. note::
-
-   Note that the “$” prefix used here denotes a command that is entered at the
-   shell.
 
 
 Analysis of Experiment Results
@@ -222,19 +221,13 @@ For example, this shows that an RBF activation function was used for the S2
 layer (according to `s2_operation`), and that each scale band is
 :math:`2^{1/4}` larger than the scale above it (according to
 `scale_factor`). The full set of parameters is documented :ref:`here
-<parameters>`. Parameters can be edited with a graphical interface
-using::
+<parameters>`.
 
-   >>> SetParamsWithGui()
+.. note::
 
-This presents a display similar to that shown in :ref:`Figure 1 <param-editor>`.
-
-.. _param-editor:
-.. figure:: ../_static/glimpse-param-editor.png
-   :scale: 50%
-   :align: center
-
-   Figure 1: A screenshot of the editor for model parameters.
+   The experiment's model parameters can be edited with a graphical
+   interface using :func:`SetParamsWithGui`. However, this must be done
+   before the call to :func:`ImprintS2Prototypes` above.
 
 If a set of S2 prototypes was used, they are available from the
 :func:`GetPrototype` command::
@@ -274,7 +267,9 @@ In our example, 10 prototypes were imprinted, which can be verified as::
 As seen above, an S2 prototype is a somewhat complicated object to
 visualize, particularly in the form of text output. However, there are other
 ways to visualize a prototype. The simplest is to plot the activation at
-each band as a set of images, which we do here for the first prototype::
+each band as a set of images, which we do here for the first prototype [1]_. ::
+
+  >>> gray()
 
   >>> ShowPrototype(0)
 
@@ -287,13 +282,14 @@ each band as a set of images, which we do here for the first prototype::
 
 .. note::
 
-   Indexing in Python is zero-based, so the first prototype is at index zero.
+   Plotting in Glimpse requires the `matplotlib <http://matplotlib.org/>`_
+   library.
 
 This results in a plot similar to that shown in :ref:`Figure 2
 <prototype-plot>`. Here, active locations are shown in white, while inactive
 locations are shown in black. These four plots correspond to the four edge
-orientations detected at S1. For reference, the S1 edge detectors are shown
-in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
+orientations detected at S1. For reference, the S1 edge detectors [2]_ are
+shown as in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
 
   >>> ShowS1Kernels()
 
@@ -303,10 +299,6 @@ in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
    :align: center
 
    Figure 3: S1 edge detectors.
-
-.. note::
-
-   We use the terms “prototype” and “kernel” somewhat interchangably.
 
 Unfortunately, the above visualization is not very intuitive. An alternative
 approach to visualizing an imprinted prototype is to plot the image patch
@@ -331,20 +323,8 @@ black for much of the components corresponding to the two near-horizontal
 detectors.
 
 Additionally, we can investigate the model activity that was computed for
-various layers. Assume that we wished to visualize the activity of the S2
-layer for our example. By default, only the final layer of activity is saved
-in the experimental results. (This is done to conserve disk space, since
-intermediate layers generate a large amount of data.) To visualize
-intermediate layers, we must have asked Glimpse to save this activity
-running the experiment. This can be done using the command::
-
-  >>> ComputeActivation(save_all=True)
-
-or from the command-line using the “-A” argument. In what follows, we assume
-that this data has already been saved.
-
-Here, we visualize the activity of the S2 layer when the prototype in
-:ref:`Figure 2 <prototype-plot>` is applied to the image in
+various layers. Here, we visualize the activity of the S2 layer when the
+prototype in :ref:`Figure 2 <prototype-plot>` is applied to the image in
 :ref:`Figure 4 <annnotate-imprinted-proto>`. We first need to know where the
 first prototype was imprinted, which is given by::
 
@@ -356,17 +336,12 @@ of image paths, with other data organized in the same way. To plot the S2
 activation for the first prototype on the image and scale from which it was
 imprinted, use::
 
-  >>> ShowS2Activation(image, scale, 0)
-
-As an alternative, the image can be plotted for reference below the S2 data.
-This can be accomplished with::
-
   >>> AnnotateS2Activity(image, scale, 0)
 
 This is shown for our expample in :ref:`Figure 5 <s2-response-plot>`. If
 scale is larger than 2 or 3, the image data may be hard to recognize (as it
-has been down-sampled multiple times). In this caswe, try recreating the
-plot for different values of this argument.
+has been down-sampled multiple times). In this case, try recreating the
+plot for smaller values of the `scale` argument.
 
 .. _s2-response-plot:
 .. figure:: ../_static/s2-proto-response.png
@@ -439,13 +414,13 @@ The induced classifier can be retrieved as well::
 
 The per-image predictions made by the classifier are accessible by using::
 
-  >>> experiment.GetPredictions(exp)
+  >>> GetPredictions()
   [('cats_and_dog/cat/cat3.png', 'cat', 'dog'),
    ('cats_and_dog/cat/cat4.png', 'cat', 'dog'),
    ('cats_and_dog/dog/dog1.png', 'dog', 'dog'),
    ('cats_and_dog/dog/dog2.png', 'dog', 'dog')]
 
-  >>> experiment.GetPredictions(exp, training=True)
+  >>> GetPredictions(training=True)
   [('cats_and_dog/cat/cat3.png', 'cat', 'cat'),
    ('cats_and_dog/cat/cat4.png', 'cat', 'cat'),
    ('cats_and_dog/dog/dog1.png', 'dog', 'dog'),
@@ -473,3 +448,8 @@ once, use::
    >>> features.shape
    (2, 10)
 
+
+.. [1] Indexing in Python is zero-based, so the first prototype is at index
+       zero.
+
+.. [2] We use the terms “prototype” and “kernel” somewhat interchangably.

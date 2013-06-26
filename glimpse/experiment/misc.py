@@ -259,6 +259,7 @@ def AnnotateS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   if not isinstance(image, basestring):
     image = exp.corpus.paths[image]
   model = exp.extractor.model
+  # TODO: copy the model and use only the one given prototype.
   st = BuildLayer(model, Layer.S2, model.MakeState(image), save_all=True)
   image = _ScaleImage(exp, st[Layer.IMAGE], scale)
   s2 = st[Layer.S2][scale][kwidth][prototype]
