@@ -117,7 +117,7 @@ setup(
   packages = find_packages(),
   url = 'https://github.com/mthomure/glimpse-project',
   license = 'LICENSE.txt',
-  description = "Library for hierarchical visual models in C++ and Python",
+  description = "Hierarchical visual models in C++ and Python",
   long_description = open('README.txt').read(),
   platforms = ["Linux", "Mac OS-X", "Unix"],
   entry_points = {
