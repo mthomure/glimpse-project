@@ -9,8 +9,14 @@
 # To rebuild the "base backend" from cython source, set the environment variable
 # BUILD_BASE_BACKEND=1.
 
-from distribute_setup import use_setuptools
-use_setuptools()
+
+try:
+    import setuptools
+except ImportError:
+    from distribute_setup import use_setuptools
+    use_setuptools()
+    import setuptools
+
 from setuptools import setup, find_packages
 from setuptools.extension import Extension
 
@@ -153,9 +159,6 @@ setup(
   package_data = {
     'glimpse.corpora' : ['data/*/*/*', 'data/*.txt'],
   },
-  data_files = [
-    ('.', ['distribute_setup.py']),
-  ],
   ext_modules = [ base_backend_ext ],
   **setup_args
 )
