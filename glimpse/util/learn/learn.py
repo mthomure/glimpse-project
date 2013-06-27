@@ -1,3 +1,8 @@
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
+
 # Although we do not use PIL in this module, the following import fixes problems
 # seen when importing PIL after sklearn on some Mac OS X systems.
 import glimpse.util.pil_fix

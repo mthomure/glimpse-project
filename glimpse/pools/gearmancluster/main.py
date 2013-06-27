@@ -1,10 +1,9 @@
-# Copyright (c) 2011 Mick Thomure
+"""A command-line interface for managing a cluster of Glimpse workers."""
+
+# Copyright (c) 2011-2013 Mick Thomure
 # All rights reserved.
 #
-# Please see the file COPYING in this distribution for usage
-# terms.
-
-# A command-line interface for managing a cluster of Glimpse workers.
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
 import ConfigParser
 import logging

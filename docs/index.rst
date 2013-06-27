@@ -1,13 +1,9 @@
-Glimpse
-=======
+Documentation
+=============
 
-Welcome to Glimpse, a General Layer-wise IMage ProceSsing Engine!
+*Welcome to Glimpse, a General Layer-wise IMage ProceSsing Engine!*
 
-.. toctree::
-   :maxdepth: 1
-
-   guide/index
-   api/index
+.. to
 
 The Glimpse project is a library for implementing hierarchical visual models
 in C++ and Python. The goal of this project is to allow a broad range of
@@ -25,11 +21,34 @@ Source code for the project can be found on `github
 Index (PyPI) <http://pypi.python.org/pypi/glimpse>`_.
 
 
-Acknowledgements
-================
+.. toctree::
+   :maxdepth: 2
 
-This project has been supported by NSF Grant 1018967 (PIs: Melanie Mitchell and
-Garrett Kenyon).
+   quick-start
+
+.. toctree::
+   :maxdepth: 2
+
+   user-guide
+
+.. toctree::
+   :maxdepth: 2
+
+   architecture
+
+.. toctree::
+   :maxdepth: 1
+
+   future
+
+.. toctree::
+   :maxdepth: 1
+
+   ref/index
+
+
+This project has been supported by NSF Grant 1018967 (PIs: Melanie Mitchell
+and Garrett Kenyon).
 
 
 Indices and tables

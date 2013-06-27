@@ -1,7 +1,9 @@
 """Weighted k-Means using weights based on foreground object overlap."""
 
-# XXX this module should probably be moved to glimpse.experiment, since it
-# depends on ExperimentData objects.
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
 from collections import MutableMapping
 import copy

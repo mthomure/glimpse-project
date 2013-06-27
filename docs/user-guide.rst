@@ -1,51 +1,27 @@
+.. _user-guide:
+
 User Guide
-************
-
-.. toctree::
-   :maxdepth: 1
-
-   install
-   quick-start
-   overview
-   future
+**********
 
 .. currentmodule:: glimpse.glab.api
 
-A central data structure in Glimpse is the :class:`ExperimentData
-<glimpse.experiment.ExperimentData>` class, which records everything needed
-to identify how an experiment was conducted and what results were found. The
-experimental protocol includes the choice of hierarchical model and its
-parameters, the corpus of images, and possibly the training and testing
-splits (if chosen manually). The experimental results include the set of S2
-prototypes, the features extracted by the model from the images, the
-training and testing splits (if chosen automatically), the classifier used,
-and its performance on the task.
-
-The :mod:`glimpse.experiment` package implements the :class:`ExperimentData
-<glimpse.experiment.ExperimentData>` data structure, as well as functions
-that operate on this structure to conduct an experiment. The
-:mod:`glimpse.glab <glimpse.glab.api>` package provides high-level,
-psuedo-declarative interfaces for specifying and running experiments with a
-minimum of programming. The rest of the Glimpse library is composed of the
-low-level components needed to run an experiment, such as hierarchical model
-implementations in :mod:`glimpse.models`, “worker pools” for parallel
-computation in :mod:`glimpse.pools`, and prototype learning algorithms in
-:mod:`glimpse.prototypes`.
-
 .. _glab:
-
-GLAB API
-========
 
 The easiest way to conduct an experiment is to use the GLAB application
 programming interface (API), which provides a simplified MATLAB-like
 interface to specify the experimental protocol and drive the computation of
-results. This section walks through an example use of this API. We start by
-launching IPython (the recommended way to use Glimpse)::
+results. This section walks through an example use of this API.
+
+Running an Experiment
+=====================
+
+We start by launching IPython, which is the recommended way to use Glimpse.
+
+.. code-block:: sh
 
   $ ipython --pylab
 
-and then setting up the environment::
+We then set up the environment::
 
   >>> from glimpse.glab.api import *
 
@@ -94,7 +70,7 @@ Here, the system reports that it has read the images for object classes
 .. note::
 
    If you would like to learn about Glimpse without using your own image corpus,
-   try using the :func:`SetSampleCorpus` command.
+   try using the :func:`SetCorpusByName` command.
 
 Next, the model is configured with a set of (in this case 10) imprinted
 prototypes::
@@ -145,11 +121,11 @@ and 50% on the test set. See the :mod:`GLAB API reference <glimpse.glab.api>`
 for the full set of available commands.
 
 
-GLAB From the Command Line
---------------------------
+Command-Line Experiments
+------------------------
 
-The experiment described in Section [sub:GLAB-API] can also be run from the
-command line using the glab command. This command exposes much of the
+The experiment described above can also be run from the command line using
+the :mod:`glab <glimpse.glab.cli>` command. This command exposes much of the
 functionality of the API, but does so through comand-line arguments. To run
 the experiment above, we could enter the following at the command line
 (rather than the Python interpreter).
@@ -158,17 +134,17 @@ the experiment above, we could enter the following at the command line
 
    $ glab -v -c cats_and_dogs -p imprint -n 10 -E
 
-This results in the same calls that were used in above in the `GLAB API`_,
-and thus should produce the same log output. Here, the -v flag
-enables the generation of log output, the -c flag specifies the image
-corpus, the -p and -n flags choose the prototype learning method and number
-of prototypes, and the -E flag evaluates the resulting feature vectors with
-a linear SVM classifier. The glab command has many more possible arguments,
-which are documented in the :mod:`GLAB CLI reference <glimpse.glab.cli>`.
+This results in the same calls that were used in above, and thus should
+produce the same log output. Here, the -v flag enables the generation of log
+output, the -c flag specifies the image corpus, the -p and -n flags choose
+the prototype learning method and number of prototypes, and the -E flag
+evaluates the resulting feature vectors with a linear SVM classifier. The
+glab command has many more possible arguments, which are documented in the
+:mod:`GLAB CLI reference <glimpse.glab.cli>`.
 
 
-Analysis of Experiment Results
-==============================
+Analyzing Results
+=================
 
 Results can by analyzed in much the same way as an experiment is run. Using
 the GLAB API, we can first retrieve the set of images and their class labels::
@@ -274,7 +250,7 @@ each band as a set of images, which we do here for the first prototype [1]_. ::
   >>> ShowPrototype(0)
 
 .. _prototype-plot:
-.. figure:: ../_static/prototype-plot.png
+.. figure:: _static/prototype-plot.png
    :width: 50%
    :align: center
 
@@ -294,7 +270,7 @@ shown as in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
   >>> ShowS1Kernels()
 
 .. _s1-kernels-plot:
-.. figure:: ../_static/s1-kernels-plot.png
+.. figure:: _static/s1-kernels-plot.png
    :width: 50%
    :align: center
 
@@ -307,7 +283,7 @@ from which the prototype was “imprinted”::
   >>> AnnotateImprintedPrototype(0)
 
 .. _annnotate-imprinted-proto:
-.. figure:: ../_static/annotate-imprint-prototype.png
+.. figure:: _static/annotate-imprint-prototype.png
    :width: 50%
    :align: center
 
@@ -344,7 +320,7 @@ has been down-sampled multiple times). In this case, try recreating the
 plot for smaller values of the `scale` argument.
 
 .. _s2-response-plot:
-.. figure:: ../_static/s2-proto-response.png
+.. figure:: _static/s2-proto-response.png
    :width: 50%
    :align: center
 
@@ -362,14 +338,14 @@ which should produce results similar to :ref:`Figure 6 <s1-response-maps>`
 and :ref:`Figure 7 <c1-response-maps>`.
 
 .. _s1-response-maps:
-.. figure:: ../_static/s1-response-large-scale.png
+.. figure:: _static/s1-response-large-scale.png
    :width: 50%
    :align: center
 
    Figure 6: S1 response maps (enhanced for illustration).
 
 .. _c1-response-maps:
-.. figure:: ../_static/c1-response.png
+.. figure:: _static/c1-response.png
    :width: 50%
    :align: center
 

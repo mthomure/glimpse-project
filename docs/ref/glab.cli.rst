@@ -1,5 +1,5 @@
-glimpse.glab.cli
-================
+Command-Line Interface
+======================
 
 .. module:: glimpse.glab.cli
 
@@ -8,22 +8,39 @@ command line. The command-line interface to the GLAB API can be run as follows.
 
 .. code-block:: bash
 
-   $ python -m glimpse.glab.cli [ARGUMENTS]
+   $ glab [ARGUMENTS]
+
+
+.. _glab-path-note:
+
+.. note::
+
+  The location of the `glab` script is controlled by the `pip` installer. On
+  Linux, this location is ``$HOME/.local/bin``. If `glab` can not be found,
+  try adding this location to your system path.
+
+  As an alternative, this script can always be run as:
+
+  .. code-block:: sh
+
+     $ python -m glimpse.glab.cli [ARGUMENTS]
+
+
+Arguments
+---------
 
 Arguments to this command are described below, where they are grouped
 depending on their functionality.
 
 
-Corpus Arguments
-----------------
+**Corpus arguments**
 
   -C DIR, --corpus-subdir=DIR         Use DIR as a corpus sub-directory (use -C repeatedly to specify all sub-directories in corpus)
   -c DIR, --corpus=DIR                Use DIR as corpus directory.
   -b, --balance               Choose equal number of images per class
 
 
-Extraction Arguments
---------------------
+**Extraction arguments**
 
   -A, --save-all              Save activity for all layers, rather than just the layers from which features are extracted.
   -N, --no-activity           Do not compute activity model activity for each
@@ -34,8 +51,7 @@ Extraction Arguments
   -O FILE, --options=FILE               Read model options from `FILE`
 
 
-Prototype Learning Arguments
-----------------------------
+**Prototype learning arguments**
 
   --base-weight=w               Add a weight of `w` for all training patches (default: 0.0)
   --high=VALUE                      Use VALUE as the high end of uniform distribution for random prototypes (default: 1.0)
@@ -47,8 +63,7 @@ Prototype Learning Arguments
   --samples=NUM                   Sample `NUM` training patches for S2 prototype learning (default: 0)
 
 
-Evaluation Arguments
---------------------
+**Evaluation arguments**
 
   -E, --evaluate              Train and test a classifier
   -f NUM, --num-folds=NUM             Use `NUM` folds for cross-validation (default: 10)
@@ -63,8 +78,7 @@ Evaluation Arguments
                               validation instead of fixed training/testing split
 
 
-Other Arguments
----------------
+**Other arguments**
 
   --command=cmd                   Execute `cmd` after running the experiment (but before results are saved
   -h, --help                  Print this help and exit

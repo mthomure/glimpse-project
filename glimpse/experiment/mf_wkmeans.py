@@ -1,7 +1,9 @@
 """Weighted k-Means using meta-feature quality model of Krupka et al."""
 
-# XXX this module should probably be moved to glimpse.experiment, since it
-# depends on ExperimentData objects.
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
 import logging
 import numpy as np

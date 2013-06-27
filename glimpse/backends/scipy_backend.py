@@ -1,9 +1,9 @@
-# Copyright (c) 2011 Mick Thomure
+"""Implementation of filter operations using Scipy's ndimage.correlate()."""
+
+# Copyright (c) 2011-2013 Mick Thomure
 # All rights reserved.
 #
-# Please see the file COPYING in this distribution for usage terms.
-
-# Implementation of filter operations using Scipy's ndimage.correlate().
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
 import scipy
 from scipy.ndimage import maximum_filter

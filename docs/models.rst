@@ -1,6 +1,5 @@
 .. _models:
 
-######
 Models
 ######
 
@@ -28,8 +27,8 @@ be derived from the activation data as:
    >>> from glimpse.util.garray import FlattenArrays
    >>> features = FlattenArrays(c1)
 
-Oftentimes, it may be preferable to use the :mod:`glab <glimpse.glab>` module.
-In this case, the above example could be written as::
+Oftentimes, it may be preferable to use the :mod:`glab <glimpse.glab.api>`
+module. In this case, the above example could be written as::
 
    >>> SetLayer("C1")
    >>> features = GetImageFeatures("example.jpg")
@@ -91,7 +90,7 @@ set the desired values. An example is shown below:
    >>> params.s1_num_orientations = 16
    >>> m = Model(params)
 
-Using the :ref:`glab` interface, this simplifies to:
+Using the :mod:`glab <glimpse.glab.api>` interface, this simplifies to:
 
    >>> params = GetParams()
    >>> params.num_scales = 8

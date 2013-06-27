@@ -1,5 +1,10 @@
 """Provides a command-line interface for running experiments."""
 
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
+
 try:
   import matplotlib
   matplotlib.use("cairo")  # workaround old scipy bug
@@ -45,6 +50,9 @@ def MakeCliOptions():
                 doc = "Set corpus directory"),
             Option('subdirs', flag = ('C:', 'corpus-subdir='), multiple=True,
                 doc = "Specify subdirectories (using -C repeatedly)"),
+            Option('from_name', flag = 'corpus-name=',
+                doc = "Specify corpus by name (one of 'easy', 'moderate', or "
+                    "'hard')"),
             Option('balance', False, flag = ('b', 'balance'),
                 doc = "Choose equal number of images per class")),
         OptionGroup('extractor',
@@ -237,13 +245,16 @@ def CliProject(opts):
   # Initialize corpus: Each sub-directory is given a distinct numeric label,
   # starting at one. If the root directory is given, labels are assigned to
   # sub-directories in alphabetical order.
-  if opts.corpus.root_dir:
-    SetCorpus(exp, opts.corpus.root_dir, opts.corpus.balance, reader)
-  elif opts.corpus.subdirs:
+  if opts.corpus.subdirs:
     SetCorpusSubdirs(exp, opts.corpus.subdirs, opts.corpus.balance, reader)
-  elif exp.corpus.paths is None:
-    raise OptionError("Must specify either root directory or sub-directories "
-        "for corpus")
+  else:
+    if opts.corpus.root_dir:
+      path = opts.corpus.root_dir
+    elif opts.corpus.from_name:
+      path = GetCorpusByName(opts.corpus.from_name)
+    else:
+      raise OptionError("Must specify a corpus")
+    SetCorpus(exp, path, opts.corpus.balance, reader)
   # Initialize model and compute activation, if necessary.
   eopts = opts.extractor
   pool = None

@@ -78,7 +78,7 @@ Miscellaneous
 .. autofunction:: ReadCorpusDirs
 .. autofunction:: ResolveLayers
 .. autofunction:: BalanceCorpus
-.. autofunction:: GetSampleCorpus
+.. autofunction:: GetCorpusByName
 
 
 Subpackages

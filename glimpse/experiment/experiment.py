@@ -1,3 +1,8 @@
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
+
 # Purpose: make the common case (imprint prototypes and train/test svm) easy,
 # while also supporting ad hoc data analysis.
 # As such, the experiment object encapsulates all generated data for an

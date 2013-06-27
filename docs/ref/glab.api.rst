@@ -30,7 +30,7 @@ glimpse.glab.api
 .. autofunction:: SetCorpus
 .. autofunction:: SetCorpusSubdirs
 .. autofunction:: SetCorpusSplit
-.. autofunction:: SetSampleCorpus
+.. autofunction:: SetCorpusByName
 .. autofunction:: SetS2Prototypes
 .. autofunction:: ImprintS2Prototypes
 .. autofunction:: MakeUniformRandomS2Prototypes

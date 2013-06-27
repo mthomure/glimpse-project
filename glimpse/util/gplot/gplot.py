@@ -1,9 +1,9 @@
 """Miscellaneous functions for plotting data with Matplotlib."""
 
-# Copyright (c) 2011 Mick Thomure
+# Copyright (c) 2011-2013 Mick Thomure
 # All rights reserved.
 #
-# Please see the file COPYING in this distribution for usage terms.
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
 import math
 import numpy as np

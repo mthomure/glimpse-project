@@ -1,5 +1,10 @@
 """Low-level, stateless functions used by glab experiment functions."""
 
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
+
 from collections import Counter
 from contextlib import contextmanager
 from itertools import chain

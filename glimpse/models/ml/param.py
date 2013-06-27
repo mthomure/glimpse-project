@@ -1,10 +1,9 @@
-# Copyright (c) 2011 Mick Thomure
+# Copyright (c) 2011-2013 Mick Thomure
 # All rights reserved.
 #
-# Please see the file COPYING in this distribution for usage
-# terms.
+# Please see the file LICENSE.txt in this distribution for usage terms.
 
-from glimpse.models.base.param import Params as BaseParams
+from glimpse.models.base import Params as BaseParams
 from glimpse.util import traits
 
 class KWidth(traits.BaseInt):
@@ -65,7 +64,7 @@ class OperationType(traits.Enum):
         **metadata)
 
 class Params(BaseParams):
-  """Parameter container for `glimpse.models.ml.model.Model`."""
+  """Parameter container for :mod:`glimpse.models.ml`."""
 
   retina_bias = traits.Range(low = 0., value = 1., label = "Retina Bias",
       desc = "term added to standard deviation of local window")

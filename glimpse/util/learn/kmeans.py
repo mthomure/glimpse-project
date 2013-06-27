@@ -1,3 +1,10 @@
+# Copyright (c) 2011-2013 Mick Thomure
+# All rights reserved.
+#
+# Please see the file LICENSE.txt in this distribution for usage terms.
+
+# Adapted from sklearn.cluster.kmeans
+
 import warnings
 
 import numpy as np
