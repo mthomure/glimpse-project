@@ -248,13 +248,15 @@ def CliProject(opts):
   if opts.corpus.subdirs:
     SetCorpusSubdirs(exp, opts.corpus.subdirs, opts.corpus.balance, reader)
   else:
+    path = None
     if opts.corpus.root_dir:
       path = opts.corpus.root_dir
     elif opts.corpus.from_name:
       path = GetCorpusByName(opts.corpus.from_name)
-    else:
+    if path:
+      SetCorpus(exp, path, opts.corpus.balance, reader)
+    elif not exp.corpus.paths:
       raise OptionError("Must specify a corpus")
-    SetCorpus(exp, path, opts.corpus.balance, reader)
   # Initialize model and compute activation, if necessary.
   eopts = opts.extractor
   pool = None
