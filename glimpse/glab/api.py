@@ -277,17 +277,16 @@ def SetCorpusSplit(train_dir, test_dir):
   vs = _vars()
   experiment.SetCorpusSplit(vs.exp, train_dir, test_dir, vs.reader)
 
-def SetSampleCorpus(name=None):
+def SetCorpusByName(name):
   """Use a sample image corpus for this experiment.
 
-  :param str name: Optional corpus name. One of 'easy', 'moderate', or 'hard'.
-     The default is 'easy'.
+  :param str name: Corpus name. One of 'easy', 'moderate', or 'hard'.
 
   This provides access to a small set of images for demonstration purposes,
   which are composed of simple shapes on various background patterns.
 
   """
-  SetCorpus(experiment.GetSampleCorpus(name))
+  SetCorpus(experiment.GetCorpusByName(name))
 
 ### S2 PROTOTYPES ###
 

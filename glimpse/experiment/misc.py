@@ -431,17 +431,18 @@ def ShowS1Kernels(exp):
   kernels = model.s1_kernels[:,0]
   Show3dArray(kernels)
 
-def GetSampleCorpus(name=None):
+def GetCorpusByName(name):
   """Return the path to a sample corpus of images.
 
   :param str name: Corpus name. One of 'easy', 'moderate', or 'hard'.
+  :rtype: str
+  :return: Filesystem path to corpus root directory.
 
   """
   import os
-  if name is None:
-    name = 'easy'
-  path = os.path.abspath(os.path.join(os.path.dirname(
-      os.path.abspath(__file__)), '..', '..', 'sample-corpora', name.lower()))
+  path = os.path.dirname(os.path.abspath(__file__))
+  path = os.path.join(path, '..', 'corpora', 'data', name)
+  path = os.path.abspath(path)
   if not os.path.isdir(path):
-    raise ExpError("Sample dataset not found: %s" % name)
+    raise ExpError("Corpus not found: %s" % name)
   return path

@@ -139,16 +139,22 @@ setup(
   ],
   install_requires = [
     "Python >= 2.7",
-    "numpy >= 1.6.2",
-    "scipy >= 0.10.1",
-    "PIL >= 1.1.6",
-    "traits >= 3.4",
-    "scikit-learn >= 0.13",
-    "decorator >= 3.4",
-    "traitsui >= 3.4",
+    "numpy",
+    "scipy",
+    "PIL",
+    "traits",
+    "scikit-learn",
+    "decorator",
+    "traitsui",
   ],
   setup_requires = [
-    "numpy >= 1.6.2",
+    "numpy",
+  ],
+  package_data = {
+    'glimpse.corpora' : ['data/*/*/*', 'data/*.txt'],
+  },
+  data_files = [
+    ('.', ['distribute_setup.py']),
   ],
   ext_modules = [ base_backend_ext ],
   **setup_args
