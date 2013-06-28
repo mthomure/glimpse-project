@@ -7,6 +7,7 @@ import importlib
 from itertools import imap
 import multiprocessing.pool
 import os
+from sklearn.externals.joblib import Parallel, delayed
 
 DEFAULT_POOL_TYPE = "multicore"
 DEFAULT_CLUSTER_TYPE = "ipython"
@@ -14,7 +15,7 @@ DEFAULT_CLUSTER_TYPE = "ipython"
 class SinglecorePool(object):
   """A fall-back worker pool that uses a single core of a single machine."""
 
-  def map(self, func, iterable, progress = None):
+  def map(self, func, iterable, progress=None):
     """Apply a function to a list using a single local core."""
     if progress is None:
       return map(func, iterable)
@@ -28,26 +29,17 @@ class SinglecorePool(object):
     p.finish()
     return out
 
-class MulticorePool(multiprocessing.pool.Pool):
+class MulticorePool(object):
   """A worker pool that uses multiple cores on a single machine."""
 
-  def map(self, func, iterable, progress = None):
+  def __init__(self, processes=None):
+    self.processes = processes
+
+  def map(self, func, iterable, progress=None):
     """Apply a function to a list using multiple local cores."""
-    if progress is None:
-      return super(MulticorePool, self).map(func, iterable)
-    iterable = list(iterable)
-    if len(iterable) == 0:
-      return list()
-    p = progress(maxval = len(iterable)).start()
-    p.update(0)
-    chunksize = 4  # use a small chunksize to support progress updates
-    results = self.imap(func, iterable, chunksize = chunksize)
-    out = list()
-    for i, r in enumerate(results):
-      p.update(i+1)
-      out.append(r)
-    p.finish()
-    return out
+    # TODO: Add iterable interface for Parallel, to support progress meter.
+    return Parallel(n_jobs=(self.processes or -1), pre_dispatch=1)(
+        map(delayed(func), iterable))
 
 def MakePool(name=None, **kw):
   """Return a new instance of the given worker pool.
