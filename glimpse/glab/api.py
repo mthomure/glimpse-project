@@ -474,6 +474,9 @@ def GetFeatures():
     ComputeActivation()
   return ExtractFeatures(vs.layer, vs.exp.extractor.activation)
 
+
+##### ANALYSIS / ACCESSOR FUNCTIONS ############################################
+
 @docstring.copy_dedent(misc.GetImagePaths)
 @depends(CORPUS)
 def GetImagePaths():
@@ -519,25 +522,38 @@ def GetEvaluationResults(evaluation=0):
 def GetPredictions(training=False, evaluation=0):
   return misc.GetPredictions(GetExperiment(), training, evaluation)
 
+
+##### PLOTTING FUNCTIONS #######################################################
+
 @docstring.copy_dedent(misc.ShowS2Activity)
 @depends(PROTOTYPES)
 def ShowS2Activity(image=0, scale=0, prototype=0, kwidth=0):
   misc.ShowS2Activity(GetExperiment(), image, scale, prototype, kwidth)
+
+@docstring.copy_dedent(misc.ShowS1Kernels)
+@depends(MODEL)
+def ShowS1Kernels():
+  misc.ShowS1Kernels(GetExperiment())
 
 @docstring.copy_dedent(misc.ShowPrototype)
 @depends(PROTOTYPES)
 def ShowPrototype(prototype=0, kwidth=0):
   misc.ShowPrototype(GetExperiment(), prototype, kwidth)
 
+@docstring.copy_dedent(misc.AnnotateS2Activity)
+@depends(PROTOTYPES)
+def AnnotateS2Activity(image=0, scale=0, prototype=0, kwidth=0):
+  misc.AnnotateS2Activity(GetExperiment(), image, scale, prototype, kwidth)
+
 @docstring.copy_dedent(misc.AnnotateImprintedPrototype)
 @depends(PROTOTYPES)
 def AnnotateImprintedPrototype(prototype=0, kwidth=0):
   misc.AnnotateImprintedPrototype(GetExperiment(), prototype, kwidth)
 
-@docstring.copy_dedent(misc.AnnotateS2Activity)
+@docstring.copy_dedent(misc.AnnotateBestPrototypeMatch)
 @depends(PROTOTYPES)
-def AnnotateS2Activity(image=0, scale=0, prototype=0, kwidth=0):
-  misc.AnnotateS2Activity(GetExperiment(), image, scale, prototype, kwidth)
+def AnnotateBestPrototypeMatch(image=0, prototype=0, kwidth=0):
+  misc.AnnotateBestPrototypeMatch(GetExperiment(), image, prototype, kwidth)
 
 @docstring.copy_dedent(misc.AnnotateC1Activity)
 @depends(MODEL)
@@ -548,8 +564,3 @@ def AnnotateC1Activity(image=0, scale=0):
 @depends(MODEL)
 def AnnotateS1Activity(image=0, scale=0):
   misc.AnnotateS1Activity(GetExperiment(), image, scale)
-
-@docstring.copy_dedent(misc.ShowS1Kernels)
-@depends(MODEL)
-def ShowS1Kernels():
-  misc.ShowS1Kernels(GetExperiment())

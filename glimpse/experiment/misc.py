@@ -51,6 +51,9 @@ def ExtractHistogramFeatures(layers, states, low=0, high=0.2, bins=None):
     results.append(np.array(r).flatten())
   return np.array(results)
 
+
+##### ANALYSIS / ACCESSOR FUNCTIONS ############################################
+
 def GetImagePaths(exp):
   """Returns the filename for each image in the corpus."""
   return exp.corpus.paths
@@ -237,6 +240,38 @@ def GetEvaluationResults(exp, evaluation=0):
   """
   return _GetEvaluation(exp, evaluation).results
 
+def GetCorpusByName(name):
+  """Return the path to a sample corpus of images.
+
+  :param str name: Corpus name. One of 'easy', 'moderate', or 'hard'.
+  :rtype: str
+  :return: Filesystem path to corpus root directory.
+
+  """
+  import os
+  path = os.path.dirname(os.path.abspath(__file__))
+  path = os.path.join(path, '..', 'corpora', 'data', name)
+  path = os.path.abspath(path)
+  if not os.path.isdir(path):
+    raise ExpError("Corpus not found: %s" % name)
+  return path
+
+
+##### PLOTTING FUNCTIONS #######################################################
+
+def _GetActivity(exp, image, layer):
+  """Look up activity from experiment, computing on the fly if needed."""
+  if not isinstance(image, basestring):
+    image = exp.corpus.paths[image]
+  if exp.extractor.activation is not None:
+    st = exp.extractor.activation[image]
+    if layer in st:
+      return st[layer]
+  model = exp.extractor.model
+  # TODO: copy the model and use only the one given prototype for S2/C2 layers.
+  st = BuildLayer(model, layer, model.MakeState(image), save_all=True)
+  return st[layer]
+
 def ShowS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   """Plot the S2 activity for a given image.
 
@@ -246,8 +281,78 @@ def ShowS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   :param int kwidth: Index of kernel shape.
 
   """
-  Show2dArray(exp.extractor.activation[image][Layer.S2][scale][kwidth][
-      prototype])
+  Show2dArray(_GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype])
+
+def ShowPrototype(exp, prototype, kwidth=0, **kw):
+  """Plot the prototype activation.
+
+  There is one plot for each orientation band.
+
+  :param int prototype: Index of S2 prototype to use.
+  :param int kwidth: Index of kernel shape.
+  :param bool colorbar: Add a colorbar to the plot.
+
+  """
+  if 'normalize' not in kw:
+    kw['normalize'] = True
+  if 'cols' not in kw:
+    kw['cols'] = 2
+  if 'colorbar' not in kw:
+    kw['colorbar'] = True
+  Show3dArray(GetPrototype(exp, prototype, kwidth), **kw)
+
+def ShowC1Activity(exp, image, scale=0, **kw):
+  """Plot the C1 activation for a given image.
+
+  There is one plot for each orientation band.
+
+  :param image: Path to image on disk, or index of image in experiment.
+  :param int scale: Index of scale band to use.
+
+  """
+  if 'normalize' not in kw:
+    kw['normalize'] = True
+  if 'cols' not in kw:
+    kw['cols'] = 2
+  if 'colorbar' not in kw:
+    kw['colorbar'] = True
+  Show3dArray(_GetActivity(exp, image, Layer.C1)[scale], **kw)
+
+def ShowS1Activity(exp, image, scale=0, **kw):
+  """Plot the S1 activation for a given image.
+
+  There is one plot for each orientation band.
+
+  :param image: Path to image on disk, or index of image in experiment.
+  :param int scale: Index of scale band to use.
+
+  """
+  if 'normalize' not in kw:
+    kw['normalize'] = True
+  if 'cols' not in kw:
+    kw['cols'] = 2
+  if 'colorbar' not in kw:
+    kw['colorbar'] = True
+  Show3dArray(_GetActivity(exp, image, Layer.S1)[scale], **kw)
+
+def ShowS1Kernels(exp, **kw):
+  """Plot the S1 Gabor kernels.
+
+  There is one plot for each orientation band.
+
+  """
+  model = exp.extractor.model
+  if model is None:
+    raise ExpError("Experiment has no model")
+  # grab filters for first phase across all orientations
+  kernels = model.s1_kernels[:,0]
+  if 'normalize' not in kw:
+    kw['normalize'] = True
+  if 'cols' not in kw:
+    kw['cols'] = 2
+  if 'colorbar' not in kw:
+    kw['colorbar'] = True
+  Show3dArray(kernels, **kw)
 
 def AnnotateS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   """Plot the S2 activity and image data for a given image.
@@ -261,14 +366,9 @@ def AnnotateS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
 
   """
   import matplotlib.pyplot as plt
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  model = exp.extractor.model
-  # TODO: copy the model and use only the one given prototype.
-  st = BuildLayer(model, Layer.S2, model.MakeState(image), save_all=True)
-  image = _ScaleImage(exp, st[Layer.IMAGE], scale)
-  s2 = st[Layer.S2][scale][kwidth][prototype]
-  params = model.params
+  s2 = _GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype]
+  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  params = exp.extractor.model.params
   left = bottom = (params.s2_kwidth[0]/2 * params.c1_sampling +
       params.c1_kwidth/2) * params.s1_sampling + params.s1_kwidth/2
   scale_factor = params.s2_sampling * params.c1_sampling * params.s1_sampling
@@ -281,13 +381,9 @@ def AnnotateS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
 
 def _AnnotateS2ReceptiveField(exp, image, scale, s2_y, s2_x, kwidth=0):
   import matplotlib.pyplot as plt
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  model = exp.extractor.model
   y0,y1,x0,x1 = GetS2ReceptiveField(exp.extractor.model.params, scale, s2_y,
       s2_x, kwidth_offset=kwidth)
-  st = BuildLayer(model, Layer.IMAGE, model.MakeState(image))
-  img = toimage(st[Layer.IMAGE])
+  img = toimage(_GetActivity(exp, image, Layer.IMAGE))
   plt.imshow(img, cmap=plt.cm.gray, origin='lower')
   plt.xticks(())
   plt.yticks(())
@@ -308,8 +404,6 @@ def AnnotateBestPrototypeMatch(exp, image, prototype=0, kwidth=0):
   :param int kwidth: Index of kernel shape.
 
   """
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
   args = GetBestPrototypeMatch(exp, image, prototype, kwidth)
   _AnnotateS2ReceptiveField(exp, image, *args, kwidth=kwidth)
 
@@ -330,29 +424,8 @@ def AnnotateImprintedPrototype(exp, prototype=0, kwidth=0):
   image = exp.corpus.paths[loc[0]]
   _AnnotateS2ReceptiveField(exp, image, *loc[1:], kwidth=kwidth)
 
-def ShowPrototype(exp, prototype, kwidth=0):
-  """Plot the prototype activation.
-
-  There is one plot for each orientation band.
-
-  :param int prototype: Index of S2 prototype to use.
-  :param int kwidth: Index of kernel shape.
-
-  """
-  Show3dArray(GetPrototype(exp, prototype, kwidth))
-
-def ShowC1Activity(exp, image, scale=0):
-  """Plot the C1 activation for a given image.
-
-  There is one plot for each orientation band.
-
-  :param image: Path to image on disk, or index of image in experiment.
-  :param int scale: Index of scale band to use.
-
-  """
-  Show3dArray(exp.extractor.activation[image][Layer.C1][scale])
-
-def AnnotateC1Activity(exp, image, scale=0):
+def AnnotateC1Activity(exp, image, scale=0, cols=2, colorbar=True,
+    normalize=True):
   """Plot the C1 activation for a given image.
 
   This shows the image in the background, with the activation plotted on top.
@@ -363,37 +436,40 @@ def AnnotateC1Activity(exp, image, scale=0):
 
   """
   import matplotlib.pyplot as plt
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  model = exp.extractor.model
-  st = BuildLayer(model, Layer.C1, model.MakeState(image), save_all=True)
-  image = _ScaleImage(exp, st[Layer.IMAGE], scale)
-  c1 = st[Layer.C1][scale]
-  params = model.params
+  from mpl_toolkits.axes_grid import AxesGrid  # import must be delayed
+  c1 = _GetActivity(exp, image, Layer.C1)[scale]
+  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  params = exp.extractor.model.params
   left = bottom = (params.c1_kwidth/2) * params.s1_sampling + params.s1_kwidth/2
   scale_factor = params.c1_sampling * params.s1_sampling
   top = bottom + c1.shape[-2] * scale_factor
   right = left + c1.shape[-1] * scale_factor
+  rows = int(np.ceil(len(c1) / float(cols)))
+  grid = AxesGrid(plt.gcf(), 111,
+    nrows_ncols = (rows, cols),
+    axes_pad = 0.5,
+    share_all = True,
+    label_mode = "L",   # XXX value can be "L" or "1" -- what is this?
+    cbar_location = "right",
+    cbar_mode = "single",
+  )
+  vmin = c1.min()
+  vmax = c1.max()
   for i in range(len(c1)):
-    plt.subplot(2, int(math.ceil(len(c1)/2)), i+1)
+    plt.sca(grid[i])
     plt.imshow(image, cmap=plt.cm.gray)
     plt.imshow(c1[i], alpha=.5, extent=(left,right,top,bottom),
         cmap=plt.cm.RdBu_r)
     plt.xticks(())
     plt.yticks(())
+  if colorbar:
+    img = grid[0].images[-1]
+    grid.cbar_axes[0].colorbar(img)
+    for cax in grid.cbar_axes:
+      cax.toggle_label(True)
 
-def ShowS1Activity(exp, image, scale=0):
-  """Plot the S1 activation for a given image.
-
-  There is one plot for each orientation band.
-
-  :param image: Path to image on disk, or index of image in experiment.
-  :param int scale: Index of scale band to use.
-
-  """
-  Show3dArray(exp.extractor.activation[image][Layer.S1][scale,orientation])
-
-def AnnotateS1Activity(exp, image, scale=0):
+def AnnotateS1Activity(exp, image, scale=0, cols=2, colorbar=True,
+    normalize=True):
   """Plot the S1 activation for a given image.
 
   This shows the image in the background, with the activation plotted on top.
@@ -401,53 +477,38 @@ def AnnotateS1Activity(exp, image, scale=0):
 
   :param image: Path to image on disk, or index of image in experiment.
   :param int scale: Index of scale band to use.
+  :param bool colorbar: Whether to show colorbar with plot.
 
   """
   import matplotlib.pyplot as plt
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  model = exp.extractor.model
-  st = BuildLayer(model, Layer.S1, model.MakeState(image), save_all=True)
-  image = _ScaleImage(exp, st[Layer.IMAGE], scale)
-  s1 = st[Layer.S1][scale]
-  params = model.params
+  from mpl_toolkits.axes_grid import AxesGrid  # import must be delayed
+  s1 = _GetActivity(exp, image, Layer.S1)[scale]
+  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  params = exp.extractor.model.params
   left = bottom = params.s1_kwidth/2
   scale_factor = params.s1_sampling
   top = bottom + s1.shape[-2] * scale_factor
   right = left + s1.shape[-1] * scale_factor
+  rows = int(np.ceil(len(s1) / float(cols)))
+  grid = AxesGrid(plt.gcf(), 111,
+    nrows_ncols = (rows, cols),
+    axes_pad = 0.5,
+    share_all = True,
+    label_mode = "L",   # XXX value can be "L" or "1" -- what is this?
+    cbar_location = "right",
+    cbar_mode = "single",
+  )
+  vmin = s1.min()
+  vmax = s1.max()
   for i in range(len(s1)):
-    plt.subplot(2, int(math.ceil(len(s1)/2)), i+1)
+    plt.sca(grid[i])
     plt.imshow(image, cmap=plt.cm.gray)
-    plt.imshow(s1[i], alpha=.5, extent=(left,right,top,bottom),
-        cmap=plt.cm.RdBu_r)
+    plt.imshow(s1[i], vmin=vmin, vmax=vmax, alpha=.5,
+        extent=(left,right,top,bottom), cmap=plt.cm.RdBu_r)
     plt.xticks(())
     plt.yticks(())
-
-def ShowS1Kernels(exp):
-  """Plot the S1 Gabor kernels.
-
-  There is one plot for each orientation band.
-
-  """
-  model = exp.extractor.model
-  if model is None:
-    raise ExpError("Experiment has no model")
-  # grab filters for first phase across all orientations
-  kernels = model.s1_kernels[:,0]
-  Show3dArray(kernels)
-
-def GetCorpusByName(name):
-  """Return the path to a sample corpus of images.
-
-  :param str name: Corpus name. One of 'easy', 'moderate', or 'hard'.
-  :rtype: str
-  :return: Filesystem path to corpus root directory.
-
-  """
-  import os
-  path = os.path.dirname(os.path.abspath(__file__))
-  path = os.path.join(path, '..', 'corpora', 'data', name)
-  path = os.path.abspath(path)
-  if not os.path.isdir(path):
-    raise ExpError("Corpus not found: %s" % name)
-  return path
+  if colorbar:
+    img = grid[0].images[-1]
+    grid.cbar_axes[0].colorbar(img)
+    for cax in grid.cbar_axes:
+      cax.toggle_label(True)
