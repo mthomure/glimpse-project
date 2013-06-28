@@ -254,18 +254,18 @@ each band as a set of images, which we do here for the first prototype [1]_. ::
    :width: 50%
    :align: center
 
-   Figure 2: S2 prototype bands, with plots corresponding to edge orientations.
+   Figure 1: S2 prototype bands, with plots corresponding to edge orientations.
 
 .. note::
 
    Plotting in Glimpse requires the `matplotlib <http://matplotlib.org/>`_
    library.
 
-This results in a plot similar to that shown in :ref:`Figure 2
+This results in a plot similar to that shown in :ref:`Figure 1
 <prototype-plot>`. Here, active locations are shown in white, while inactive
 locations are shown in black. These four plots correspond to the four edge
 orientations detected at S1. For reference, the S1 edge detectors [2]_ are
-shown as in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
+shown as in :ref:`Figure 2 <s1-kernels-plot>` using the following command::
 
   >>> ShowS1Kernels()
 
@@ -274,7 +274,7 @@ shown as in :ref:`Figure 3 <s1-kernels-plot>` using the following command::
    :width: 50%
    :align: center
 
-   Figure 3: S1 edge detectors.
+   Figure 2: S1 edge detectors.
 
 Unfortunately, the above visualization is not very intuitive. An alternative
 approach to visualizing an imprinted prototype is to plot the image patch
@@ -282,14 +282,20 @@ from which the prototype was “imprinted”::
 
   >>> AnnotateImprintedPrototype(0)
 
+.. note::
+
+   To add a colorbar to this plot, just type::
+
+      >>> colorbar()
+
 .. _annnotate-imprinted-proto:
 .. figure:: _static/annotate-imprint-prototype.png
    :width: 50%
    :align: center
 
-   Figure 4: Chosen location for the imprinted S2 prototype.
+   Figure 3: Chosen location for the imprinted S2 prototype.
 
-The results are shown in :ref:`Figure 4 <annnotate-imprinted-proto>`. Taken
+The results are shown in :ref:`Figure 3 <annnotate-imprinted-proto>`. Taken
 together, it is much easier to interpret the behavior of this prototype. We
 see that it was imprinted from the cat's front leg, which contains a large
 amount of vertical energy and very little horizontal energy. This is
@@ -300,8 +306,8 @@ detectors.
 
 Additionally, we can investigate the model activity that was computed for
 various layers. Here, we visualize the activity of the S2 layer when the
-prototype in :ref:`Figure 2 <prototype-plot>` is applied to the image in
-:ref:`Figure 4 <annnotate-imprinted-proto>`. We first need to know where the
+prototype in :ref:`Figure 1 <prototype-plot>` is applied to the image in
+:ref:`Figure 3 <annnotate-imprinted-proto>`. We first need to know where the
 first prototype was imprinted, which is given by::
 
   >>> image, scale, y, x = GetImprintLocation(0)
@@ -314,19 +320,20 @@ imprinted, use::
 
   >>> AnnotateS2Activity(image, scale, 0)
 
-This is shown for our expample in :ref:`Figure 5 <s2-response-plot>`. If
-scale is larger than 2 or 3, the image data may be hard to recognize (as it
-has been down-sampled multiple times). In this case, try recreating the
-plot for smaller values of the `scale` argument.
-
 .. _s2-response-plot:
 .. figure:: _static/s2-proto-response.png
    :width: 50%
    :align: center
 
-   Figure 5: S2 response for the prototype visualized in :ref:`Figure 2
+   Figure 4: S2 response for the prototype visualized in :ref:`Figure 1
    <prototype-plot>`. For reference, the S2 activity is plotted on top of the
    image data.
+
+This is shown for our expample in :ref:`Figure 4 <s2-response-plot>`, where
+active regions are shown in red and inactive regions are shown in blue. If
+the `scale` is larger than 2 or 3, the image data may be hard to recognize
+(as it has been down-sampled multiple times). In this case, try recreating
+the plot for smaller values of the `scale` argument.
 
 A similar visualization as above is available for S1 and C1 activity as::
 
@@ -334,22 +341,22 @@ A similar visualization as above is available for S1 and C1 activity as::
 
   >>> AnnotateC1Activity(image, scale)
 
-which should produce results similar to :ref:`Figure 6 <s1-response-maps>`
-and :ref:`Figure 7 <c1-response-maps>`.
+which should produce results similar to :ref:`Figure 5 <s1-response-maps>`
+and :ref:`Figure 6 <c1-response-maps>`.
 
 .. _s1-response-maps:
 .. figure:: _static/s1-response-large-scale.png
    :width: 50%
    :align: center
 
-   Figure 6: S1 response maps (enhanced for illustration).
+   Figure 5: S1 response maps (enhanced for illustration).
 
 .. _c1-response-maps:
 .. figure:: _static/c1-response.png
    :width: 50%
    :align: center
 
-   Figure 7: C1 response maps.
+   Figure 6: C1 response maps.
 
 
 Classifier Analysis
