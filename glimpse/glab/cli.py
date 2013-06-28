@@ -109,6 +109,9 @@ def MakeCliOptions():
             Option('learner', 'svm', flag = ('L:', 'learner='),
                    doc = "Learning algorithm to use for classification (can be "
                       "a Python expression, or one of 'svm' or 'logreg')"),
+            Option('predictions', flag = 'predictions', doc = "Print the true "
+                "and predicted labels for each image in the corpus (only for "
+                "fixed-split evaluations)."),
             ),
         Option('help', flag = ('h', 'help'), doc = "Print this help and exit"))
 
@@ -221,6 +224,24 @@ def CliEvaluate(opts, exp):
         train_size = opts.train_size, feature_builder = feature_builder,
         score_func = opts.evaluation.score_func,
         learner = learner)
+    if opts.evaluation.predictions:
+      print
+      print "Classifier Predictions"
+      print "======================"
+      print
+      print ("Each line gives the true and predicted labels (in that order) "
+            "for an image in the corpus.")
+      print
+      print "Training Set Predictions"
+      print "------------------------"
+      for img,lbl,pred in GetPredictions(exp, training=True, evaluation=-1):
+        print img, lbl, pred
+      print
+      print "Test Set Predictions"
+      print "--------------------"
+      for img,lbl,pred in GetPredictions(exp, training=False, evaluation=-1):
+        print img, lbl, pred
+      print
 
 def CliProject(opts):
   # Read verbosity from environment var unless flag is given.
