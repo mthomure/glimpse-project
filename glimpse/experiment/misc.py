@@ -75,7 +75,16 @@ def GetNumPrototypes(exp, kwidth=0):
   :param int kwidth: Index of kernel shape.
 
   """
-  return len(exp.extractor.model.s2_kernels[kwidth])
+  model = exp.extractor.model
+  if model is None:
+    raise ExpError("Experiment has no model")
+  return len(model.s2_kernels[kwidth])
+
+def GetNumKernelWidths(exp):
+  model = exp.extractor.model
+  if model is None:
+    raise ExpError("Experiment has no model")
+  return len(model.params.s2_kernel_widths)
 
 def GetImprintLocation(exp, prototype=0, kwidth=0):
   """Return the image location from which a prototype was imprinted.
@@ -151,6 +160,19 @@ def _ScaleImage(exp, image, scale=0):
   image = image.resize(np.round(size).astype(int), Image.ANTIALIAS)
   return fromimage(image)
 
+def GetActivity(exp, image, layer):
+  """Look up activity from experiment, computing on the fly if needed."""
+  if isinstance(image, int):
+    if exp.extractor.activation is not None:
+      st = exp.extractor.activation[image]
+      if layer in st:
+        return st[layer]
+    image = exp.corpus.paths[image]
+  model = exp.extractor.model
+  # TODO: copy the model and use only the one given prototype for S2/C2 layers.
+  st = BuildLayer(model, layer, model.MakeState(image), save_all=True)
+  return st[layer]
+
 def GetImageActivity(exp, image, scale=0):
   """Returns image layer for a given image and scale.
 
@@ -160,11 +182,7 @@ def GetImageActivity(exp, image, scale=0):
   :return: Image data.
 
   """
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  model = exp.extractor.model
-  st = BuildLayer(model, Layer.S1, model.MakeState(image), save_all=True)
-  return _ScaleImage(exp, st[Layer.IMAGE], scale)
+  return _ScaleImage(exp, GetActivity(exp, image, Layer.IMAGE), scale)
 
 def _GetEvaluation(exp, evaluation):
   if evaluation >= len(exp.evaluation):
@@ -259,19 +277,6 @@ def GetCorpusByName(name):
 
 ##### PLOTTING FUNCTIONS #######################################################
 
-def _GetActivity(exp, image, layer):
-  """Look up activity from experiment, computing on the fly if needed."""
-  if not isinstance(image, basestring):
-    image = exp.corpus.paths[image]
-  if exp.extractor.activation is not None:
-    st = exp.extractor.activation[image]
-    if layer in st:
-      return st[layer]
-  model = exp.extractor.model
-  # TODO: copy the model and use only the one given prototype for S2/C2 layers.
-  st = BuildLayer(model, layer, model.MakeState(image), save_all=True)
-  return st[layer]
-
 def ShowS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   """Plot the S2 activity for a given image.
 
@@ -281,7 +286,7 @@ def ShowS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
   :param int kwidth: Index of kernel shape.
 
   """
-  Show2dArray(_GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype])
+  Show2dArray(GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype])
 
 def ShowPrototype(exp, prototype, kwidth=0, **kw):
   """Plot the prototype activation.
@@ -316,7 +321,7 @@ def ShowC1Activity(exp, image, scale=0, **kw):
     kw['cols'] = 2
   if 'colorbar' not in kw:
     kw['colorbar'] = True
-  Show3dArray(_GetActivity(exp, image, Layer.C1)[scale], **kw)
+  Show3dArray(GetActivity(exp, image, Layer.C1)[scale], **kw)
 
 def ShowS1Activity(exp, image, scale=0, **kw):
   """Plot the S1 activation for a given image.
@@ -333,7 +338,7 @@ def ShowS1Activity(exp, image, scale=0, **kw):
     kw['cols'] = 2
   if 'colorbar' not in kw:
     kw['colorbar'] = True
-  Show3dArray(_GetActivity(exp, image, Layer.S1)[scale], **kw)
+  Show3dArray(GetActivity(exp, image, Layer.S1)[scale], **kw)
 
 def ShowS1Kernels(exp, **kw):
   """Plot the S1 Gabor kernels.
@@ -366,8 +371,8 @@ def AnnotateS2Activity(exp, image, scale=0, prototype=0, kwidth=0):
 
   """
   import matplotlib.pyplot as plt
-  s2 = _GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype]
-  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  s2 = GetActivity(exp, image, Layer.S2)[scale][kwidth][prototype]
+  image = _ScaleImage(exp, GetActivity(exp, image, Layer.IMAGE), scale)
   params = exp.extractor.model.params
   left = bottom = (params.s2_kwidth[0]/2 * params.c1_sampling +
       params.c1_kwidth/2) * params.s1_sampling + params.s1_kwidth/2
@@ -383,7 +388,7 @@ def _AnnotateS2ReceptiveField(exp, image, scale, s2_y, s2_x, kwidth=0):
   import matplotlib.pyplot as plt
   y0,y1,x0,x1 = GetS2ReceptiveField(exp.extractor.model.params, scale, s2_y,
       s2_x, kwidth_offset=kwidth)
-  img = toimage(_GetActivity(exp, image, Layer.IMAGE))
+  img = toimage(GetActivity(exp, image, Layer.IMAGE))
   plt.imshow(img, cmap=plt.cm.gray, origin='lower')
   plt.xticks(())
   plt.yticks(())
@@ -420,6 +425,10 @@ def AnnotateImprintedPrototype(exp, prototype=0, kwidth=0):
   if not (hasattr(exp.extractor, 'prototype_algorithm') and
       hasattr(exp.extractor.prototype_algorithm, 'locations')):
     raise ExpError("Experiment does not use imprinted prototypes")
+  if kwidth < 0 or kwidth >= GetNumKernelWidths(exp):
+    raise ValueError("Bad kernel width index: %s" % kwidth)
+  if prototype < 0 or prototype >= GetNumPrototypes(exp, kwidth):
+    raise ValueError("Bad prototype index: %s" % prototype)
   loc = exp.extractor.prototype_algorithm.locations[kwidth, prototype]
   image = exp.corpus.paths[loc[0]]
   _AnnotateS2ReceptiveField(exp, image, *loc[1:], kwidth=kwidth)
@@ -437,8 +446,8 @@ def AnnotateC1Activity(exp, image, scale=0, cols=2, colorbar=True,
   """
   import matplotlib.pyplot as plt
   from mpl_toolkits.axes_grid import AxesGrid  # import must be delayed
-  c1 = _GetActivity(exp, image, Layer.C1)[scale]
-  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  c1 = GetActivity(exp, image, Layer.C1)[scale]
+  image = _ScaleImage(exp, GetActivity(exp, image, Layer.IMAGE), scale)
   params = exp.extractor.model.params
   left = bottom = (params.c1_kwidth/2) * params.s1_sampling + params.s1_kwidth/2
   scale_factor = params.c1_sampling * params.s1_sampling
@@ -482,8 +491,8 @@ def AnnotateS1Activity(exp, image, scale=0, cols=2, colorbar=True,
   """
   import matplotlib.pyplot as plt
   from mpl_toolkits.axes_grid import AxesGrid  # import must be delayed
-  s1 = _GetActivity(exp, image, Layer.S1)[scale]
-  image = _ScaleImage(exp, _GetActivity(exp, image, Layer.IMAGE), scale)
+  s1 = GetActivity(exp, image, Layer.S1)[scale]
+  image = _ScaleImage(exp, GetActivity(exp, image, Layer.IMAGE), scale)
   params = exp.extractor.model.params
   left = bottom = params.s1_kwidth/2
   scale_factor = params.s1_sampling
