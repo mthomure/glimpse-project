@@ -77,11 +77,27 @@ class CliProjectTests(unittest.TestCase):
     with self.assertRaises(OSError):
       CliProject(opts)
 
-  def testEndToEnd_evaluate(self):
+  def testEndToEnd_evaluate_noCrossval(self):
     corpus = dict(cls_a = ("11.jpg", "12.jpg"),
         cls_b = ("21.jpg", "22.jpg"))
     opts = MakeOpts()
     opts.evaluation.evaluate = True
+    opts.evaluation.layer = "c1"
+    with TempDir() as root:
+      MakeCorpusWithImages(root, **corpus)
+      opts.corpus.root_dir = root
+      exp = CliProject(opts)
+    self.assertIsNotNone(exp)
+    self.assertEqual(len(exp.evaluation), 1)
+    self.assertIsNotNone(exp.evaluation[0].results.score)
+
+  def testEndToEnd_evaluate_withCrossval(self):
+    corpus = dict(cls_a = ("11.jpg", "12.jpg"),
+        cls_b = ("21.jpg", "22.jpg"))
+    opts = MakeOpts()
+    opts.evaluation.evaluate = True
+    opts.evaluation.cross_validate = True
+    opts.evaluation.cross_val_folds = 2
     opts.evaluation.layer = "c1"
     with TempDir() as root:
       MakeCorpusWithImages(root, **corpus)

@@ -214,16 +214,16 @@ def CliEvaluate(opts, exp):
   except Exception, e:
     raise OptionError("Error in 'learner' expression -- %s" % e)
   if opts.evaluation.cross_validate:
-    CrossValidateClassifier(exp, opts.evaluation.layer,
-        feature_builder = feature_builder,
-        num_folds = opts.evaluation.cross_val_folds,
-        score_func = opts.evaluation.score_func,
-        learner = learner)
+    if opts.evaluation.score_func not in (None, 'accuracy'):
+      logging.warn("Ignoring score_func of '%s'. Cross-validation always uses "
+          "'accuracy'.", opts.evaluation.score_func)
+    CrossValidateClassifier(exp, opts.evaluation.layer, learner=learner,
+        feature_builder=feature_builder,
+        num_folds=opts.evaluation.cross_val_folds)
   else:
     TrainAndTestClassifier(exp, opts.evaluation.layer,
-        train_size = opts.train_size, feature_builder = feature_builder,
-        score_func = opts.evaluation.score_func,
-        learner = learner)
+        train_size=opts.train_size, feature_builder=feature_builder,
+        score_func=opts.evaluation.score_func, learner=learner)
     if opts.evaluation.predictions:
       print
       print "Classifier Predictions"
@@ -276,7 +276,7 @@ def CliProject(opts):
       path = GetCorpusByName(opts.corpus.from_name)
     if path:
       SetCorpus(exp, path, opts.corpus.balance, reader)
-    elif not exp.corpus.paths:
+    elif exp.corpus.paths is None:
       raise OptionError("Must specify a corpus")
   # Initialize model and compute activation, if necessary.
   eopts = opts.extractor
