@@ -104,16 +104,17 @@ def ResolveLayers(exp, layers):
   :return: Resolved layer specs.
 
   """
-  if exp.extractor.model is None:
-    raise ValueError("Experiment object has no model")
   if layers is None:
     raise ValueError("Layer information must be non-empty")
+  from glimpse.models.ml import Layer
+  # Assume ML model's layer information if none is available.
+  lc = exp.extractor.model.LayerClass if exp.extractor.model else Layer
   if not hasattr(layers, '__len__') or isinstance(layers, basestring):
     layers = (layers,)
   out = list()
   for l in layers:
     if isinstance(l, basestring):
-      l = exp.extractor.model.LayerClass.FromName(l)
+      l = lc.FromName(l)
     out.append(l)
   return out
 
