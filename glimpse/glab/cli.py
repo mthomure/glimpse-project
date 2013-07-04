@@ -94,7 +94,7 @@ def MakeCliOptions():
             Option('evaluate', default = False, flag = ('E', 'evaluate'),
                 doc = "Train and test a classifier"),
             Option('cross_validate', default = False, flag = ('x',
-                'cross-validate'), doc = "Compute test accuracy via (10x10-way)"
+                'cross-validate'), doc = "Compute test accuracy via "
                     "cross-validation instead of fixed training/testing split"),
             Option('cross_val_folds', default = 10, flag = ('f:',
                 'num-folds='), doc = "Number of folds for cross-validation"),
