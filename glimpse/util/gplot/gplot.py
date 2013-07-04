@@ -332,7 +332,8 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
 
-def BarPlot(xs, yerr = None, ax = None, glabels = None, clabels = None,
+# deprecated
+def _BarPlot(xs, yerr = None, ax = None, glabels = None, clabels = None,
     colors = None, ecolors = None, gwidth = .7, cwidth = 1., **kwargs):
   """Plot data as bars.
 
@@ -436,6 +437,103 @@ def SimpleBarPlot(xs, ys, label = None, ax = None, **kw):
     rects[0].set_label(label)
   plt.draw_if_interactive()
   return rects
+
+def _all_equal(values):
+  values = list(values)
+  if len(values) <= 1:
+    return True
+  v0 = values[0]
+  return all(np.all(v == v0) for v in values[1:])
+
+def LoadBarPlotData(fname):
+  """Load file data in the format expected by :func:`BarPlot`."""
+  return np.genfromtxt(fname, dtype=None, names=('names','values'))
+
+def BarPlot(tables, series_labels=None, group_labels=None, series_padding=.2,
+    group_padding=1, rotate_labels=True, group_colors=None, **kw):
+  """Plot a bar chart.
+
+  :param tables: Group information for each data series.
+  :type series_labels: list of str
+  :param series_labels: Labels for each data series, which appear in the plot's
+     legend.
+  :type group_labels: list of str
+  :param group_labels: Labels for each data group, which appear along the
+     x-axis.
+  :param float series_padding: whitespace between each series within a given
+     group.
+  :param float group_padding: Amount of whitespace between groups (i.e., after
+     the group value has been plotted for each series)
+  :param bool rotate_labels: Whether to rotate group labels by 30 degrees.
+  :type group_colors: list of str
+  :param group_colors: Color information for each group. All groups of the
+     same data series share the same color.
+  :param kw: Keyword arguments passed to matplotlib's `bar()` function.
+
+  The `tables` argument is either a 1D array of records (with a "names"
+  string and "values" float dtype), or a list of such arrays.
+
+  The plot includes one or more groups and one or more series. Here, a data
+  group corresponds to an x-axis location with a specific meaning. A data series
+  contains one or more data groups. Each table in the `tables` argument
+  corresponds to one data series, and each unique record name in the tables
+  corresponds to a data group. Tables are expected to contain the same set of
+  unique record name, though each name may appear a different number of times.
+
+  To avoid confusion, the `series_padding` always should be less than the
+  `group_padding`.
+
+  """
+  import matplotlib.pyplot as plt
+  if hasattr(tables, 'ndim') and tables.ndim == 1:
+    tables = [tables]
+  assert _all_equal(np.unique(tbl['names']) for tbl in tables)
+  assert series_padding >= 0 and series_padding < 1
+  # get unique names respecting order in which they appear
+  names = tables[0]['names']
+  _,idx = np.unique(names, return_index=True)  # values are in sorted order
+  names = names[sorted(idx)]  # values in original order
+  values = [ [ tbl['values'][tbl['names'] == name] for name in names ]
+      for tbl in tables ]
+  n = len(tables)
+  m = len(names)
+  if group_colors is None:
+    group_colors = []  # start with empty set of colors
+  else:
+    group_colors = list(group_colors)  # convert string to list
+    group_colors = group_colors[:n]  # remove extra colors
+  available_colors = ('b', 'g', 'r', 'y')  # base set of colors
+  num_colors_needed = n - len(group_colors)
+  color_repetitions_needed = int(np.ceil(float(num_colors_needed) /
+      len(available_colors)))  # repeat block of colors as needed
+  group_colors += available_colors * color_repetitions_needed
+  group_colors = group_colors[:n]  # truncate list of colors
+  xss = np.array([ np.arange(m) * (n + group_padding) + i for i in range(n) ])
+  bar_width = 1 - series_padding
+  for xs,vs,c in zip(xss, values, group_colors):
+    ys = map(np.mean, vs)
+    yerr = [ v.std() / np.sqrt(len(v)) for v in vs ]
+    plt.bar(xs, ys, color=c, yerr=yerr, width=bar_width, **kw)
+  ax = plt.gca()
+  # Set tick labels on x-axis
+  if group_labels is None:
+    group_labels = names
+    #~ ax.set_xticks(())
+  ax.set_xticks((xss.max(0) - xss.min(0)) / 2. + xss.min(0)
+      + bar_width / 2.)  # put tick in center of middle bar
+  kw = dict()
+  if rotate_labels:
+    kw['rotation'] = 30
+    kw['horizontalalignment'] = 'right'
+  ax.set_xticklabels(group_labels, **kw)
+  ax.tick_params(axis = 'x', direction = 'out')
+  ax.xaxis.tick_bottom()  # hide top tick marks
+  plot_padding = max(group_padding, series_padding)
+  ax.set_xlim(-plot_padding, xss.max() + plot_padding
+      + bar_width)  # xss.max() gives left edge of last bar, account for width
+  # Set series labels in legend
+  if series_labels is not None:
+    plt.legend(series_labels, loc='best')
 
 def Scatter3d(xs, ys, zs=None, weights=None, xlabel=None, ylabel=None, zlabel=None, **kw):
   import matplotlib.pyplot as plt

@@ -470,7 +470,7 @@ def TrainAndTestClassifier(exp, layers, learner=None, train_size=None,
   exp.evaluation.append(evaluation)
 
 def CrossValidateClassifier(exp, layers, learner=None, feature_builder=None,
-    num_folds=10, score_func=None):
+    num_folds=None, score_func=None):
   """Evaluate extracted features using a fixed train/test split.
 
   :type layers: str or list of str
@@ -479,19 +479,21 @@ def CrossValidateClassifier(exp, layers, learner=None, feature_builder=None,
      scikit-learn classifier object. If not set, a LinearSVC object is used.
   :param callable feature_builder: A feature builder, such as
      :func:`ExtractFeatures` or :func:`ExtractHistogramFeatures`.
-  :param int num_folds: Number of folds to use for cross-validation.
-  :param str score_func: Name of the scoring function to use, as specified by
-     :func:`ResolveScoreFunction`.
+  :param int num_folds: Number of folds to use for cross-validation. Default is
+     10.
 
   Creates a new entry in the experiment's `evaluation` list, and sets the
-  `feature_builder`, `cross_validate`, `crossval_learner`, `score_func`, and
-  `score` keys in its `results` dictionary.
+  `feature_builder`, `cross_validate`, `classifier`, `score_func`, and
+  `score` keys in its `results` dictionary. The number of folds can be
+  deduced from the number of `score` values.
 
   """
   layer_names = layers
   layers = ResolveLayers(exp, layers)
   if feature_builder is None:
     feature_builder = ExtractFeatures
+  if num_folds is None:
+    num_folds = 10
   evaluation = EvaluationData(layers = layers)
   evaluation.results['feature_builder'] = feature_builder.func_name
   features = feature_builder(layers, exp.extractor.activation)
@@ -504,18 +506,18 @@ def CrossValidateClassifier(exp, layers, learner=None, feature_builder=None,
   if len(labels) < num_folds:
     raise ExpError("Need at least %d images to use %d-way cross-validation" %
         (num_folds, num_folds))
-  if exp.corpus.training_set is not None:
-    raise ExpError("Cross-validation is unavailable when a fixed training set "
-        "is specified")
-  elif exp.extractor.training_set is not None:
-    raise ExpError("Cross-validation is unavailable when a fixed training set"
-        " is used for prototype learning")
+  if (exp.corpus.training_set is not None or
+      exp.extractor.training_set is not None):
+    logging.warn("Cross-validation is being used with an existing training "
+        "set. If prototypes were learned from this set, then results of "
+        "cross-validation may be biased.")
   evaluation.results['cross_validate'] = True
+  evaluation.results['score_func'] = 'accuracy'  # cross-val uses accuracy
   learner = ResolveLearner(learner)
-  evaluation.results['crossval_learner'] = learner  # algorithm with parameters
+  evaluation.results['classifier'] = learner  # algorithm with parameters
   with TimedLogging(logging.INFO, "Cross-validation"):
     score = learn.CrossValidateClassifier(features, labels, num_folds=num_folds,
         algorithm=learner)
-    logging.info("Mean classifier accuracy is %.1f%%" % np.array(score).mean())
+    logging.info("Mean classifier accuracy is %f" % np.array(score).mean())
   evaluation.results['score'] = score
   exp.evaluation.append(evaluation)

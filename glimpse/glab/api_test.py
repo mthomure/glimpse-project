@@ -103,6 +103,33 @@ class ApiTests(unittest.TestCase):
       with self.assertRaises(ExpError):
         EvaluateClassifier()
 
+  def testEvaluateClassifier_withCrossval(self):
+    f1 = RecordedFunctionCall()
+    f2 = RecordedFunctionCall()
+    alg,nf = 'my-alg',3
+    exp = GetExperiment()
+    exp.evaluation.append(experiment.EvaluationData())  # add fake result
+    with MonkeyPatch((api, 'ComputeActivation', f1),
+        (experiment, 'CrossValidateClassifier', f2)):
+      EvaluateClassifier(cross_validate=True, algorithm=alg, num_folds=nf)
+    self.assertTrue(f1.called)
+    self.assertTrue(f2.called)
+    self.assertDictEqual(f2.kw, dict(learner=alg, num_folds=nf))
+
+  def testEvaluateClassifier_noCrossval(self):
+    f1 = RecordedFunctionCall()
+    f2 = RecordedFunctionCall()
+    alg,ts,sf = 'my-alg',.8,'my-score-func'
+    exp = GetExperiment()
+    exp.evaluation.append(experiment.EvaluationData())  # add fake result
+    with MonkeyPatch((api, 'ComputeActivation', f1),
+        (experiment, 'TrainAndTestClassifier', f2)):
+      EvaluateClassifier(cross_validate=False, algorithm=alg, train_size=ts,
+          score_func=sf)
+    self.assertTrue(f1.called)
+    self.assertTrue(f2.called)
+    self.assertDictEqual(f2.kw, dict(learner=alg, train_size=ts, score_func=sf))
+
   def test_endToEnd(self):
     NUM_PROTOS = 10
     corpus = dict(cls_a = ("11.jpg", "12.jpg"),

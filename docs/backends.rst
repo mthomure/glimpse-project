@@ -89,8 +89,59 @@ Given a local input neighborhood :math:`X`, the output is
 
 where :math:`x_c` is the center of the input neighborhood, :math:`\mu` and
 :math:`\sigma` are the mean and standard deviation of :math:`X`, and
-:math:`\epsilon` is a bias term. This term is used to avoid the
-amplificiation of noise and to ensure a non-zero divisor.
+:math:`\epsilon` is a bias term. Thus, we measure the local deviation from
+the mean, where large deviations are squashed if the window contains a large
+amount of variance.
+
+The bias term is used to avoid the amplification of noise, and to ensure a
+non-zero divisor.  Without the bias term, this method performs badly on
+homogeneous regions, where the variance approaches zero. In this case, very
+small local deviations (usually caused by image noise) become enhanced when
+the value of the denominator drops below unity. Because of this bias term,
+we will never enhance deviations, only "squash" them. This removes the noise
+in the background while retaining contrast enhancing effects of the
+foreground. This is illustrated below.
+
+.. raw:: html
+
+   <style type="text/css">
+   .figure td {
+      text-align: center !important
+   }
+   </style>
+
+   <table class="figure" align="center"><tr><td>
+
+.. image:: _static/retina-original.png
+
+.. raw:: html
+
+   </td><td>
+
+.. image:: _static/retina-nobias.png
+
+.. raw:: html
+
+   </td><td>
+
+.. image:: _static/retina-bias.png
+
+.. raw:: html
+
+   </td></tr>
+   <tr><td>
+
+   Original image.
+
+   </td><td>
+
+   Contrast enhancement.
+
+   </td><td>
+
+   Biased contrast enhancement.
+
+   </td></tr></table>
 
 
 References
