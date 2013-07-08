@@ -149,7 +149,7 @@ setup(
     "scipy",
     "PIL",
     "traits",
-    "scikit-learn",
+    "scikit-learn >= 0.13",
     "decorator",
     "traitsui",
   ],
