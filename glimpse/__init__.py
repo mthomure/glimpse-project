@@ -15,3 +15,5 @@ See http://pythonhosted.org/glimpse/ for complete documentation.
 """
 import sys
 __version__ = '0.2.1'
+
+import glimpse.util.pil_fix  # workaround PIL error on OS X
