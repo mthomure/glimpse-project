@@ -21,7 +21,7 @@ class CliWithActivityTests(unittest.TestCase):
     with TempFile() as path:
       with open(path, 'w') as fh:
         pickle.dump(p, fh)
-      opts.extractor.param_path = path
+      opts.extractor.param_file = path
       CliWithActivity(opts, exp, pool)
     self.assertEqual(exp.extractor.model.params, p)
 

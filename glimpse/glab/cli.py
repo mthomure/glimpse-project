@@ -15,12 +15,13 @@ import cPickle as pickle
 from itertools import chain
 import logging
 import os
+import pprint
 import sys
 
 from glimpse.experiment import *
 from glimpse.experiment.prototype_algorithms import (GetAlgorithmNames,
     ResolveAlgorithm)
-from glimpse.models import MakeModel
+from glimpse.models import MakeModel, MakeParams
 from glimpse.pools import MakePool
 from glimpse.util.option import *
 from glimpse.util.learn import ScoreFunctions, ResolveLearner
@@ -37,14 +38,18 @@ def MakeCliOptions():
             doc = "Store results to a file"),
         Option('pool_type', None, flag = ('t:', 'pool-type='),
             enum = ('s', 'singlecore', 'm', 'multicore', 'c', 'cluster'),
-            doc = "Set the worker pool type"),
+            doc = "Set the worker pool type. Can also use the 'GLIMPSE_POOL' "
+                "environment variable. If using a cluster pool type, the "
+                "cluster package and arguments are read from the "
+                "GLIMPSE_CLUSTER and 'GLIMPSE_CLUSTER_ARGS' environment "
+                "variables."),
         Option('train_size', None, flag = ('T:', 'train-size='),
             doc = "Set the size of the training set (number of instances or "
                 "fraction of total)"),
         Option('timing', flag = ('timing'), doc = "Report timing"
             " information for worker pool (assumes cluster pool is used)"),
         Option('command', flag = ('command='), doc = "Execute a command "
-            "after running the experiment (but before results are saved"),
+            "after running the experiment (but before results are saved)"),
         OptionGroup('corpus',
             Option('root_dir', flag = ('c:','corpus='),
                 doc = "Set corpus directory"),
@@ -56,8 +61,11 @@ def MakeCliOptions():
             Option('balance', False, flag = ('b', 'balance'),
                 doc = "Choose equal number of images per class")),
         OptionGroup('extractor',
-            Option('param_path', flag = ('O:', 'options='),
+            Option('param_file', flag = ('param-file='),
                 doc = "Read model options from a file"),
+            Option('params', flag = ('P:', 'param='), multiple=True,
+                doc = "Set model options from command line (e.g.: glab -P "
+                    "num_scales=3 -P scale_factor=1.25"),
             Option('no_activity', flag = ('N', 'no-activity'),
                 doc = "Do not compute activity model activity for each image "
                     "(implies no classifier). This can be used to learn "
@@ -66,7 +74,7 @@ def MakeCliOptions():
                 doc = "Save activity for all layers, rather than just the "
                     "layers from which features are extracted."),
             OptionGroup('prototypes',
-                Option('path', flag = ('P:', 'prototypes='),
+                Option('path', flag = ('prototype-file='),
                     doc = "Read S2 prototypes from a file (overrides -p)"),
                 Option('length', default = 10, flag = ('n:', 'num-prototypes='),
                     doc = "Number of S2 prototypes to generate"),
@@ -115,22 +123,30 @@ def MakeCliOptions():
             ),
         Option('help', flag = ('h', 'help'), doc = "Print this help and exit"))
 
+def InitModel(opts, exp):
+  if exp.extractor.model is None:
+    if opts.extractor.param_file:
+      logging.info("Reading model parameters from file: %s" %
+          opts.extractor.param_file)
+      with open(opts.extractor.param_file) as fh:
+        params = pickle.load(fh)
+    else:
+      params = MakeParams()
+    if opts.extractor.params:
+      args = [p.split('=') for p in opts.extractor.params]
+      if not all(len(a) == 2 for a in args):
+        raise OptionError("Must specify model parameters as KEY=VALUE")
+      for k,v in args:
+        setattr(params, k, type(params.trait(k).default)(v))
+    exp.extractor.model = MakeModel(params)
+  elif opts.extractor.param_file or opts.extractor.params:
+    logging.warn("Ignoring user's model parameters (model exists)!")
+
 def CliWithActivity(opts, exp, pool):
   progress = None
   if opts.verbose:
     progress = ProgressBar
-  # Initialize model
-  if exp.extractor.model is None:
-    if opts.extractor.param_path:
-      logging.info("Reading model parameters from file: %s" %
-          opts.extractor.param_path)
-      with open(opts.extractor.param_path) as fh:
-        params = pickle.load(fh)
-    else:
-      params = None
-    exp.extractor.model = MakeModel(params)
-  elif opts.extractor.param_path:
-    logging.warn("Ignoring model parameter file (model exists)!")
+  InitModel(opts, exp)
   # Initialize prototypes
   popts = opts.extractor.prototypes
   if popts.path:
@@ -202,6 +218,20 @@ class TeePool(object):
     """
     return results
 
+def CheckClassLabels(exp):
+  if exp.corpus.labels is None:
+    return
+  labels = np.unique(exp.corpus.labels)
+  labels.sort()
+  if len(labels) != 2 or tuple(labels) == (0,1):
+    return
+  logging.warning("Found binary classification task without zero-one labels. "
+      "Fixing.")
+  idx_0 = exp.corpus.labels == labels[0]
+  idx_1 = exp.corpus.labels == labels[1]
+  exp.corpus.labels[idx_0] = 0
+  exp.corpus.labels[idx_1] = 1
+
 def CliEvaluate(opts, exp):
   if not opts.evaluation.layer:
     raise OptionError("Must specify model layer to use for features")
@@ -261,6 +291,7 @@ def CliProject(opts):
     else:
       with open(opts.input_path, 'rb') as fh:
         exp = pickle.load(fh)
+    CheckClassLabels(exp)
   else:
     exp = ExperimentData()
   # Initialize corpus: Each sub-directory is given a distinct numeric label,
@@ -286,6 +317,9 @@ def CliProject(opts):
     pool = MakePool(opts.pool_type)
     logging.info("Using pool: %s" % type(pool).__name__)
     CliWithActivity(opts, exp, pool)
+  elif eopts.param_file or eopts.params:
+    # Ensure model is created if parameters are set.
+    InitModel(opts, exp)
   # Evaluate features
   if opts.evaluation.evaluate:
     CliEvaluate(opts, exp)
@@ -301,6 +335,50 @@ def CliProject(opts):
       pickle.dump(exp, fh, protocol = 2)
   return exp
 
+import textwrap
+
+def PrintDict(data, max_key_len=25, width=None, stream=None, pad=3):
+  if stream is None:
+    stream = sys.stderr
+  if width is None:
+    try:
+      # Try to read terminal width (ony for *nix systems)
+      _,width = os.popen('stty size', 'r').read().split()
+      width = int(width)
+    except:
+      width = 70
+  tmpl = "%%-%ds" % max_key_len
+  indent = ' ' * (max_key_len+pad)
+  for k,v in data:
+    print >>stream, tmpl % k,
+    v = textwrap.fill(v, width=width,
+        subsequent_indent=indent,
+        initial_indent=indent)
+    if len(k) <= max_key_len:
+      # Use initial indent to account for printed flags, but remove it afterward
+      print >>stream, " ", v[max_key_len+pad:]
+    else:
+      print >>stream, "\n%s" % v
+
+def PrintModelParamHelp():
+  params = MakeParams()
+  traits = params.traits()
+  # Display traits in alphabetical order.
+  keys = sorted(n for n in params.trait_names() if not n.startswith('trait_'))
+  # Format set of traits as a string.
+  data = list()
+  for k in keys:
+    trait = traits[k]
+    desc = trait.desc or ''
+    if desc:
+      idx = desc.index(' ')
+      desc = desc[:idx].capitalize() + desc[idx:]
+      desc = "%s. " % desc
+    doc = (desc + "Must be %s. " % trait.full_info(params, '', '') +
+        "Default is: %s" % pprint.pformat(trait.default))
+    data.append(("%s:" % k, doc))
+  PrintDict(data, max_key_len=25)
+
 def Main(argv = None):
   options = MakeCliOptions()
   try:
@@ -308,6 +386,9 @@ def Main(argv = None):
     if options.help.value:
       print >>sys.stderr, "Usage: [options]"
       PrintUsage(options)
+      print >>sys.stderr
+      print >>sys.stderr, "Model Parameters (and defaults):"
+      PrintModelParamHelp()
       sys.exit(-1)
     CliProject(OptValue(options))
   except ExpError, e:
