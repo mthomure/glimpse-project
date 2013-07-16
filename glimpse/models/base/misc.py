@@ -94,6 +94,7 @@ def BuildLayer(model, layer, state, save_all = True):
   >>> assert(Layer.IMAGE in output_state)
 
   """
+  state = model.MakeState(state)  # ensure `state` is a model state, not str
   # BuildNode can throw BackendError or DependencyErrors, which we annotate
   # with source information below. An InputLoadError may also be thrown, but
   # this already contains source information.
