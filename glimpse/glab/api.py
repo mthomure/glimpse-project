@@ -253,6 +253,8 @@ def Verbose(flag=True):
   experiment.Verbose(flag)
   _vars().verbose = flag
 
+SetVerbose = Verbose  # alias
+
 def GetModel():
   """Get the Glimpse model used for this experiment.
 
@@ -448,10 +450,10 @@ def GetImageFeatures(images):
   return experiment.GetImageFeatures(vs.exp, vs.layer, images, vs.pool,
       progress=progress)
 
-def TrainAndTestClassifier(algorithm=None, train_size=None, score_func=None):
+def TrainAndTestClassifier(learner=None, train_size=None, score_func=None, algorithm=None):
   """Evaluate extracted features using a fixed train/test split.
 
-  :param algorithm: Learning algorithm, which is fit to features. This
+  :param learner: Learning algorithm, which is fit to features. This
      should be a scikit-learn classifier object. If not set, a LinearSVC
      object is used.
   :type train_size: float or int
@@ -460,6 +462,7 @@ def TrainAndTestClassifier(algorithm=None, train_size=None, score_func=None):
      where N is the number of available instances).
   :param str score_func: Name of the scoring function to use, as specified by
      :func:`ResolveScoreFunction`.
+  :param algorithm: Alias for `learner`.
   :rtype: ExperimentData
   :return: Results of evaluation.
 
@@ -472,18 +475,19 @@ def TrainAndTestClassifier(algorithm=None, train_size=None, score_func=None):
   vs = _vars()
   if not vs.HasActivation():
     ComputeActivation()
-  experiment.TrainAndTestClassifier(vs.exp, vs.layer, learner=algorithm,
+  experiment.TrainAndTestClassifier(vs.exp, vs.layer, learner=(learner or algorithm),
       train_size=train_size, score_func=score_func)
   return vs.exp.evaluation[-1].results
 
-def CrossValidateClassifier(algorithm=None, num_folds=None):
+def CrossValidateClassifier(learner=None, num_folds=None, algorithm=None):
   """Evaluate extracted features using a fixed train/test split.
 
-  :param algorithm: Learning algorithm, which is fit to features. This
+  :param learner: Learning algorithm, which is fit to features. This
      should be a scikit-learn classifier object. If not set, a LinearSVC
      object is used.
   :param int num_folds: Number of folds to use for cross-validation. Default is
      10.
+  :param algorithm: Alias for `learner`.
   :rtype: ExperimentData
   :return: Results of evaluation.
 
@@ -491,17 +495,17 @@ def CrossValidateClassifier(algorithm=None, num_folds=None):
   vs = _vars()
   if not vs.HasActivation():
     ComputeActivation()
-  experiment.CrossValidateClassifier(vs.exp, vs.layer, learner=algorithm,
+  experiment.CrossValidateClassifier(vs.exp, vs.layer, learner=(learner or algorithm),
       num_folds=num_folds)
   return vs.exp.evaluation[-1].results
 
-def EvaluateClassifier(cross_validate=False, algorithm=None, train_size=None,
-    num_folds=None, score_func=None):
+def EvaluateClassifier(cross_validate=False, learner=None, train_size=None,
+    num_folds=None, score_func=None, algorithm=None):
   """Apply a classifier to the image features in the experiment.
 
   :param bool cross_validate: Whether to use cross-validation. The default will
      use a fixed training and testing split.
-  :param algorithm: Learning algorithm, which is fit to features. This
+  :param learner: Learning algorithm, which is fit to features. This
      should be a scikit-learn classifier object. If not set, a LinearSVC
      object is used.
   :type train_size: float or int
@@ -512,16 +516,18 @@ def EvaluateClassifier(cross_validate=False, algorithm=None, train_size=None,
      10.
   :param str score_func: Name of the scoring function to use, as specified by
      :func:`ResolveScoreFunction`.
+  :param algorithm: Alias for `learner`.
   :rtype: ExperimentData
   :return: Results of evaluation.
 
   """
+  learner = learner or algorithm
   if cross_validate:
     if score_func not in (None, 'accuracy'):
       logging.warn("Ignoring score_func of '%s'. Cross-validation always uses "
           "'accuracy'.", score_func)
-    return CrossValidateClassifier(algorithm, num_folds)
-  return TrainAndTestClassifier(algorithm, train_size, score_func)
+    return CrossValidateClassifier(learner, num_folds)
+  return TrainAndTestClassifier(learner, train_size, score_func)
 
 def GetFeatures():
   """Get the feature vectors for all images in the experiment."""

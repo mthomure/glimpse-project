@@ -399,9 +399,14 @@ def GetImageFeatures(exp, layers, images, pool, feature_builder=None,
 
 ### EVALUATION ###
 
-def TrainAndTestClassifier(exp, layers, learner=None, train_size=None,
+def TrainAndTestClassifier_Parallel(exp, layers, learner=None, train_size=None,
     feature_builder=None, score_func=None):
   """Evaluate extracted features using a fixed train/test split.
+
+  This form of the function is useful for parallel processing. These are equivalent::
+
+     >>> TrainAndTestClassifier(exp, layers)
+     >>> exp.evaluation.append(TrainAndTestClassifier_Parallel(exp, layers))
 
   :type layers: str or list of str
   :param layers: Layers of model activity from which to extract features.
@@ -415,6 +420,8 @@ def TrainAndTestClassifier(exp, layers, learner=None, train_size=None,
      :func:`ExtractFeatures` or :func:`ExtractHistogramFeatures`.
   :param str score_func: Name of the scoring function to use, as specified by
      :func:`ResolveScoreFunction`.
+  :rtype: EvaluationData
+  :return: Results of applying classifier.
 
   Creates a new entry in the experiment's `evaluation` list, and sets the
   `feature_builder`, `classifier`, `training_predictions`, `training_score`,
@@ -467,7 +474,32 @@ def TrainAndTestClassifier(exp, layers, learner=None, train_size=None,
     logging.info("Classifier %s on test set is %f" % (score_func, score))
     evaluation.results['predictions'] = predictions
     evaluation.results['score'] = score  # classification score on test set
-  exp.evaluation.append(evaluation)
+  return evaluation
+
+def TrainAndTestClassifier(exp, layers, learner=None, train_size=None,
+    feature_builder=None, score_func=None):
+  """Evaluate extracted features using a fixed train/test split.
+
+  :type layers: str or list of str
+  :param layers: Layers of model activity from which to extract features.
+  :param learner: Learning algorithm, which is fit to features. This should be a
+     scikit-learn classifier object. If not set, a LinearSVC object is used.
+  :type train_size: float or int
+  :param train_size: Size of training split, specified as a fraction
+     (between 0 and 1) of total instances or as a number of instances (1 to N,
+     where N is the number of available instances).
+  :param callable feature_builder: A feature builder, such as
+     :func:`ExtractFeatures` or :func:`ExtractHistogramFeatures`.
+  :param str score_func: Name of the scoring function to use, as specified by
+     :func:`ResolveScoreFunction`.
+
+  Creates a new entry in the experiment's `evaluation` list, and sets the
+  `feature_builder`, `classifier`, `training_predictions`, `training_score`,
+  `score_func`, `predictions`, and `score` keys in its `results` dictionary.
+
+  """
+  exp.evaluation.append(TrainAndTestClassifier_Parallel(exp, layers, learner,
+      train_size, feature_builder, score_func))
 
 def CrossValidateClassifier(exp, layers, learner=None, feature_builder=None,
     num_folds=None, score_func=None):
