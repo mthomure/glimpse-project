@@ -317,22 +317,6 @@ class CrossValidateClassifierTests(unittest.TestCase):
       CrossValidateClassifier(exp, layers, **kw)
     self.assertEqual(len(exp.evaluation), 1)
 
-  def test_errorOnCorpusTrainingSet(self):
-    exp = ExperimentData()
-    # fails because cross-val can't use training set
-    exp.corpus.training_set = np.array((True, False, True, False),
-        dtype = np.bool)
-    with self.assertRaises(ExpError):
-      self._buildHelper(exp, layers="c2")
-
-  def test_errorOnExtractorTrainingSet(self):
-    exp = ExperimentData()
-    # fails because cross-val can't use training set
-    exp.extractor.training_set = np.array((True, False, True, False),
-        dtype = np.bool)
-    with self.assertRaises(ExpError):
-      self._buildHelper(exp, layers="c2")
-
   def testCrossval(self):
     exp = ExperimentData()
     self._buildHelper(exp, layers="c2")
