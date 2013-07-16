@@ -140,6 +140,8 @@ LEARNER_ALIASES = dict(svm='sklearn.svm.LinearSVC',
 
 def ResolveLearner(learner=None):
   if not (isinstance(learner, basestring) or learner is None):
+    if isinstance(learner, type):
+      learner = learner()
     return learner
   expr = learner or 'svm'  # 'svm' is default algorithm
   expr = LEARNER_ALIASES.get(expr, expr)
@@ -175,8 +177,7 @@ def FitClassifier(features, labels, algorithm=None, scale=True):
      kernel SVM.
 
   """
-  if algorithm is None:
-    algorithm = LinearSVC()
+  algorithm = ResolveLearner(algorithm)
   if scale:
     algorithm = Scaled(algorithm)
   features = features.astype(float)
