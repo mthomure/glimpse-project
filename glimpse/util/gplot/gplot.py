@@ -103,7 +103,7 @@ def Show2dArray(fg, bg = None, mapper = None, annotation = None, title = None,
   axes.set_yticks([])
   axes.set_xticks([])
   axes.hold(hold)
-  if hasattr(axes.figure, 'show') and show:
+  if hasattr(axes.figure, 'show') and show and pyplot.isinteractive():
     axes.figure.show()
 
 #: .. deprecated:: 0.1.0
@@ -250,7 +250,7 @@ def Show2dArrayList(xs, annotations = None, normalize = True, colorbar = False,
       ca = grid.cbar_axes[i]
       ca.colorbar(img)
       ca.toggle_label(True)
-  if hasattr(figure, 'show') and show:
+  if hasattr(figure, 'show') and show and pyplot.isinteractive():
     figure.show()
 
 #: .. deprecated:: 0.1.0
@@ -332,125 +332,23 @@ def ShowImagePowerSpectrum(data, width = None, **plot_args):
   pyplot.xlabel('Cycles per Pixel')
   pyplot.ylabel('Power')
 
-# deprecated
-def _BarPlot(xs, yerr = None, ax = None, glabels = None, clabels = None,
-    colors = None, ecolors = None, gwidth = .7, cwidth = 1., **kwargs):
-  """Plot data as bars.
-
-  :param xs: Input data, organized by group and then category (if 2D), or just by
-     category (if 1D).
-  :type xs: 1D or 2D array-like
-  :param yerr: Size of error bars.
-  :type yerr: 1D or 2D array-like (must match shape of xs)
-  :param ax: Matplotlib axes on which to plot.
-  :param glabels: Label for each group (appears on X axis).
-  :type glabels: list of str
-  :param clabels: Label for each category (appears in legend).
-  :type clabels: list of str
-  :param colors: Bar color for each category.
-  :type colors: list of str
-  :param ecolors: Color of error bars for each category. Default is black.
-  :type ecolors: list of str
-  :param float gwidth: Fraction of available space to use for group of bars.
-  :param float cwidth: Fraction of available space to use for each category bar.
-  :param dict kwargs: Arguments passed to pyplot.bar() method.
-  :returns: Figure into which the data is plotted.
-
-  Note that group labels (glabels) appear along the x-axis, while category
-  labels (clabels) appear in the legend.
-
-  """
-  import matplotlib.pyplot as plt
-  xs = np.asarray(xs)
-  if yerr is not None:
-    # This must come before xs is reshaped below
-    yerr = np.array(yerr)
-    if xs.shape != yerr.shape:
-      raise ValueError("Data array and errors array must have same shape")
-    yerr = np.atleast_2d(yerr).T  # rotate yerr to be indexed first by category
-  if xs.ndim > 2:
-    raise ValueError("Data array must be 1D or 2D")
-  xs = np.atleast_2d(xs).T  # rotate xs to be indexed by category, then group
-  C, G = xs.shape[:2]
-  gwidth = min(1, max(0, gwidth))
-  total_gwidth = 1  # available space for each group
-  used_gwidth = total_gwidth * gwidth  # space actually used for each group
-  goffset = (total_gwidth - used_gwidth) / 2  # offset of drawable region from
-                                              # edge of group
-  gedges = np.arange(G) * total_gwidth + goffset  # edges of drawable region for
-                                                  # each group
-  cwidth = min(1, max(0, cwidth))
-  total_cwidth = used_gwidth / C  # available space for each category bar
-  used_cwidth = total_cwidth * cwidth  # space actually used for each bar
-  coffset = (total_cwidth - used_cwidth) / 2  # offset of drawable region from
-                                              # edge of category
-  gind = np.arange(G)
-  cind = np.arange(C)
-  if colors == None:
-    colors = [None] * C
-  else:
-    colors = list(colors) + [None] * C  # potentially too long, but that's ok
-  if ecolors == None:
-    ecolors = "k" * C
-  else:
-    ecolors = list(ecolors) + ['k'] * C
-  if yerr == None:
-    yerr = [None] * C
-  if ax == None:
-    ax = plt.gca()
-  if clabels == None:
-    clabels = [''] * C
-  else:
-    clabels = list(clabels) + [''] * C
-  # For each category, create a bar in all groups.
-  crects = [ ax.bar(
-      (gind * total_gwidth + goffset) + (c * total_cwidth + coffset),  # min edges
-      xs[c],                # height of column
-      used_cwidth,          # column width
-      color = colors[c],    # column color
-      yerr = yerr[c],       # error
-      ecolor = ecolors[c],  # color of error bar
-      label = clabels[c],
-      **kwargs
-      ) for c in cind ]
-  if glabels == None:
-    # Disable x-ticks.
-    ax.set_xticks([])
-  else:
-    # Show x-tick labels.
-    ax.set_xticks((gind + .5) * total_gwidth)
-    ax.set_xticklabels(glabels)
-    ax.tick_params(axis = 'x', direction = 'out')
-    ax.xaxis.tick_bottom()  # hide top tick marks
-  ax.yaxis.tick_left()  # hide right tick marks
-  if plt.isinteractive():
-    ax.figure.show()
-  return ax
-
-def SimpleBarPlot(xs, ys, label = None, ax = None, **kw):
-  """Plot a dataset as vertical bars."""
-  import matplotlib.pyplot as plt
-  if ax is None:
-    ax = plt.gca()
-  rects = ax.bar(xs, ys, **kw)
-  if label is not None:
-    rects[0].set_label(label)
-  plt.draw_if_interactive()
-  return rects
-
-def _all_equal(values):
+def assert_all_equal(values, msg=None):
   values = list(values)
   if len(values) <= 1:
     return True
   v0 = values[0]
-  return all(np.all(v == v0) for v in values[1:])
+  if not (all(v.shape == v0.shape for v in values[1:])
+      and all(np.all(v == v0) for v in values[1:])):
+    msg = msg + ": " if msg else ""
+    msg += ("%s " % values[0]) + " ".join("vs %s" % v for v in values[1:])
+    raise AssertionError(msg)
 
 def LoadBarPlotData(fname):
   """Load file data in the format expected by :func:`BarPlot`."""
   return np.genfromtxt(fname, dtype=None, names=('names','values'))
 
 def BarPlot(tables, series_labels=None, group_labels=None, series_padding=.2,
-    group_padding=1, rotate_labels=True, group_colors=None, **kw):
+    group_padding=1, rotate_labels=False, group_colors=None, bar_kw=None, **kw):
   """Plot a bar chart.
 
   :param tables: Group information for each data series.
@@ -468,6 +366,9 @@ def BarPlot(tables, series_labels=None, group_labels=None, series_padding=.2,
   :type group_colors: list of str
   :param group_colors: Color information for each group. All groups of the
      same data series share the same color.
+  :type bar_kw: list of dict
+  :param bar_kw: Keyword arguments for each call to :func:`bar`. These arguments
+     take precedence over those in `kw`.
   :param kw: Keyword arguments passed to matplotlib's `bar()` function.
 
   The `tables` argument is either a 1D array of records (with a "names"
@@ -487,7 +388,8 @@ def BarPlot(tables, series_labels=None, group_labels=None, series_padding=.2,
   import matplotlib.pyplot as plt
   if hasattr(tables, 'ndim') and tables.ndim == 1:
     tables = [tables]
-  assert _all_equal(np.unique(tbl['names']) for tbl in tables)
+  assert_all_equal((np.unique(tbl['names']) for tbl in tables),
+      "Files have different sets of keys")
   assert series_padding >= 0 and series_padding < 1
   # get unique names respecting order in which they appear
   names = tables[0]['names']
@@ -510,10 +412,14 @@ def BarPlot(tables, series_labels=None, group_labels=None, series_padding=.2,
   group_colors = group_colors[:n]  # truncate list of colors
   xss = np.array([ np.arange(m) * (n + group_padding) + i for i in range(n) ])
   bar_width = 1 - series_padding
-  for xs,vs,c in zip(xss, values, group_colors):
+  bar_kw = bar_kw or list()
+  bar_kw = list(bar_kw[:n])  # remove extra entries
+  bar_kw += [dict()] * (n - len(bar_kw))  # ensure enough entries
+  for xs,vs,c,bkw in zip(xss, values, group_colors, bar_kw):
     ys = map(np.mean, vs)
     yerr = [ v.std() / np.sqrt(len(v)) for v in vs ]
-    plt.bar(xs, ys, color=c, yerr=yerr, width=bar_width, **kw)
+    _kw = dict(kw.items() + bkw.items())
+    plt.bar(xs, ys, color=c, yerr=yerr, width=bar_width, **_kw)
   ax = plt.gca()
   # Set tick labels on x-axis
   if group_labels is None:
@@ -609,15 +515,3 @@ def PlotHistogram2d(x, y, bins = 10, range=None, weights=None, cmin=None,
   if cmax is not None: h[h>cmax]=None
   im = plt.imshow(h.T, **kwargs)
   return h,xedges,yedges,im
-
-def BarPlot2(*datasets):
-  import matplotlib.pyplot as plt
-  from .util import ys_mean
-  padding = .1
-  N = len(datasets)
-  width = .8 / N
-  xs = np.array([ np.unique(d[:,0]) for d in datasets ])
-  left_edge = np.array(len(xs))
-  colors = 'rgb'
-  for idx,data in enumerate(datasets):
-    plt.bar(left_edge + padding + idx * width, ys_mean(data), color=colors[idx % len(colors)])
