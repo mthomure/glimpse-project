@@ -185,9 +185,10 @@ def GetImageActivity(exp, image, scale=0):
   return _ScaleImage(exp, GetActivity(exp, image, Layer.IMAGE), scale)
 
 def _GetEvaluation(exp, evaluation):
-  if evaluation >= len(exp.evaluation):
-    raise ExpError("Missing evaluation information (record %d)" % evaluation)
-  return exp.evaluation[evaluation]
+  try:
+    return exp.evaluation[evaluation]
+  except IndexError:
+    raise ExpError("Missing evaluation information (index %s)" % evaluation)
 
 def GetTrainingSet(exp, evaluation=0):
   """Returns the experiment's training set.
