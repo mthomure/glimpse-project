@@ -10,6 +10,12 @@ Using `pip`:
 
    $ pip install glimpse ipython matplotlib
 
+To get the most current (but possibly unstable) version:
+
+.. code-block:: sh
+
+   $ pip install -e git+https://github.com/mthomure/glimpse-project.git#egg=glimpse
+
 .. note::
 
   On Mac OSX, you may need to build for a 32-bit architecture. For example,
@@ -18,7 +24,7 @@ Using `pip`:
 
   .. code-block:: sh
 
-     $ ARCHFLAGS='-arch i386' python setup.py install
+     $ ARCHFLAGS='-arch i386' pip install glimpse
 
 
 Usage
