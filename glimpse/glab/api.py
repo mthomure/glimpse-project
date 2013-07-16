@@ -520,9 +520,8 @@ def EvaluateClassifier(cross_validate=False, algorithm=None, train_size=None,
     if score_func not in (None, 'accuracy'):
       logging.warn("Ignoring score_func of '%s'. Cross-validation always uses "
           "'accuracy'.", score_func)
-    CrossValidateClassifier(algorithm, num_folds)
-  else:
-    TrainAndTestClassifier(algorithm, train_size, score_func)
+    return CrossValidateClassifier(algorithm, num_folds)
+  return TrainAndTestClassifier(algorithm, train_size, score_func)
 
 def GetFeatures():
   """Get the feature vectors for all images in the experiment."""
