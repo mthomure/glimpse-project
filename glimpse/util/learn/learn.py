@@ -135,8 +135,11 @@ def ScoreFunctions():
 def ResolveScoreFunction(score_func=None):
   return score_func or 'accuracy'
 
-LEARNER_ALIASES = dict(svm='sklearn.svm.LinearSVC',
-    logreg='sklearn.linear_model.LogisticRegression')
+LEARNER_ALIASES = dict(
+  svm='sklearn.svm.LinearSVC',
+  logreg='sklearn.linear_model.LogisticRegression',
+  slogreg='sklearn.linear_model.LogisticRegression(penalty="l1")',
+  )
 
 def ResolveLearner(learner=None):
   if not (isinstance(learner, basestring) or learner is None):
