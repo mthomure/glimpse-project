@@ -214,7 +214,7 @@ def GetTrainingSet(exp, evaluation=0):
   if exp.extractor.training_set is not None:
     return exp.extractor.training_set
   if len(exp.evaluation) > 0:
-    return _GetEvaluation(evaluation).training_set
+    return _GetEvaluation(exp, evaluation).training_set
   return None
 
 def GetPredictions(exp, training=False, evaluation=0):
