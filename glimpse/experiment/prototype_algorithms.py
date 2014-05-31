@@ -231,7 +231,9 @@ _ALGORITHMS = dict(
     nmf = NmfAlg,
     sparse_pca = SparsePcaAlg,
     meta_feature_wkmeans = MFWKmeansAlg,
+    mfwkmeans = MFWKmeansAlg,
     object_mask_wkmeans = OMWKmeansAlg,
+    omwkmeans = OMWKmeansAlg,
     )
 
 def GetAlgorithmNames():

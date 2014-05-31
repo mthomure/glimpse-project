@@ -13,7 +13,7 @@ from sklearn import neighbors
 from glimpse.util.learn import WeightedMiniBatchKMeans
 
 def GetMetaFeatures(prototypes):
-  """Compute "meta-features for a set of prototypes.
+  """Compute meta-features for a set of prototypes.
 
   :param prototypes: Prototype data.
   :return: Array of meta-features, with one row per prototype.
@@ -49,7 +49,7 @@ def TrainQualityModel(exp, num_regr_samples, pool, progress=None):
   clf = exp.evaluation[0].results['classifier'].named_steps['learner']
   # Quality uses squared weights across support vectors, ignoring SV weights.
   quality = (clf.coef_**2).sum(0)
-  meta_ftrs = _GetMetaFeatures(exp.extractor.model.s2_kernels[0])
+  meta_ftrs = GetMetaFeatures(exp.extractor.model.s2_kernels[0])
   # estimate regression parameters from SVM weights
   logging.info("Estimate parameters of regression model")
   quality_model = neighbors.KNeighborsRegressor(n_neighbors=4).fit(meta_ftrs,
@@ -61,7 +61,7 @@ def LearnPatchesFromImages(exp, num_regr_samples, num_samples, num_prototypes,
   """Learn patch models by meta-feature weighted k-Means clustering.
 
   Weights are given by a feature quality prediction model using prototype
-  "meta-features".
+  meta-features.
 
   :param int num_regr_samples: Number of patches used to train quality
      prediction regression model.
@@ -82,13 +82,13 @@ def LearnPatchesFromImages(exp, num_regr_samples, num_samples, num_prototypes,
       "Multiple kernel sizes are not supported"
   logging.info("\tnum_regr_samples(%d), num_samples(%d)", num_regr_samples,
       num_samples)
-  quality_model = _TrainQualityModel(exp, num_regr_samples, pool,
+  quality_model = TrainQualityModel(exp, num_regr_samples, pool,
       progress=progress)
   # sample C1 patches
   MakePrototypes(exp, num_samples, 'imprint', pool, progress=progress)
   samples = exp.extractor.model.s2_kernels[0]
   # estimate patch weights using the quality model
-  weights = quality_model.predict(_GetMetaFeatures(samples))
+  weights = quality_model.predict(GetMetaFeatures(samples))
   # choose prototypes by weighted k-means
   logging.info("Estimate C1 Clusters using weighted k-Means")
   kmeans = WeightedMiniBatchKMeans(n_clusters = num_prototypes).fit(
