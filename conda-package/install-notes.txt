@@ -1,0 +1,35 @@
+
+Anaconda:
+  http://09c8d0b2229f813c1b93-c95ac804525aac4b6dba79b00b39d1d3.r79.cf1.rackcdn.com/Anaconda-2.0.1-Linux-x86_64.sh
+
+Install Anaconda:
+  bash /vagrant/Anaconda-2.0.1-Linux-x86_64.sh
+
+Create new conda environment:
+  conda create --yes -n gtest numpy
+  source activate gtest
+
+Install an existing glimpse package:
+  conda install -c https://conda.binstar.org/mthomure glimpse
+
+Alternatively, a new glimpse package can be built with:
+  sudo apt-get install g++
+#  conda install pyparsing=1.6.5
+  conda install --yes numpy=1.8.1 scipy=0.14.0
+  conda install --yes scikit-learn traits traitsui decorator pil matplotlib
+
+
+  conda install pip
+  conda install patchelf  # needed on linux (at least)
+  conda install --yes scikit-learn traits traitsui decorator pil matplotlib
+  # pip install glimpse
+  conda skeleton pypi glimpse
+  conda build --no-test glimpse
+  binstar upload PATH_TO_PACKAGE
+
+
+MiniConda:
+  http://repo.continuum.io/miniconda/Miniconda-3.5.5-Linux-x86_64.sh
+
+
+
