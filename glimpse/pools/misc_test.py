@@ -4,7 +4,7 @@ import os
 import unittest
 
 from .misc import *
-import glimpse.pools.gearmancluster
+import glimpse.pools.ipythoncluster
 
 @contextmanager
 def OverrideVar(name, value):
@@ -43,13 +43,13 @@ class TestCase(unittest.TestCase):
     if 'GLIMPSE_CLUSTER' in os.environ:
       del os.environ['GLIMPSE_CLUSTER']
     with OverrideVar('DEFAULT_CLUSTER_TYPE', ""):
-      self.assertEqual(GetClusterPackage("gearman"),
-          glimpse.pools.gearmancluster)
+      self.assertEqual(GetClusterPackage("ipython"),
+          glimpse.pools.ipythoncluster)
 
   def testGetClusterPackage_withEnvVar(self):
-    os.environ['GLIMPSE_CLUSTER'] = "gearman"
+    os.environ['GLIMPSE_CLUSTER'] = "ipython"
     with OverrideVar('DEFAULT_CLUSTER_TYPE', ""):
-      self.assertEqual(GetClusterPackage(), glimpse.pools.gearmancluster)
+      self.assertEqual(GetClusterPackage(), glimpse.pools.ipythoncluster)
 
 if __name__ == '__main__':
   unittest.main()
