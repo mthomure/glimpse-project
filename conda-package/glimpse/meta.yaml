@@ -1,6 +1,6 @@
 package:
   name: glimpse
-  version: !!str 0.2.1
+  version: !!str 0.2.2
 
 source:
   git_url: https://github.com/mthomure/glimpse-project.git
@@ -21,17 +21,18 @@ build:
     # Would create an entry point called glimpse that calls glimpse.main()
 
     - glab = glimpse.glab.cli:Main
+    - glimpse_to_svmlight = glimpse.glab.glimpse_to_svmlight:Main
 
   # If this is a new build for the same version, increment the build
   # number. If you do not include this key, it defaults to 0.
-  number: 2
+  number: 3
 
 requirements:
   build:
     - decorator
     - ipython 2.1.0
+    - matplotlib
     - numpy
-    - setuptools
     - pil
     - python
     - pyzmq 14.3.0
@@ -43,8 +44,8 @@ requirements:
   run:
     - decorator
     - ipython 2.1.0
-    - numpy
     - matplotlib
+    - numpy
     - pil
     - python
     - pyzmq 14.3.0
@@ -78,7 +79,7 @@ test:
     # You can put test commands to be run here.  Use this to test that the
     # entry points work.
 
-    - glab
+    - glab -E -v --predictions -p imprint --corpus-name easy
 
   # You can also put a file called run_test.py in the recipe that will be run
   # at test time.
