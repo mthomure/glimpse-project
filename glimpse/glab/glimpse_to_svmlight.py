@@ -1,4 +1,4 @@
-#!/usr/bin/env python 
+#!/usr/bin/env python
 
 import cPickle as pickle
 from sklearn.datasets import dump_svmlight_file
@@ -6,7 +6,7 @@ import sys
 
 from glimpse.experiment import *
 
-def Main(input_file, train_file, test_file):
+def glimpse_to_svmlight(input_file, train_file, test_file):
   with open(input_file) as fh:
     exp = pickle.load(fh)
   ftrs = ExtractFeatures(Layer.C2, exp.extractor.activation)
@@ -17,7 +17,12 @@ def Main(input_file, train_file, test_file):
   print "----------"
   print "\n".join("%d - %s" % (index+1,name) for (index,name) in enumerate(exp.corpus.class_names))
 
-if __name__ == '__main__':
-  if len(sys.argv) < 4:
+def Main(argv=None):
+  if argv is None:
+    argv = sys.argv
+  if len(argv) < 4:
     sys.exit("usage: %s EXP.pkl TRAIN.svm TEST.svm" % sys.argv[0])
-  Main(*sys.argv[1:4])
+  glimpse_to_svmlight(*argv[1:4])
+
+if __name__ == '__main__':
+  Main()
