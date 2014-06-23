@@ -117,9 +117,9 @@ base_backend_ext = NumpyExtension(
 
 setup(
   name = "glimpse",
-  version = "0.2.1",
+  version = "0.2.2",
   author = "Mick Thomure",
-  author_email = "thomure@cs.pdx.edu",
+  author_email = "mthomure@gmail.com",
   packages = find_packages(),
   url = 'https://github.com/mthomure/glimpse-project',
   license = 'LICENSE.txt',
@@ -127,8 +127,10 @@ setup(
   long_description = open('README.txt').read(),
   platforms = ["Linux", "Mac OS-X", "Unix"],
   entry_points = {
-    'console_scripts' :
-        ['glab = glimpse.glab.cli:Main']},
+    'console_scripts' : [
+        'glab = glimpse.glab.cli:Main',
+        'glimpse_to_svmlight = glimpse.glab.glimpse_to_svmlight:Main',
+    ]},
   classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -144,13 +146,16 @@ setup(
     "Operating System :: MacOS",
   ],
   install_requires = [
-    "Python >= 2.7",
-    "numpy",
-    "scipy",
-    "PIL",
-    "traits",
-    "scikit-learn >= 0.13",
     "decorator",
+    "ipython >= 2.1.0",
+    "numpy",
+    "matplotlib",
+    "PIL",
+    "Python >= 2.7",
+    "pyzmq >= 14.3.0",
+    "scikit-learn == 0.14.1",
+    "scipy",
+    "traits",
     "traitsui",
   ],
   setup_requires = [
