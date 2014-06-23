@@ -264,13 +264,21 @@ def CliEvaluate(opts, exp):
       print
       print "Training Set Predictions"
       print "------------------------"
-      for img,lbl,pred in GetPredictions(exp, training=True, evaluation=-1):
-        print img, lbl, pred
+      training_predictions = GetPredictions(exp, training=True, evaluation=-1)
+      if len(training_predictions) == 0:
+        print "no training instances"
+      else:
+        for img,lbl,pred in training_predictions:
+          print img, lbl, pred
       print
       print "Test Set Predictions"
       print "--------------------"
-      for img,lbl,pred in GetPredictions(exp, training=False, evaluation=-1):
-        print img, lbl, pred
+      predictions = GetPredictions(exp, training=False, evaluation=-1)
+      if len(predictions) == 0:
+        print "no test instances"
+      else:
+        for img,lbl,pred in predictions:
+          print img, lbl, pred
       print
 
 def CliProject(opts):

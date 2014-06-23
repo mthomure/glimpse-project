@@ -232,7 +232,12 @@ def GetPredictions(exp, training=False, evaluation=0):
     raise ExpError("An evaluation record is required")
   training_set = GetTrainingSet(exp, evaluation=evaluation)
   r = exp.evaluation[evaluation].results
-  predictions = r.training_predictions if training else r.predictions
+  if training:
+    predictions = getattr(r, 'training_predictions', None)
+  else:
+    predictions = getattr(r, 'predictions', None)
+  if predictions is None:
+    return list()
   cnames = exp.corpus.class_names
   return zip(exp.corpus.paths[training_set],
       cnames[exp.corpus.labels[training_set]], cnames[predictions])
