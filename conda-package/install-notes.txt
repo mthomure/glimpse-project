@@ -1,0 +1,13 @@
+Download and Install Anaconda:
+  wget http://09c8d0b2229f813c1b93-c95ac804525aac4b6dba79b00b39d1d3.r79.cf1.rackcdn.com/Anaconda-2.0.1-Linux-x86_64.sh
+  bash /vagrant/Anaconda-2.0.1-Linux-x86_64.sh -b
+  # add anaconda/bin to your path
+  conda install -c mthomure glimpse
+  glab -E -v --predictions -p imprint --corpus-name hard  # test install
+
+For development of new conda package:
+  sudo apt-get -y install g++ git
+  sudo apt-get -y install g++ git  # on linux
+  conda install --yes patchelf  # on linux
+  cd glimpse-project/conda-package
+  conda build glimpse
