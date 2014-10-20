@@ -398,6 +398,21 @@ def Main(argv = None):
       print >>sys.stderr, "Model Parameters (and defaults):"
       PrintModelParamHelp()
       sys.exit(-1)
+
+    def p(opt, indent=0):
+      if isinstance(opt, OptionGroup):
+        if opt._name:  # skip root
+          print ("    " * indent) + opt._name
+        for c in opt._children:
+          p(c, indent+1)
+      else:
+        print ("    " * indent) + "%s: %s" % (opt._name, opt.value)
+
+    if options.verbose.value:
+      print "Raw Arguments: %s" % (argv or sys.argv)[1:]
+      print "Parsed Arguments:"
+      p(options)
+
     CliProject(OptValue(options))
   except ExpError, e:
     print >>sys.stderr, "Error: %s." % e
