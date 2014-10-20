@@ -230,17 +230,18 @@ def GetPredictions(exp, training=False, evaluation=0):
   """
   if len(exp.evaluation) < 1:
     raise ExpError("An evaluation record is required")
-  training_set = GetTrainingSet(exp, evaluation=evaluation)
   r = exp.evaluation[evaluation].results
+  target_set = GetTrainingSet(exp, evaluation=evaluation)
   if training:
     predictions = getattr(r, 'training_predictions', None)
   else:
     predictions = getattr(r, 'predictions', None)
+    target_set = ~target_set
   if predictions is None:
     return list()
   cnames = exp.corpus.class_names
-  return zip(exp.corpus.paths[training_set],
-      cnames[exp.corpus.labels[training_set]], cnames[predictions])
+  return zip(exp.corpus.paths[target_set],
+      cnames[exp.corpus.labels[target_set]], cnames[predictions])
 
 def GetEvaluationLayers(exp, evaluation=0):
   """Returns the model layers from which features were extracted.
