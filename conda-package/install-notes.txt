@@ -11,4 +11,5 @@ For development of new conda package:
   sudo apt-get -y install g++ git  # on linux
   conda install --yes patchelf  # on linux
   cd glimpse-project/conda-package
-  conda build glimpse
+  conda build glimpse   # NB: this pulls source from master branch on github
+
